@@ -1,0 +1,13 @@
+[package]
+name = "wgpu_particles"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+winit = "0.30.12"
+env_logger = "0.11.8"
+log = "0.4.29"
+wgpu = "27.0.0"
+pollster = "0.4.0"
+bytemuck = "1.24.0"
