@@ -1,8 +1,5 @@
 struct VertexInput {
     @builtin(vertex_index) vertex_index: u32,
-    // @location(0) position: vec3f,
-    // @location(1) color: vec4f,
-    // @location(2) quad_pos : vec2f
 };
 
 struct VertexOutput {
@@ -10,6 +7,10 @@ struct VertexOutput {
     @location(0) color: vec4f,
     @location(1) quad_pos: vec2f,
 };
+
+struct FragmentOutput {
+    @location(0) color: vec4f
+}
 
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
@@ -31,8 +32,8 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+fn fs_main(in: VertexOutput) -> FragmentOutput {
     var color = in.color;
     color.a = max(0.0, smoothstep(0.0, 0.01, 1.0 - length(in.quad_pos.xy)));
-    return color;
+    return FragmentOutput(color);
 }
