@@ -1,5 +1,6 @@
 use pollster::block_on;
 use std::{borrow::Cow, sync::Arc};
+use wgpu::ColorTargetState;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -83,7 +84,12 @@ impl ApplicationHandler for App<'_> {
 
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
+        println!("Swapchain format: {swapchain_format:?}");
 
+        let color_target_state = ColorTargetState {
+            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+            ..wgpu::ColorTargetState::from(swapchain_format)
+        };
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
@@ -97,7 +103,7 @@ impl ApplicationHandler for App<'_> {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
-                targets: &[Some(swapchain_format.into())],
+                targets: &[Some(color_target_state)],
             }),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
@@ -120,10 +126,6 @@ impl ApplicationHandler for App<'_> {
             surface,
             window,
         })
-    }
-
-    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        self.state = None;
     }
 
     fn window_event(
@@ -163,7 +165,7 @@ impl ApplicationHandler for App<'_> {
                             depth_slice: None,
                             resolve_target: None,
                             ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                                 store: wgpu::StoreOp::Store,
                             },
                         })],
@@ -172,7 +174,7 @@ impl ApplicationHandler for App<'_> {
                         occlusion_query_set: None,
                     });
                     rpass.set_pipeline(&state.render_pipeline);
-                    rpass.draw(0..3, 0..1);
+                    rpass.draw(0..6, 0..2);
                 }
 
                 state.queue.submit(Some(encoder.finish()));
