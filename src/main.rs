@@ -62,7 +62,7 @@ impl ApplicationHandler for App<'_> {
 
         let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: None,
-            required_features: wgpu::Features::empty(),
+            required_features: wgpu::Features::PIPELINE_CACHE,
             required_limits: wgpu::Limits::defaults().using_resolution(adapter.limits()),
             experimental_features: wgpu::ExperimentalFeatures::disabled(),
             memory_hints: wgpu::MemoryHints::Performance,
@@ -70,7 +70,6 @@ impl ApplicationHandler for App<'_> {
         }))
         .expect("Failed to create device");
 
-        // Load the shaders from disk
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
@@ -84,11 +83,16 @@ impl ApplicationHandler for App<'_> {
 
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
-        println!("Swapchain format: {swapchain_format:?}");
-
         let color_target_state = ColorTargetState {
             blend: Some(wgpu::BlendState::ALPHA_BLENDING),
             ..wgpu::ColorTargetState::from(swapchain_format)
+        };
+        let pipeline_cache = unsafe {
+            device.create_pipeline_cache(&wgpu::PipelineCacheDescriptor {
+                label: None,
+                data: None,
+                fallback: true,
+            })
         };
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -109,7 +113,7 @@ impl ApplicationHandler for App<'_> {
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
-            cache: None,
+            cache: Some(&pipeline_cache),
         });
 
         let size = window.inner_size();
