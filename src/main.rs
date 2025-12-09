@@ -1,6 +1,9 @@
+mod shaders;
+
+use nalgebra::{Matrix4, Vector3};
 use pollster::block_on;
-use std::{borrow::Cow, sync::Arc};
-use wgpu::ColorTargetState;
+use std::sync::Arc;
+use wgpu::{util::DeviceExt, ColorTargetState};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -9,6 +12,8 @@ use winit::{
     keyboard::{Key, NamedKey},
     window::{Window, WindowAttributes, WindowId},
 };
+
+use crate::shaders::circle;
 
 fn main() {
     let event_loop = EventLoop::new().expect("Failed to create event loop");
@@ -31,6 +36,9 @@ impl App<'_> {
 }
 
 struct AppState<'a> {
+    vertex_buffer: wgpu::Buffer,
+    uniforms_bind_group: circle::WgpuBindGroup0,
+    _uniforms_buffer: wgpu::Buffer,
     render_pipeline: wgpu::RenderPipeline,
     queue: wgpu::Queue,
     device: wgpu::Device,
@@ -70,16 +78,17 @@ impl ApplicationHandler for App<'_> {
         }))
         .expect("Failed to create device");
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
-        });
+        let size = window.inner_size();
+        let config = surface
+            .get_default_config(&adapter, size.width, size.height)
+            .unwrap();
+        surface.configure(&device, &config);
 
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[],
-            push_constant_ranges: &[],
-        });
+        let shader = circle::create_shader_module_embed_source(&device);
+        let pipeline_layout = circle::create_pipeline_layout(&device);
+
+        let vertex_entry = circle::vs_main_entry(wgpu::VertexStepMode::Vertex);
+        let vertex_state = circle::vertex_state(&shader, &vertex_entry);
 
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
@@ -87,6 +96,9 @@ impl ApplicationHandler for App<'_> {
             blend: Some(wgpu::BlendState::ALPHA_BLENDING),
             ..wgpu::ColorTargetState::from(swapchain_format)
         };
+        let fragment_entry = circle::fs_main_entry([Some(color_target_state)]);
+        let fragment_state = circle::fragment_state(&shader, &fragment_entry);
+
         let pipeline_cache = unsafe {
             device.create_pipeline_cache(&wgpu::PipelineCacheDescriptor {
                 label: None,
@@ -97,18 +109,8 @@ impl ApplicationHandler for App<'_> {
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &[],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(color_target_state)],
-            }),
+            vertex: vertex_state,
+            fragment: Some(fragment_state),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
@@ -116,13 +118,44 @@ impl ApplicationHandler for App<'_> {
             cache: Some(&pipeline_cache),
         });
 
-        let size = window.inner_size();
-        let config = surface
-            .get_default_config(&adapter, size.width, size.height)
-            .unwrap();
-        surface.configure(&device, &config);
+        let size_f32 = size.cast::<f32>();
+        let aspect_ratio = size_f32.width / size_f32.height;
+        let transform_matrix =
+            Matrix4::new_nonuniform_scaling(&Vector3::new(1.0 / aspect_ratio, 1.0, 1.0));
+        let uniforms = circle::Uniforms::new(transform_matrix.into());
+        let uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Transform buffer"),
+            contents: bytemuck::cast_slice(&[uniforms]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let uniforms_bind_group = circle::WgpuBindGroup0::from_bindings(
+            &device,
+            circle::WgpuBindGroup0Entries::new(circle::WgpuBindGroup0EntriesParams {
+                uniforms: wgpu::BufferBinding {
+                    buffer: &uniforms_buffer,
+                    offset: 0,
+                    size: None,
+                },
+            }),
+        );
+
+        let circle_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex buffer"),
+            contents: bytemuck::cast_slice(&[
+                circle::VertexInput::new([1.0, 1.0]),
+                circle::VertexInput::new([-1.0, 1.0]),
+                circle::VertexInput::new([-1.0, -1.0]),
+                circle::VertexInput::new([-1.0, -1.0]),
+                circle::VertexInput::new([1.0, -1.0]),
+                circle::VertexInput::new([1.0, 1.0]),
+            ]),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
 
         self.state = Some(AppState {
+            vertex_buffer: circle_vertex_buffer,
+            uniforms_bind_group,
+            _uniforms_buffer: uniforms_buffer,
             render_pipeline,
             queue,
             device,
@@ -161,26 +194,27 @@ impl ApplicationHandler for App<'_> {
                 let mut encoder = state
                     .device
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-                {
-                    let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: None,
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &view,
-                            depth_slice: None,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                                store: wgpu::StoreOp::Store,
-                            },
-                        })],
-                        depth_stencil_attachment: None,
-                        timestamp_writes: None,
-                        occlusion_query_set: None,
-                    });
-                    rpass.set_pipeline(&state.render_pipeline);
-                    rpass.draw(0..6, 0..2);
-                }
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: None,
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
 
+                render_pass.set_pipeline(&state.render_pipeline);
+                state.uniforms_bind_group.set(&mut render_pass);
+                render_pass.set_vertex_buffer(0, state.vertex_buffer.slice(..));
+                render_pass.draw(0..6, 0..2);
+                drop(render_pass);
                 state.queue.submit(Some(encoder.finish()));
                 state.window.pre_present_notify();
                 frame.present();
