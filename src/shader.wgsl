@@ -4,36 +4,34 @@ struct VertexInput {
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,
-    @location(0) color: vec4f,
-    @location(1) quad_pos: vec2f,
+    @location(0) quad_position: vec2f,
 };
 
 struct FragmentOutput {
     @location(0) color: vec4f
 }
 
+const QUAD_VERTICES_LENGTH: u32 = 6;
+const QUAD = array<vec2<f32>,6>(
+    vec2f(1.0, 1.0),
+    vec2f(-1.0, 1.0),
+    vec2f(-1.0, -1.0),
+    vec2f(-1.0, -1.0),
+    vec2f(1.0, -1.0),
+    vec2f(1.0, 1.0)
+);
+
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
-    var v: vec2f;
-    switch in.vertex_index {
-        case 0 { v = vec2f(1.0, 1.0); }
-        case 1 { v = vec2f(-1.0, 1.0); }
-        case 2 { v = vec2f(-1.0, -1.0); }
-        case 3 { v = vec2f(-1.0, -1.0); }
-        case 4 { v = vec2f(1.0, -1.0); }
-        case 5 { v = vec2f(1.0, 1.0); }
-        default { v = vec2f(0.0, 0.0); }
-    }
     var out: VertexOutput;
-    out.clip_position = vec4f(v, 0.0, 1.1);
-    out.color = vec4f(1.0, 0.0, 0.0, 1.0);
-    out.quad_pos = out.clip_position.xy;
+    out.clip_position = vec4f(QUAD[in.vertex_index % QUAD_VERTICES_LENGTH], 0.0, 1.1);
+    out.quad_position = out.clip_position.xy;
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
-    var color = in.color;
-    color.a = max(0.0, smoothstep(0.0, 0.01, 1.0 - length(in.quad_pos.xy)));
+    var color = vec4f(1.0, 0.0, 0.0, 1.0);
+    color.a = smoothstep(1.0, 0.99, length(in.quad_position.xy));
     return FragmentOutput(color);
 }
