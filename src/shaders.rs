@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: 9fc75da68661691624f75d549ce8b7c17aa59633265e2b2c0a34d33dff660d7b
+// SourceHash: dfa59bf5cc8f49a554452b9f34e560bf274ff2def9c6b8df9a264dd7b28889c8
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -57,7 +57,8 @@ pub mod layout_asserts {
     const WGSL_BASE_TYPE_ASSERTS: () = {};
     const CIRCLE_UNIFORMS_ASSERTS: () = {
         assert!(std::mem::offset_of!(circle::Uniforms, transform) == 0);
-        assert!(std::mem::size_of::<circle::Uniforms>() == 64);
+        assert!(std::mem::offset_of!(circle::Uniforms, scaling) == 64);
+        assert!(std::mem::size_of::<circle::Uniforms>() == 80);
     };
 }
 pub mod circle {
@@ -67,10 +68,37 @@ pub mod circle {
     pub struct Uniforms {
         #[doc = "offset: 0, size: 64, type: `mat4x4<f32>`"]
         pub transform: [[f32; 4]; 4],
+        #[doc = "offset: 64, size: 4, type: `f32`"]
+        pub scaling: f32,
+        pub _pad_scaling: [u8; 0xC],
     }
     impl Uniforms {
-        pub const fn new(transform: [[f32; 4]; 4]) -> Self {
-            Self { transform }
+        pub const fn new(transform: [[f32; 4]; 4], scaling: f32) -> Self {
+            Self {
+                transform,
+                scaling,
+                _pad_scaling: [0; 0xC],
+            }
+        }
+    }
+    #[repr(C)]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct UniformsInit {
+        pub transform: [[f32; 4]; 4],
+        pub scaling: f32,
+    }
+    impl UniformsInit {
+        pub fn build(&self) -> Uniforms {
+            Uniforms {
+                transform: self.transform,
+                scaling: self.scaling,
+                _pad_scaling: [0; 0xC],
+            }
+        }
+    }
+    impl From<UniformsInit> for Uniforms {
+        fn from(data: UniformsInit) -> Self {
+            data.build()
         }
     }
     #[repr(C)]
@@ -89,6 +117,40 @@ pub mod circle {
             offset: std::mem::offset_of!(Self, position) as u64,
             shader_location: 0,
         }];
+        pub const fn vertex_buffer_layout(
+            step_mode: wgpu::VertexStepMode,
+        ) -> wgpu::VertexBufferLayout<'static> {
+            wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<Self>() as u64,
+                step_mode,
+                attributes: &Self::VERTEX_ATTRIBUTES,
+            }
+        }
+    }
+    #[repr(C)]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct InstanceInput {
+        pub position: [f32; 2],
+        pub color: [f32; 4],
+    }
+    impl InstanceInput {
+        pub const fn new(position: [f32; 2], color: [f32; 4]) -> Self {
+            Self { position, color }
+        }
+    }
+    impl InstanceInput {
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 2] = [
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x2,
+                offset: std::mem::offset_of!(Self, position) as u64,
+                shader_location: 1,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: std::mem::offset_of!(Self, color) as u64,
+                shader_location: 2,
+            },
+        ];
         pub const fn vertex_buffer_layout(
             step_mode: wgpu::VertexStepMode,
         ) -> wgpu::VertexBufferLayout<'static> {
@@ -121,10 +183,16 @@ pub mod circle {
             },
         }
     }
-    pub fn vs_main_entry(vertex_input: wgpu::VertexStepMode) -> VertexEntry<1> {
+    pub fn vs_main_entry(
+        vertex_input: wgpu::VertexStepMode,
+        instance_input: wgpu::VertexStepMode,
+    ) -> VertexEntry<2> {
         VertexEntry {
             entry_point: ENTRY_VS_MAIN,
-            buffers: [VertexInput::vertex_buffer_layout(vertex_input)],
+            buffers: [
+                VertexInput::vertex_buffer_layout(vertex_input),
+                InstanceInput::vertex_buffer_layout(instance_input),
+            ],
             constants: Default::default(),
         }
     }
@@ -261,6 +329,7 @@ pub mod circle {
     pub const SHADER_STRING: &str = r#"
 struct Uniforms {
     transform: mat4x4<f32>,
+    scaling: f32,
 }
 
 struct VertexInput {
@@ -271,6 +340,12 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) quad_position: vec2<f32>,
+    @location(1) color: vec4<f32>,
+}
+
+struct InstanceInput {
+    @location(1) position: vec2<f32>,
+    @location(2) color: vec4<f32>,
 }
 
 struct FragmentOutput {
@@ -281,23 +356,26 @@ struct FragmentOutput {
 var<uniform> uniforms: Uniforms;
 
 @vertex 
-fn vs_main(in: VertexInput) -> VertexOutput {
+fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
 
-    let _e5 = uniforms.transform;
-    out.clip_position = (_e5 * vec4<f32>(in.position, 0f, 1.1f));
-    out.quad_position = vec4<f32>(in.position, 0f, 1.1f).xy;
-    let _e17 = out;
-    return _e17;
+    let _e6 = uniforms.transform;
+    out.clip_position = (_e6 * vec4<f32>((vertex.position + instance.position), 0f, 1.1f));
+    out.quad_position = vec4<f32>(vertex.position, 0f, 1.1f).xy;
+    out.color = instance.color;
+    let _e22 = out;
+    return _e22;
 }
 
 @fragment 
-fn fs_main(in_1: VertexOutput) -> FragmentOutput {
-    var color: vec4<f32> = vec4<f32>(1f, 0f, 0f, 1f);
+fn fs_main(in: VertexOutput) -> FragmentOutput {
+    var color: vec4<f32>;
 
-    color.w = smoothstep(1f, 0.99f, length(in_1.quad_position));
-    let _e11 = color;
-    return FragmentOutput(_e11);
+    color = in.color;
+    let _e6 = uniforms.scaling;
+    color.w = smoothstep(1f, (1f - (0.01f / _e6)), length(in.quad_position));
+    let _e15 = color;
+    return FragmentOutput(_e15);
 }
 "#;
 }
@@ -307,4 +385,6 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for circle::Uniforms {}
     unsafe impl bytemuck::Zeroable for circle::VertexInput {}
     unsafe impl bytemuck::Pod for circle::VertexInput {}
+    unsafe impl bytemuck::Zeroable for circle::InstanceInput {}
+    unsafe impl bytemuck::Pod for circle::InstanceInput {}
 }

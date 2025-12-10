@@ -1,5 +1,6 @@
 struct Uniforms {
     transform: mat4x4f,
+    scaling: f32
 }
 
 struct VertexInput {
@@ -10,7 +11,13 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,
     @location(0) quad_position: vec2f,
+    @location(1) color: vec4f
 };
+
+struct InstanceInput {
+    @location(1) position: vec2f,
+    @location(2) color: vec4f
+}
 
 struct FragmentOutput {
     @location(0) color: vec4f
@@ -19,16 +26,17 @@ struct FragmentOutput {
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 @vertex
-fn vs_main(in: VertexInput) -> VertexOutput {
+fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
-    out.clip_position = uniforms.transform * vec4f(in.position, 0.0, 1.1);
-    out.quad_position = vec4f(in.position, 0.0, 1.1).xy;
+    out.clip_position = uniforms.transform * vec4f(vertex.position + instance.position, 0.0, 1.1);
+    out.quad_position = vec4f(vertex.position, 0.0, 1.1).xy;
+    out.color = instance.color;
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
-    var color = vec4f(1.0, 0.0, 0.0, 1.0);
-    color.a = smoothstep(1.0, 0.99, length(in.quad_position));
+    var color = in.color;
+    color.a = smoothstep(1.0, 1.0 - 0.01/uniforms.scaling, length(in.quad_position));
     return FragmentOutput(color);
 }

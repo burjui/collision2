@@ -37,6 +37,7 @@ impl App<'_> {
 
 struct AppState<'a> {
     vertex_buffer: wgpu::Buffer,
+    instance_buffer: wgpu::Buffer,
     uniforms_bind_group: circle::WgpuBindGroup0,
     _uniforms_buffer: wgpu::Buffer,
     render_pipeline: wgpu::RenderPipeline,
@@ -87,7 +88,8 @@ impl ApplicationHandler for App<'_> {
         let shader = circle::create_shader_module_embed_source(&device);
         let pipeline_layout = circle::create_pipeline_layout(&device);
 
-        let vertex_entry = circle::vs_main_entry(wgpu::VertexStepMode::Vertex);
+        let vertex_entry =
+            circle::vs_main_entry(wgpu::VertexStepMode::Vertex, wgpu::VertexStepMode::Instance);
         let vertex_state = circle::vertex_state(&shader, &vertex_entry);
 
         let swapchain_capabilities = surface.get_capabilities(&adapter);
@@ -120,9 +122,11 @@ impl ApplicationHandler for App<'_> {
 
         let size_f32 = size.cast::<f32>();
         let aspect_ratio = size_f32.width / size_f32.height;
+        let scaling = 0.05;
         let transform_matrix =
-            Matrix4::new_nonuniform_scaling(&Vector3::new(1.0 / aspect_ratio, 1.0, 1.0));
-        let uniforms = circle::Uniforms::new(transform_matrix.into());
+            Matrix4::new_nonuniform_scaling(&Vector3::new(1.0 / aspect_ratio, 1.0, 1.0))
+                .append_scaling(scaling);
+        let uniforms = circle::Uniforms::new(transform_matrix.into(), scaling);
         let uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Transform buffer"),
             contents: bytemuck::cast_slice(&[uniforms]),
@@ -139,8 +143,8 @@ impl ApplicationHandler for App<'_> {
             }),
         );
 
-        let circle_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex buffer"),
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Circle vertex buffer"),
             contents: bytemuck::cast_slice(&[
                 circle::VertexInput::new([1.0, 1.0]),
                 circle::VertexInput::new([-1.0, 1.0]),
@@ -151,9 +155,19 @@ impl ApplicationHandler for App<'_> {
             ]),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Circle vertex buffer"),
+            contents: bytemuck::cast_slice(&[
+                circle::InstanceInput::new([0.0, 0.0], [1.0, 0.0, 0.0, 1.0]),
+                circle::InstanceInput::new([0.0, 2.0], [0.0, 1.0, 0.0, 1.0]),
+                circle::InstanceInput::new([0.0, 4.0], [0.0, 0.0, 1.0, 1.0]),
+            ]),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
 
         self.state = Some(AppState {
-            vertex_buffer: circle_vertex_buffer,
+            vertex_buffer,
+            instance_buffer,
             uniforms_bind_group,
             _uniforms_buffer: uniforms_buffer,
             render_pipeline,
@@ -213,7 +227,8 @@ impl ApplicationHandler for App<'_> {
                 render_pass.set_pipeline(&state.render_pipeline);
                 state.uniforms_bind_group.set(&mut render_pass);
                 render_pass.set_vertex_buffer(0, state.vertex_buffer.slice(..));
-                render_pass.draw(0..6, 0..2);
+                render_pass.set_vertex_buffer(1, state.instance_buffer.slice(..));
+                render_pass.draw(0..6, 0..3);
                 drop(render_pass);
                 state.queue.submit(Some(encoder.finish()));
                 state.window.pre_present_notify();
