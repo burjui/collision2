@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: dfa59bf5cc8f49a554452b9f34e560bf274ff2def9c6b8df9a264dd7b28889c8
+// SourceHash: bf0548289b369d6a908eeec1c334f99463ea1394c828114624e69f44a7b2a53a
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -24,30 +24,15 @@ impl ShaderEntry {
 mod _root {
     pub use super::*;
     pub trait SetBindGroup {
-        fn set_bind_group(
-            &mut self,
-            index: u32,
-            bind_group: &wgpu::BindGroup,
-            offsets: &[wgpu::DynamicOffset],
-        );
+        fn set_bind_group(&mut self, index: u32, bind_group: &wgpu::BindGroup, offsets: &[wgpu::DynamicOffset]);
     }
     impl SetBindGroup for wgpu::RenderPass<'_> {
-        fn set_bind_group(
-            &mut self,
-            index: u32,
-            bind_group: &wgpu::BindGroup,
-            offsets: &[wgpu::DynamicOffset],
-        ) {
+        fn set_bind_group(&mut self, index: u32, bind_group: &wgpu::BindGroup, offsets: &[wgpu::DynamicOffset]) {
             self.set_bind_group(index, bind_group, offsets);
         }
     }
     impl SetBindGroup for wgpu::RenderBundleEncoder<'_> {
-        fn set_bind_group(
-            &mut self,
-            index: u32,
-            bind_group: &wgpu::BindGroup,
-            offsets: &[wgpu::DynamicOffset],
-        ) {
+        fn set_bind_group(&mut self, index: u32, bind_group: &wgpu::BindGroup, offsets: &[wgpu::DynamicOffset]) {
             self.set_bind_group(index, bind_group, offsets);
         }
     }
@@ -117,9 +102,7 @@ pub mod circle {
             offset: std::mem::offset_of!(Self, position) as u64,
             shader_location: 0,
         }];
-        pub const fn vertex_buffer_layout(
-            step_mode: wgpu::VertexStepMode,
-        ) -> wgpu::VertexBufferLayout<'static> {
+        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
             wgpu::VertexBufferLayout {
                 array_stride: std::mem::size_of::<Self>() as u64,
                 step_mode,
@@ -131,29 +114,37 @@ pub mod circle {
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct InstanceInput {
         pub position: [f32; 2],
+        pub radius: f32,
         pub color: [f32; 4],
     }
     impl InstanceInput {
-        pub const fn new(position: [f32; 2], color: [f32; 4]) -> Self {
-            Self { position, color }
+        pub const fn new(position: [f32; 2], radius: f32, color: [f32; 4]) -> Self {
+            Self {
+                position,
+                radius,
+                color,
+            }
         }
     }
     impl InstanceInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 2] = [
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] = [
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x2,
                 offset: std::mem::offset_of!(Self, position) as u64,
                 shader_location: 1,
             },
             wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x4,
-                offset: std::mem::offset_of!(Self, color) as u64,
+                format: wgpu::VertexFormat::Float32,
+                offset: std::mem::offset_of!(Self, radius) as u64,
                 shader_location: 2,
             },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: std::mem::offset_of!(Self, color) as u64,
+                shader_location: 3,
+            },
         ];
-        pub const fn vertex_buffer_layout(
-            step_mode: wgpu::VertexStepMode,
-        ) -> wgpu::VertexBufferLayout<'static> {
+        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
             wgpu::VertexBufferLayout {
                 array_stride: std::mem::size_of::<Self>() as u64,
                 step_mode,
@@ -183,10 +174,7 @@ pub mod circle {
             },
         }
     }
-    pub fn vs_main_entry(
-        vertex_input: wgpu::VertexStepMode,
-        instance_input: wgpu::VertexStepMode,
-    ) -> VertexEntry<2> {
+    pub fn vs_main_entry(vertex_input: wgpu::VertexStepMode, instance_input: wgpu::VertexStepMode) -> VertexEntry<2> {
         VertexEntry {
             entry_point: ENTRY_VS_MAIN,
             buffers: [
@@ -250,27 +238,22 @@ pub mod circle {
     #[derive(Debug)]
     pub struct WgpuBindGroup0(wgpu::BindGroup);
     impl WgpuBindGroup0 {
-        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
-            wgpu::BindGroupLayoutDescriptor {
-                label: Some("Circle::BindGroup0::LayoutDescriptor"),
-                entries: &[
-                    #[doc = " @binding(0): \"uniforms\""]
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<
-                                _root::circle::Uniforms,
-                            >(
-                            )
-                                as _),
-                        },
-                        count: None,
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("Circle::BindGroup0::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"uniforms\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::circle::Uniforms>() as _),
                     },
-                ],
-            };
+                    count: None,
+                },
+            ],
+        };
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
         }
@@ -306,9 +289,7 @@ pub mod circle {
     #[derive(Debug)]
     pub struct WgpuPipelineLayout;
     impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(
-            entries: [wgpu::BindGroupLayout; 1],
-        ) -> [wgpu::BindGroupLayout; 1] {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
             entries
         }
     }
@@ -345,7 +326,8 @@ struct VertexOutput {
 
 struct InstanceInput {
     @location(1) position: vec2<f32>,
-    @location(2) color: vec4<f32>,
+    @location(2) radius: f32,
+    @location(3) color: vec4<f32>,
 }
 
 struct FragmentOutput {

@@ -1,9 +1,9 @@
+pub mod circle_renderer;
 mod shaders;
 
-use nalgebra::{Matrix4, Vector3};
-use pollster::block_on;
 use std::sync::Arc;
-use wgpu::{util::DeviceExt, ColorTargetState};
+
+use pollster::block_on;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -13,7 +13,7 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::shaders::circle;
+use crate::{circle_renderer::CircleRenderer, shaders::circle};
 
 fn main() {
     let event_loop = EventLoop::new().expect("Failed to create event loop");
@@ -36,11 +36,7 @@ impl App<'_> {
 }
 
 struct AppState<'a> {
-    vertex_buffer: wgpu::Buffer,
-    instance_buffer: wgpu::Buffer,
-    uniforms_bind_group: circle::WgpuBindGroup0,
-    _uniforms_buffer: wgpu::Buffer,
-    render_pipeline: wgpu::RenderPipeline,
+    circle_renderer: CircleRenderer,
     queue: wgpu::Queue,
     device: wgpu::Device,
     adapter: wgpu::Adapter,
@@ -54,16 +50,11 @@ impl ApplicationHandler for App<'_> {
         let mut window_attributes = WindowAttributes::default();
         window_attributes.inner_size = Some(PhysicalSize::new(800, 600).into());
         window_attributes.resizable = false;
-        let window = Arc::new(
-            event_loop
-                .create_window(window_attributes)
-                .expect("Failed to create window"),
-        );
+        let window = Arc::new(event_loop.create_window(window_attributes).expect("Failed to create window"));
         let surface = self.wgpu.create_surface(window.clone()).unwrap();
 
         let adapter = block_on(self.wgpu.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference:
-                wgpu::PowerPreference::from_env().unwrap_or(wgpu::PowerPreference::None),
+            power_preference: wgpu::PowerPreference::from_env().unwrap_or(wgpu::PowerPreference::None),
             force_fallback_adapter: false,
             compatible_surface: Some(&surface),
         }))
@@ -79,27 +70,12 @@ impl ApplicationHandler for App<'_> {
         }))
         .expect("Failed to create device");
 
-        let size = window.inner_size();
-        let config = surface
-            .get_default_config(&adapter, size.width, size.height)
-            .unwrap();
-        surface.configure(&device, &config);
-
-        let shader = circle::create_shader_module_embed_source(&device);
-        let pipeline_layout = circle::create_pipeline_layout(&device);
-
-        let vertex_entry =
-            circle::vs_main_entry(wgpu::VertexStepMode::Vertex, wgpu::VertexStepMode::Instance);
-        let vertex_state = circle::vertex_state(&shader, &vertex_entry);
-
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
-        let color_target_state = ColorTargetState {
-            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-            ..wgpu::ColorTargetState::from(swapchain_format)
-        };
-        let fragment_entry = circle::fs_main_entry([Some(color_target_state)]);
-        let fragment_state = circle::fragment_state(&shader, &fragment_entry);
+
+        let size = window.inner_size();
+        let config = surface.get_default_config(&adapter, size.width, size.height).unwrap();
+        surface.configure(&device, &config);
 
         let pipeline_cache = unsafe {
             device.create_pipeline_cache(&wgpu::PipelineCacheDescriptor {
@@ -108,106 +84,33 @@ impl ApplicationHandler for App<'_> {
                 fallback: true,
             })
         };
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            vertex: vertex_state,
-            fragment: Some(fragment_state),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: Some(&pipeline_cache),
-        });
 
-        let size_f32 = size.cast::<f32>();
-        let aspect_ratio = size_f32.width / size_f32.height;
-        let scaling = 0.05;
-        let transform_matrix =
-            Matrix4::new_nonuniform_scaling(&Vector3::new(1.0 / aspect_ratio, 1.0, 1.0))
-                .append_scaling(scaling);
-        let uniforms = circle::Uniforms::new(transform_matrix.into(), scaling);
-        let uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Transform buffer"),
-            contents: bytemuck::cast_slice(&[uniforms]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let uniforms_bind_group = circle::WgpuBindGroup0::from_bindings(
-            &device,
-            circle::WgpuBindGroup0Entries::new(circle::WgpuBindGroup0EntriesParams {
-                uniforms: wgpu::BufferBinding {
-                    buffer: &uniforms_buffer,
-                    offset: 0,
-                    size: None,
-                },
-            }),
-        );
-
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Circle vertex buffer"),
-            contents: bytemuck::cast_slice(&[
-                circle::VertexInput::new([1.0, 1.0]),
-                circle::VertexInput::new([-1.0, 1.0]),
-                circle::VertexInput::new([-1.0, -1.0]),
-                circle::VertexInput::new([-1.0, -1.0]),
-                circle::VertexInput::new([1.0, -1.0]),
-                circle::VertexInput::new([1.0, 1.0]),
-            ]),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Circle vertex buffer"),
-            contents: bytemuck::cast_slice(&[
-                circle::InstanceInput::new([0.0, 0.0], [1.0, 0.0, 0.0, 1.0]),
-                circle::InstanceInput::new([0.0, 2.0], [0.0, 1.0, 0.0, 1.0]),
-                circle::InstanceInput::new([0.0, 4.0], [0.0, 0.0, 1.0, 1.0]),
-            ]),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
-
+        let circle_renderer = CircleRenderer::new(&device, size, swapchain_format, &pipeline_cache);
         self.state = Some(AppState {
-            vertex_buffer,
-            instance_buffer,
-            uniforms_bind_group,
-            _uniforms_buffer: uniforms_buffer,
-            render_pipeline,
+            circle_renderer,
             queue,
             device,
             adapter,
             surface,
             window,
-        })
+        });
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _window_id: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) => {
                 let state = self.state.as_ref().unwrap();
-                let config = state
-                    .surface
-                    .get_default_config(&state.adapter, size.width, size.height)
-                    .unwrap();
+                let config = state.surface.get_default_config(&state.adapter, size.width, size.height).unwrap();
                 state.surface.configure(&state.device, &config);
                 state.window.request_redraw();
             }
 
             WindowEvent::RedrawRequested => {
-                let state = self.state.as_ref().unwrap();
-                let frame = state
-                    .surface
-                    .get_current_texture()
-                    .expect("Failed to acquire next swap chain texture");
-                let view = frame
-                    .texture
-                    .create_view(&wgpu::TextureViewDescriptor::default());
-                let mut encoder = state
-                    .device
-                    .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+                let state = self.state.as_mut().unwrap();
+
+                let frame = state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
+                let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+                let mut encoder = state.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
                 let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: None,
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -224,18 +127,24 @@ impl ApplicationHandler for App<'_> {
                     occlusion_query_set: None,
                 });
 
-                render_pass.set_pipeline(&state.render_pipeline);
-                state.uniforms_bind_group.set(&mut render_pass);
-                render_pass.set_vertex_buffer(0, state.vertex_buffer.slice(..));
-                render_pass.set_vertex_buffer(1, state.instance_buffer.slice(..));
-                render_pass.draw(0..6, 0..3);
+                state.circle_renderer.prepare(
+                    &state.device,
+                    &[
+                        circle::InstanceInput::new([0.0, 0.0], 10.0, [1.0, 0.0, 0.0, 1.0]),
+                        circle::InstanceInput::new([0.0, 2.0], 10.0, [0.0, 1.0, 0.0, 1.0]),
+                        circle::InstanceInput::new([0.0, 4.0], 10.0, [0.0, 0.0, 1.0, 1.0]),
+                    ],
+                );
+                state.circle_renderer.render(&mut render_pass);
+
                 drop(render_pass);
-                state.queue.submit(Some(encoder.finish()));
                 state.window.pre_present_notify();
+                state.queue.submit(Some(encoder.finish()));
                 frame.present();
             }
 
-            WindowEvent::KeyboardInput {
+            WindowEvent::CloseRequested
+            | WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
                         logical_key: Key::Named(NamedKey::Escape),
@@ -244,8 +153,6 @@ impl ApplicationHandler for App<'_> {
                     },
                 ..
             } => event_loop.exit(),
-
-            WindowEvent::CloseRequested => event_loop.exit(),
 
             _ => (),
         }

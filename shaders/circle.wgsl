@@ -16,7 +16,8 @@ struct VertexOutput {
 
 struct InstanceInput {
     @location(1) position: vec2f,
-    @location(2) color: vec4f
+    @location(2) radius: f32,
+    @location(3) color: vec4f
 }
 
 struct FragmentOutput {
