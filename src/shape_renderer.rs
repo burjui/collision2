@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use wgpu::{
     BlendState, Buffer, BufferBinding, BufferUsages, ColorTargetState, Device, MultisampleState, PipelineCache,
     PrimitiveState, RenderPass, RenderPipeline, RenderPipelineDescriptor, TextureFormat, VertexStepMode,
@@ -64,8 +66,8 @@ impl ShapeRenderer {
         }
     }
 
-    pub fn prepare(&mut self, device: &Device, instances: &[InstanceInput], window_size: PhysicalSize<u32>) {
-        let uniforms = shape::Uniforms::new(window_size.into());
+    pub fn prepare(&mut self, device: &Device, instances: &[InstanceInput], viewport_size: PhysicalSize<u32>) {
+        let uniforms = shape::Uniforms::new(viewport_size.into());
         let uniforms_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Transform buffer"),
             contents: bytemuck::cast_slice(&[uniforms]),
@@ -98,7 +100,7 @@ impl ShapeRenderer {
         self.instance_count = u32::try_from(instances.len()).expect("Too many instances");
     }
 
-    pub fn render(&self, render_pass: &mut RenderPass<'_>) {
+    pub fn render(&self, render_pass: &mut RenderPass<'_>, instances: Range<usize>) {
         let Some((instance_buffer, uniforms_bind_group)) =
             self.instance_buffer.as_ref().zip(self.uniforms_bind_group.as_ref())
         else {
@@ -108,6 +110,8 @@ impl ShapeRenderer {
         uniforms_bind_group.set(render_pass);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
-        render_pass.draw(0..6, 0..self.instance_count);
+        let start = u32::try_from(instances.start).unwrap();
+        let end = u32::try_from(instances.end).unwrap();
+        render_pass.draw(0..6, start..end);
     }
 }

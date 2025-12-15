@@ -87,7 +87,7 @@ impl ApplicationHandler for App<'_> {
         println!("Window size: {}x{}", window_size.x, window_size.y);
         let mut instances = vec![];
         let circles = {
-            const RADIUS: f32 = 0.5;
+            const RADIUS: f32 = 2.0;
             let shape_count = window_size * 0.5 / RADIUS;
             println!("Shape count: {}", (shape_count.x * shape_count.y) as usize);
             (0..shape_count.x as usize).cartesian_product(0..shape_count.y as usize).map(move |(i, j)| {
@@ -192,7 +192,7 @@ impl ApplicationHandler for App<'_> {
 
                 println!("Window inner size: {:?}", state.window.inner_size());
                 state.shape_renderer.prepare(&state.device, &state.instances, state.window.inner_size());
-                state.shape_renderer.render(&mut render_pass);
+                state.shape_renderer.render(&mut render_pass, 0..state.instances.len());
 
                 drop(render_pass);
                 let submission_index = state.queue.submit(Some(encoder.finish()));
