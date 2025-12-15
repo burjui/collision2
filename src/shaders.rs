@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: 8f36f404550cf0d2719e50d2e09a015d6926e7604b3d6db28027f48a1a664fab
+// SourceHash: a51a8becd22acb1ee8c03158973ffd09c8e704e10ebc23395e0b6f79d9b1c9ce
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -285,7 +285,6 @@ struct Uniforms {
 }
 
 struct VertexInput {
-    @builtin(vertex_index) vertex_index: u32,
     @location(0) position: vec2<f32>,
 }
 
@@ -306,10 +305,10 @@ struct FragmentOutput {
     @location(0) color: vec4<f32>,
 }
 
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> uniforms: Uniforms;
 
-@vertex 
+@vertex
 fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
 
@@ -327,7 +326,7 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     return _e86;
 }
 
-@fragment 
+@fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     var color: vec4<f32>;
 

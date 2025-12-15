@@ -3,7 +3,6 @@ struct Uniforms {
 }
 
 struct VertexInput {
-    @builtin(vertex_index) vertex_index: u32,
     @location(0) position: vec2f
 };
 

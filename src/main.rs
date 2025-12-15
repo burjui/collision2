@@ -86,9 +86,9 @@ impl ApplicationHandler for App<'_> {
             })
         };
 
-        let radius: f32 = 1.0;
-        let instances = (0..800)
-            .cartesian_product(0..400)
+        let radius: f32 = 0.5;
+        let instances = (0..1600)
+            .cartesian_product(0..800)
             .map(|(i, j)| {
                 let (i, j) = (i as f32, j as f32);
                 let position = [radius * (i * 2.0 + 1.0), radius * (j * 2.0 + 1.0)];
@@ -173,10 +173,4 @@ impl ApplicationHandler for App<'_> {
             _ => (),
         }
     }
-
-    // fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-    //     if let Some(state) = self.state.as_ref() {
-    //         state.window.request_redraw();
-    //     }
-    // }
 }
