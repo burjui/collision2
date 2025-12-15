@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: bf0548289b369d6a908eeec1c334f99463ea1394c828114624e69f44a7b2a53a
+// SourceHash: 8f36f404550cf0d2719e50d2e09a015d6926e7604b3d6db28027f48a1a664fab
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -41,49 +41,21 @@ pub mod layout_asserts {
     use super::{_root, _root::*};
     const WGSL_BASE_TYPE_ASSERTS: () = {};
     const CIRCLE_UNIFORMS_ASSERTS: () = {
-        assert!(std::mem::offset_of!(circle::Uniforms, transform) == 0);
-        assert!(std::mem::offset_of!(circle::Uniforms, scaling) == 64);
-        assert!(std::mem::size_of::<circle::Uniforms>() == 80);
+        assert!(std::mem::offset_of!(circle::Uniforms, view_size) == 0);
+        assert!(std::mem::size_of::<circle::Uniforms>() == 8);
     };
 }
 pub mod circle {
     use super::{_root, _root::*};
-    #[repr(C, align(16))]
+    #[repr(C, align(8))]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct Uniforms {
-        #[doc = "offset: 0, size: 64, type: `mat4x4<f32>`"]
-        pub transform: [[f32; 4]; 4],
-        #[doc = "offset: 64, size: 4, type: `f32`"]
-        pub scaling: f32,
-        pub _pad_scaling: [u8; 0xC],
+        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
+        pub view_size: [f32; 2],
     }
     impl Uniforms {
-        pub const fn new(transform: [[f32; 4]; 4], scaling: f32) -> Self {
-            Self {
-                transform,
-                scaling,
-                _pad_scaling: [0; 0xC],
-            }
-        }
-    }
-    #[repr(C)]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct UniformsInit {
-        pub transform: [[f32; 4]; 4],
-        pub scaling: f32,
-    }
-    impl UniformsInit {
-        pub fn build(&self) -> Uniforms {
-            Uniforms {
-                transform: self.transform,
-                scaling: self.scaling,
-                _pad_scaling: [0; 0xC],
-            }
-        }
-    }
-    impl From<UniformsInit> for Uniforms {
-        fn from(data: UniformsInit) -> Self {
-            data.build()
+        pub const fn new(view_size: [f32; 2]) -> Self {
+            Self { view_size }
         }
     }
     #[repr(C)]
@@ -309,8 +281,7 @@ pub mod circle {
     }
     pub const SHADER_STRING: &str = r#"
 struct Uniforms {
-    transform: mat4x4<f32>,
-    scaling: f32,
+    view_size: vec2<f32>,
 }
 
 struct VertexInput {
@@ -320,8 +291,9 @@ struct VertexInput {
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) quad_position: vec2<f32>,
-    @location(1) color: vec4<f32>,
+    @location(0) scaling_factor: f32,
+    @location(1) quad_position: vec2<f32>,
+    @location(2) color: vec4<f32>,
 }
 
 struct InstanceInput {
@@ -341,12 +313,18 @@ var<uniform> uniforms: Uniforms;
 fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
 
-    let _e6 = uniforms.transform;
-    out.clip_position = (_e6 * vec4<f32>((vertex.position + instance.position), 0f, 1.1f));
-    out.quad_position = vec4<f32>(vertex.position, 0f, 1.1f).xy;
+    let _e7 = uniforms.view_size;
+    let scale = ((vec2(instance.radius) * 2f) / _e7);
+    out.scaling_factor = clamp(min(scale.x, scale.y), 0f, 1f);
+    let _e20 = uniforms.view_size;
+    let translation = ((((instance.position / _e20) * vec2<f32>(2f, -2f)) + vec2<f32>(-1f, 1f)) / scale);
+    let translation_matrix = transpose(mat4x4<f32>(vec4<f32>(1f, 0f, 0f, translation.x), vec4<f32>(0f, 1f, 0f, translation.y), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(0f, 0f, 0f, 1f)));
+    let scale_matrix = mat4x4<f32>(vec4<f32>(scale.x, 0f, 0f, 0f), vec4<f32>(0f, scale.y, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(0f, 0f, 0f, 1f));
+    out.clip_position = ((scale_matrix * translation_matrix) * vec4<f32>(vertex.position, 0f, 1f));
+    out.quad_position = vertex.position;
     out.color = instance.color;
-    let _e22 = out;
-    return _e22;
+    let _e86 = out;
+    return _e86;
 }
 
 @fragment 
@@ -354,10 +332,9 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     var color: vec4<f32>;
 
     color = in.color;
-    let _e6 = uniforms.scaling;
-    color.w = smoothstep(1f, (1f - (0.01f / _e6)), length(in.quad_position));
-    let _e15 = color;
-    return FragmentOutput(_e15);
+    color.w = smoothstep(1f, (1f - clamp((0.002f / in.scaling_factor), 0.002f, 0.3f)), length(in.quad_position));
+    let _e16 = color;
+    return FragmentOutput(_e16);
 }
 "#;
 }

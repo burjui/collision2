@@ -1,8 +1,9 @@
 pub mod circle_renderer;
 mod shaders;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
+use itertools::Itertools;
 use pollster::block_on;
 use winit::{
     application::ApplicationHandler,
@@ -36,20 +37,20 @@ impl App<'_> {
 }
 
 struct AppState<'a> {
+    instances: Vec<circle::InstanceInput>,
     circle_renderer: CircleRenderer,
+    surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
     device: wgpu::Device,
-    adapter: wgpu::Adapter,
     surface: wgpu::Surface<'a>,
     window: Arc<Window>,
 }
 
 impl ApplicationHandler for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // event_loop.set_control_flow(ControlFlow::Poll);
         let mut window_attributes = WindowAttributes::default();
-        window_attributes.inner_size = Some(PhysicalSize::new(800, 600).into());
-        window_attributes.resizable = false;
+        window_attributes.inner_size = Some(PhysicalSize::new(1600, 800).into());
+        // window_attributes.resizable = false;
         let window = Arc::new(event_loop.create_window(window_attributes).expect("Failed to create window"));
         let surface = self.wgpu.create_surface(window.clone()).unwrap();
 
@@ -74,8 +75,8 @@ impl ApplicationHandler for App<'_> {
         let swapchain_format = swapchain_capabilities.formats[0];
 
         let size = window.inner_size();
-        let config = surface.get_default_config(&adapter, size.width, size.height).unwrap();
-        surface.configure(&device, &config);
+        let surface_config = surface.get_default_config(&adapter, size.width, size.height).unwrap();
+        surface.configure(&device, &surface_config);
 
         let pipeline_cache = unsafe {
             device.create_pipeline_cache(&wgpu::PipelineCacheDescriptor {
@@ -85,12 +86,23 @@ impl ApplicationHandler for App<'_> {
             })
         };
 
-        let circle_renderer = CircleRenderer::new(&device, size, swapchain_format, &pipeline_cache);
+        let radius: f32 = 1.0;
+        let instances = (0..800)
+            .cartesian_product(0..400)
+            .map(|(i, j)| {
+                let (i, j) = (i as f32, j as f32);
+                let position = [radius * (i * 2.0 + 1.0), radius * (j * 2.0 + 1.0)];
+                circle::InstanceInput::new(position, radius, [1.0, i / 800.0, 0.0, 1.0])
+            })
+            .collect_vec();
+
+        let circle_renderer = CircleRenderer::new(&device, swapchain_format, &pipeline_cache);
         self.state = Some(AppState {
+            instances,
             circle_renderer,
+            surface_config,
             queue,
             device,
-            adapter,
             surface,
             window,
         });
@@ -99,18 +111,20 @@ impl ApplicationHandler for App<'_> {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) => {
-                let state = self.state.as_ref().unwrap();
-                let config = state.surface.get_default_config(&state.adapter, size.width, size.height).unwrap();
-                state.surface.configure(&state.device, &config);
+                let state = self.state.as_mut().unwrap();
+                state.surface_config.width = size.width;
+                state.surface_config.height = size.height;
+                state.surface.configure(&state.device, &state.surface_config);
                 state.window.request_redraw();
             }
 
             WindowEvent::RedrawRequested => {
-                let state = self.state.as_mut().unwrap();
+                let start = Instant::now();
 
+                let state = self.state.as_mut().unwrap();
+                let mut encoder = state.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
                 let frame = state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
                 let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-                let mut encoder = state.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
                 let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: None,
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -127,20 +141,22 @@ impl ApplicationHandler for App<'_> {
                     occlusion_query_set: None,
                 });
 
-                state.circle_renderer.prepare(
-                    &state.device,
-                    &[
-                        circle::InstanceInput::new([0.0, 0.0], 10.0, [1.0, 0.0, 0.0, 1.0]),
-                        circle::InstanceInput::new([0.0, 2.0], 10.0, [0.0, 1.0, 0.0, 1.0]),
-                        circle::InstanceInput::new([0.0, 4.0], 10.0, [0.0, 0.0, 1.0, 1.0]),
-                    ],
-                );
+                state.circle_renderer.prepare(&state.device, &state.instances, state.window.inner_size());
                 state.circle_renderer.render(&mut render_pass);
 
                 drop(render_pass);
+                let submission_index = state.queue.submit(Some(encoder.finish()));
+                state
+                    .device
+                    .poll(wgpu::PollType::Wait {
+                        submission_index: Some(submission_index),
+                        timeout: None,
+                    })
+                    .unwrap();
                 state.window.pre_present_notify();
-                state.queue.submit(Some(encoder.finish()));
                 frame.present();
+
+                println!("Rendered in {} ms", start.elapsed().as_millis());
             }
 
             WindowEvent::CloseRequested
@@ -157,4 +173,10 @@ impl ApplicationHandler for App<'_> {
             _ => (),
         }
     }
+
+    // fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    //     if let Some(state) = self.state.as_ref() {
+    //         state.window.request_redraw();
+    //     }
+    // }
 }
