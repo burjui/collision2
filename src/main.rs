@@ -1,20 +1,25 @@
-pub mod circle_renderer;
-mod shaders;
+pub mod shape_renderer;
+mod shape_shaders;
 
 use std::{sync::Arc, time::Instant};
 
 use itertools::Itertools;
+use nalgebra::Vector2;
 use pollster::block_on;
+use rand::random;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
     event::{ElementState, KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
-    keyboard::{Key, NamedKey},
+    keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::{circle_renderer::CircleRenderer, shaders::circle};
+use crate::{
+    shape_renderer::ShapeRenderer,
+    shape_shaders::shape::{self, INSTANCE_SHOW},
+};
 
 fn main() {
     let event_loop = EventLoop::new().expect("Failed to create event loop");
@@ -37,8 +42,8 @@ impl App<'_> {
 }
 
 struct AppState<'a> {
-    instances: Vec<circle::InstanceInput>,
-    circle_renderer: CircleRenderer,
+    instances: Vec<shape::InstanceInput>,
+    shape_renderer: ShapeRenderer,
     surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
     device: wgpu::Device,
@@ -50,7 +55,7 @@ impl ApplicationHandler for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let mut window_attributes = WindowAttributes::default();
         window_attributes.inner_size = Some(PhysicalSize::new(1600, 800).into());
-        // window_attributes.resizable = false;
+        window_attributes.resizable = false;
         let window = Arc::new(event_loop.create_window(window_attributes).expect("Failed to create window"));
         let surface = self.wgpu.create_surface(window.clone()).unwrap();
 
@@ -74,9 +79,63 @@ impl ApplicationHandler for App<'_> {
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
-        let size = window.inner_size();
-        let surface_config = surface.get_default_config(&adapter, size.width, size.height).unwrap();
+        let window_size = window.inner_size();
+        let surface_config = surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap();
         surface.configure(&device, &surface_config);
+
+        let window_size = Vector2::<f32>::new(window_size.cast().width, window_size.cast().height);
+        println!("Window size: {}x{}", window_size.x, window_size.y);
+        let mut instances = vec![];
+        let circles = {
+            const RADIUS: f32 = 0.5;
+            let shape_count = window_size * 0.5 / RADIUS;
+            println!("Shape count: {}", (shape_count.x * shape_count.y) as usize);
+            (0..shape_count.x as usize).cartesian_product(0..shape_count.y as usize).map(move |(i, j)| {
+                let (i, j) = (i as f32, j as f32);
+                let position = [RADIUS * (i * 2.0 + 1.0), RADIUS * (j * 2.0 + 1.0)];
+                shape::InstanceInput::new(
+                    INSTANCE_SHOW,
+                    position,
+                    [RADIUS * 2.0, RADIUS * 2.0],
+                    [random(), random(), random(), 1.0],
+                    shape::SHAPE_CIRCLE,
+                )
+            })
+        };
+        const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
+        let top = shape::InstanceInput::new(
+            INSTANCE_SHOW,
+            [window_size.x / 2.0, 0.5],
+            [window_size.x, 1.0],
+            RED,
+            shape::SHAPE_RECT,
+        );
+        let bottom = shape::InstanceInput::new(
+            INSTANCE_SHOW,
+            [window_size.x / 2.0, window_size.y - 0.5],
+            [window_size.x, 1.0],
+            RED,
+            shape::SHAPE_RECT,
+        );
+        let left = shape::InstanceInput::new(
+            INSTANCE_SHOW,
+            [0.5, window_size.y / 2.0],
+            [1.0, window_size.y],
+            RED,
+            shape::SHAPE_RECT,
+        );
+        let right = shape::InstanceInput::new(
+            INSTANCE_SHOW,
+            [window_size.x - 0.5, window_size.y / 2.0],
+            [1.0, window_size.y],
+            RED,
+            shape::SHAPE_RECT,
+        );
+        instances.extend(circles);
+        instances.push(top);
+        instances.push(bottom);
+        instances.push(left);
+        instances.push(right);
 
         let pipeline_cache = unsafe {
             device.create_pipeline_cache(&wgpu::PipelineCacheDescriptor {
@@ -85,21 +144,11 @@ impl ApplicationHandler for App<'_> {
                 fallback: true,
             })
         };
+        let shape_renderer = ShapeRenderer::new(&device, swapchain_format, &pipeline_cache);
 
-        let radius: f32 = 0.5;
-        let instances = (0..1600)
-            .cartesian_product(0..800)
-            .map(|(i, j)| {
-                let (i, j) = (i as f32, j as f32);
-                let position = [radius * (i * 2.0 + 1.0), radius * (j * 2.0 + 1.0)];
-                circle::InstanceInput::new(position, radius, [1.0, i / 800.0, 0.0, 1.0])
-            })
-            .collect_vec();
-
-        let circle_renderer = CircleRenderer::new(&device, swapchain_format, &pipeline_cache);
         self.state = Some(AppState {
             instances,
-            circle_renderer,
+            shape_renderer,
             surface_config,
             queue,
             device,
@@ -141,8 +190,9 @@ impl ApplicationHandler for App<'_> {
                     occlusion_query_set: None,
                 });
 
-                state.circle_renderer.prepare(&state.device, &state.instances, state.window.inner_size());
-                state.circle_renderer.render(&mut render_pass);
+                println!("Window inner size: {:?}", state.window.inner_size());
+                state.shape_renderer.prepare(&state.device, &state.instances, state.window.inner_size());
+                state.shape_renderer.render(&mut render_pass);
 
                 drop(render_pass);
                 let submission_index = state.queue.submit(Some(encoder.finish()));
@@ -157,6 +207,20 @@ impl ApplicationHandler for App<'_> {
                 frame.present();
 
                 println!("Rendered in {} ms", start.elapsed().as_millis());
+            }
+
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(KeyCode::KeyR),
+                        state: ElementState::Pressed,
+                        ..
+                    },
+                ..
+            } => {
+                if let Some(state) = &self.state {
+                    state.window.request_redraw();
+                }
             }
 
             WindowEvent::CloseRequested

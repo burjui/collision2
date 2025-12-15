@@ -5,30 +5,30 @@ use wgpu::{
 };
 use winit::dpi::PhysicalSize;
 
-use crate::shaders::circle::{self, InstanceInput, VertexInput};
+use crate::shape_shaders::shape::{self, InstanceInput, VertexInput};
 
-pub struct CircleRenderer {
+pub struct ShapeRenderer {
     vertex_buffer: Buffer,
     instance_buffer: Option<Buffer>,
     instance_count: u32,
-    uniforms_bind_group: Option<circle::WgpuBindGroup0>,
+    uniforms_bind_group: Option<shape::WgpuBindGroup0>,
     render_pipeline: RenderPipeline,
 }
 
-impl CircleRenderer {
+impl ShapeRenderer {
     pub fn new(device: &Device, swapchain_format: TextureFormat, pipeline_cache: &PipelineCache) -> Self {
-        let pipeline_layout = circle::create_pipeline_layout(device);
-        let shader = circle::create_shader_module_embed_source(device);
+        let pipeline_layout = shape::create_pipeline_layout(device);
+        let shader = shape::create_shader_module_embed_source(device);
 
-        let vertex_entry = circle::vs_main_entry(VertexStepMode::Vertex, VertexStepMode::Instance);
-        let vertex_state = circle::vertex_state(&shader, &vertex_entry);
+        let vertex_entry = shape::vs_main_entry(VertexStepMode::Vertex, VertexStepMode::Instance);
+        let vertex_state = shape::vertex_state(&shader, &vertex_entry);
 
         let color_target_state = ColorTargetState {
             blend: Some(BlendState::ALPHA_BLENDING),
             ..ColorTargetState::from(swapchain_format)
         };
-        let fragment_entry = circle::fs_main_entry([Some(color_target_state)]);
-        let fragment_state = circle::fragment_state(&shader, &fragment_entry);
+        let fragment_entry = shape::fs_main_entry([Some(color_target_state)]);
+        let fragment_state = shape::fragment_state(&shader, &fragment_entry);
 
         let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: None,
@@ -43,7 +43,7 @@ impl CircleRenderer {
         });
 
         let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Circle vertex buffer"),
+            label: Some("Shape vertex buffer"),
             contents: bytemuck::cast_slice(&[
                 VertexInput::new([1.0, 1.0]),
                 VertexInput::new([-1.0, 1.0]),
@@ -65,15 +65,15 @@ impl CircleRenderer {
     }
 
     pub fn prepare(&mut self, device: &Device, instances: &[InstanceInput], window_size: PhysicalSize<u32>) {
-        let uniforms = circle::Uniforms::new(window_size.into());
+        let uniforms = shape::Uniforms::new(window_size.into());
         let uniforms_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Transform buffer"),
             contents: bytemuck::cast_slice(&[uniforms]),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
-        self.uniforms_bind_group = Some(circle::WgpuBindGroup0::from_bindings(
+        self.uniforms_bind_group = Some(shape::WgpuBindGroup0::from_bindings(
             device,
-            circle::WgpuBindGroup0Entries::new(circle::WgpuBindGroup0EntriesParams {
+            shape::WgpuBindGroup0Entries::new(shape::WgpuBindGroup0EntriesParams {
                 uniforms: BufferBinding {
                     buffer: &uniforms_buffer,
                     offset: 0,
@@ -90,7 +90,7 @@ impl CircleRenderer {
             })
             .or_else(|| {
                 Some(device.create_buffer_init(&BufferInitDescriptor {
-                    label: Some("Circle vertex buffer"),
+                    label: Some("Shape instance buffer"),
                     contents: bytemuck::cast_slice(instances),
                     usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 }))

@@ -2,22 +2,22 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: a51a8becd22acb1ee8c03158973ffd09c8e704e10ebc23395e0b6f79d9b1c9ce
+// SourceHash: 9368f5f314c25fe23828283bf3b940c49731a9ba8573f6a1675f4c2c6b11714a
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
-    Circle,
+    Shape,
 }
 impl ShaderEntry {
     pub fn create_pipeline_layout(&self, device: &wgpu::Device) -> wgpu::PipelineLayout {
         match self {
-            Self::Circle => circle::create_pipeline_layout(device),
+            Self::Shape => shape::create_pipeline_layout(device),
         }
     }
     pub fn create_shader_module_embed_source(&self, device: &wgpu::Device) -> wgpu::ShaderModule {
         match self {
-            Self::Circle => circle::create_shader_module_embed_source(device),
+            Self::Shape => shape::create_shader_module_embed_source(device),
         }
     }
 }
@@ -40,12 +40,12 @@ mod _root {
 pub mod layout_asserts {
     use super::{_root, _root::*};
     const WGSL_BASE_TYPE_ASSERTS: () = {};
-    const CIRCLE_UNIFORMS_ASSERTS: () = {
-        assert!(std::mem::offset_of!(circle::Uniforms, view_size) == 0);
-        assert!(std::mem::size_of::<circle::Uniforms>() == 8);
+    const SHAPE_UNIFORMS_ASSERTS: () = {
+        assert!(std::mem::offset_of!(shape::Uniforms, view_size) == 0);
+        assert!(std::mem::size_of::<shape::Uniforms>() == 8);
     };
 }
-pub mod circle {
+pub mod shape {
     use super::{_root, _root::*};
     #[repr(C, align(8))]
     #[derive(Debug, PartialEq, Clone, Copy)]
@@ -85,35 +85,49 @@ pub mod circle {
     #[repr(C)]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct InstanceInput {
+        pub flags: u32,
         pub position: [f32; 2],
-        pub radius: f32,
+        pub size: [f32; 2],
         pub color: [f32; 4],
+        pub shape: u32,
     }
     impl InstanceInput {
-        pub const fn new(position: [f32; 2], radius: f32, color: [f32; 4]) -> Self {
+        pub const fn new(flags: u32, position: [f32; 2], size: [f32; 2], color: [f32; 4], shape: u32) -> Self {
             Self {
+                flags,
                 position,
-                radius,
+                size,
                 color,
+                shape,
             }
         }
     }
     impl InstanceInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] = [
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 5] = [
             wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x2,
-                offset: std::mem::offset_of!(Self, position) as u64,
+                format: wgpu::VertexFormat::Uint32,
+                offset: std::mem::offset_of!(Self, flags) as u64,
                 shader_location: 1,
             },
             wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32,
-                offset: std::mem::offset_of!(Self, radius) as u64,
-                shader_location: 2,
+                format: wgpu::VertexFormat::Float32x2,
+                offset: std::mem::offset_of!(Self, position) as u64,
+                shader_location: 3,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x2,
+                offset: std::mem::offset_of!(Self, size) as u64,
+                shader_location: 4,
             },
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x4,
                 offset: std::mem::offset_of!(Self, color) as u64,
-                shader_location: 3,
+                shader_location: 5,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Uint32,
+                offset: std::mem::offset_of!(Self, shape) as u64,
+                shader_location: 6,
             },
         ];
         pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
@@ -124,6 +138,9 @@ pub mod circle {
             }
         }
     }
+    pub const INSTANCE_SHOW: u32 = 1u32;
+    pub const SHAPE_RECT: u32 = 0u32;
+    pub const SHAPE_CIRCLE: u32 = 1u32;
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
     #[derive(Debug)]
@@ -211,7 +228,7 @@ pub mod circle {
     pub struct WgpuBindGroup0(wgpu::BindGroup);
     impl WgpuBindGroup0 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("Circle::BindGroup0::LayoutDescriptor"),
+            label: Some("Shape::BindGroup0::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"uniforms\""]
                 wgpu::BindGroupLayoutEntry {
@@ -220,7 +237,7 @@ pub mod circle {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::circle::Uniforms>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::shape::Uniforms>() as _),
                     },
                     count: None,
                 },
@@ -233,7 +250,7 @@ pub mod circle {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Circle::BindGroup0"),
+                label: Some("Shape::BindGroup0"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -267,7 +284,7 @@ pub mod circle {
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Circle::PipelineLayout"),
+            label: Some("Shape::PipelineLayout"),
             bind_group_layouts: &[&WgpuBindGroup0::get_bind_group_layout(device)],
             push_constant_ranges: &[],
         })
@@ -275,7 +292,7 @@ pub mod circle {
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
         let source = std::borrow::Cow::Borrowed(SHADER_STRING);
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("circle.wgsl"),
+            label: Some("shape.wgsl"),
             source: wgpu::ShaderSource::Wgsl(source),
         })
     }
@@ -293,56 +310,70 @@ struct VertexOutput {
     @location(0) scaling_factor: f32,
     @location(1) quad_position: vec2<f32>,
     @location(2) color: vec4<f32>,
+    @location(3) @interpolate(flat) shape: u32,
 }
 
 struct InstanceInput {
-    @location(1) position: vec2<f32>,
-    @location(2) radius: f32,
-    @location(3) color: vec4<f32>,
+    @location(1) @interpolate(flat) flags: u32,
+    @location(3) position: vec2<f32>,
+    @location(4) size: vec2<f32>,
+    @location(5) color: vec4<f32>,
+    @location(6) @interpolate(flat) shape: u32,
 }
 
 struct FragmentOutput {
     @location(0) color: vec4<f32>,
 }
 
-@group(0) @binding(0)
+const INSTANCE_SHOW: u32 = 1u;
+const SHAPE_RECT: u32 = 0u;
+const SHAPE_CIRCLE: u32 = 1u;
+
+@group(0) @binding(0) 
 var<uniform> uniforms: Uniforms;
 
-@vertex
+@vertex 
 fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
 
-    let _e7 = uniforms.view_size;
-    let scale = ((vec2(instance.radius) * 2f) / _e7);
+    if ((instance.flags & INSTANCE_SHOW) == 0u) {
+        let _e7 = out;
+        return _e7;
+    }
+    let _e11 = uniforms.view_size;
+    let scale = (instance.size / _e11);
     out.scaling_factor = clamp(min(scale.x, scale.y), 0f, 1f);
-    let _e20 = uniforms.view_size;
-    let translation = ((((instance.position / _e20) * vec2<f32>(2f, -2f)) + vec2<f32>(-1f, 1f)) / scale);
+    let _e23 = uniforms.view_size;
+    let translation = ((((instance.position / _e23) * vec2<f32>(2f, -2f)) + vec2<f32>(-1f, 1f)) / scale);
     let translation_matrix = transpose(mat4x4<f32>(vec4<f32>(1f, 0f, 0f, translation.x), vec4<f32>(0f, 1f, 0f, translation.y), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(0f, 0f, 0f, 1f)));
     let scale_matrix = mat4x4<f32>(vec4<f32>(scale.x, 0f, 0f, 0f), vec4<f32>(0f, scale.y, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(0f, 0f, 0f, 1f));
     out.clip_position = ((scale_matrix * translation_matrix) * vec4<f32>(vertex.position, 0f, 1f));
     out.quad_position = vertex.position;
     out.color = instance.color;
-    let _e86 = out;
-    return _e86;
+    out.shape = instance.shape;
+    let _e91 = out;
+    return _e91;
 }
 
-@fragment
+@fragment 
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     var color: vec4<f32>;
 
     color = in.color;
-    color.w = smoothstep(1f, (1f - clamp((0.002f / in.scaling_factor), 0.002f, 0.3f)), length(in.quad_position));
-    let _e16 = color;
-    return FragmentOutput(_e16);
+    if (in.shape == SHAPE_CIRCLE) {
+        color.w = smoothstep(1f, (1f - clamp((0.002f / in.scaling_factor), 0.002f, 0.3f)), length(in.quad_position));
+    }
+    let _e19 = color;
+    return FragmentOutput(_e19);
 }
 "#;
 }
 pub mod bytemuck_impls {
     use super::{_root, _root::*};
-    unsafe impl bytemuck::Zeroable for circle::Uniforms {}
-    unsafe impl bytemuck::Pod for circle::Uniforms {}
-    unsafe impl bytemuck::Zeroable for circle::VertexInput {}
-    unsafe impl bytemuck::Pod for circle::VertexInput {}
-    unsafe impl bytemuck::Zeroable for circle::InstanceInput {}
-    unsafe impl bytemuck::Pod for circle::InstanceInput {}
+    unsafe impl bytemuck::Zeroable for shape::Uniforms {}
+    unsafe impl bytemuck::Pod for shape::Uniforms {}
+    unsafe impl bytemuck::Zeroable for shape::VertexInput {}
+    unsafe impl bytemuck::Pod for shape::VertexInput {}
+    unsafe impl bytemuck::Zeroable for shape::InstanceInput {}
+    unsafe impl bytemuck::Pod for shape::InstanceInput {}
 }
