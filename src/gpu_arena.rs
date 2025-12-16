@@ -9,9 +9,9 @@ pub struct GpuArena {
 }
 
 impl GpuArena {
-    pub fn new(device: &Device, label: &str, length: usize, usage: wgpu::BufferUsages) -> Self {
-        assert!(length > 0);
-        let required_size = u64::try_from(length).unwrap();
+    pub fn new(size: usize, label: &str, usage: wgpu::BufferUsages, device: &Device) -> Self {
+        assert!(size > 0);
+        let required_size = u64::try_from(size).unwrap();
         let padded_size = required_size.div_ceil(COPY_BUFFER_ALIGNMENT) * COPY_BUFFER_ALIGNMENT;
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some(label),
@@ -20,6 +20,17 @@ impl GpuArena {
             mapped_at_creation: false,
         });
         Self { buffer, start: 0 }
+    }
+
+    pub fn new_slice<T>(
+        length: usize,
+        label: &str,
+        usage: wgpu::BufferUsages,
+        device: &Device,
+    ) -> (GpuArena, GpuSlice<T>) {
+        let mut arena = GpuArena::new(length * size_of::<T>(), label, usage, device);
+        let slice = arena.allocate(length);
+        (arena, slice)
     }
 
     pub fn buffer(&self) -> &Buffer {
@@ -55,10 +66,18 @@ impl<T> GpuSlice<T> {
         (self.range.end - self.range.start).try_into().unwrap()
     }
 
-    pub fn slice(&self) -> BufferSlice<'_> {
-        let start: u64 = self.range.start.try_into().unwrap();
-        let end = self.range.end.try_into().unwrap();
-        self.buffer.slice(start..end)
+    pub fn slice(&self, range: Range<usize>) -> BufferSlice<'_> {
+        let start: u64 = range.start.try_into().unwrap();
+        let end: u64 = range.end.try_into().unwrap();
+        let slice_length = end - start;
+        let self_length = self.range.end - self.range.start;
+        assert!(
+            slice_length <= self_length,
+            "Range {start}..{end} is out of bounds ({}..{})",
+            self.range.start,
+            self.range.end
+        );
+        self.buffer.slice(self.range.start + start..self.range.start + end)
     }
 
     pub fn enque_write(&self, queue: &Queue, data: &[T])
@@ -68,7 +87,7 @@ impl<T> GpuSlice<T> {
         let size = self.range.end - self.range.start;
         let data_size = u64::try_from(size_of_val(data)).unwrap();
         assert!(data_size <= size);
-        let mut view = queue.write_buffer_with(&self.buffer, self.range.start, size.try_into().unwrap()).unwrap();
+        let mut view = queue.write_buffer_with(&self.buffer, self.range.start, data_size.try_into().unwrap()).unwrap();
         view.as_mut().copy_from_slice(bytemuck::cast_slice(data));
     }
 }

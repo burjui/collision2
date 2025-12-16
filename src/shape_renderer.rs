@@ -13,7 +13,7 @@ use crate::{
 };
 
 struct InstanceBuffers {
-    flag: GpuSlice<shape::FlagsInput>,
+    flags: GpuSlice<shape::FlagsInput>,
     position: GpuSlice<shape::PositionInput>,
     size: GpuSlice<shape::SizeInput>,
     color: GpuSlice<shape::ColorInput>,
@@ -22,7 +22,7 @@ struct InstanceBuffers {
 
 impl InstanceBuffers {
     fn len(&self) -> usize {
-        self.flag.len()
+        self.flags.len()
     }
 }
 
@@ -42,13 +42,8 @@ impl ShapeRenderer {
         swapchain_format: TextureFormat,
         pipeline_cache: &PipelineCache,
     ) -> Self {
-        let mut vertex_arena = GpuArena::new(
-            device,
-            "Shape vertex arena",
-            6 * size_of::<VertexInput>(),
-            BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        );
-        let vertex_buffer = vertex_arena.allocate(6);
+        let (_, vertex_buffer) =
+            GpuArena::new_slice(6, "Shape vertex arena", BufferUsages::VERTEX | BufferUsages::COPY_DST, device);
         vertex_buffer.enque_write(
             queue,
             bytemuck::cast_slice(&[
@@ -93,13 +88,8 @@ impl ShapeRenderer {
             cache: Some(pipeline_cache),
         });
 
-        let mut uniforms_arena = GpuArena::new(
-            device,
-            "Shape uniforms arena",
-            size_of::<shape::Uniforms>(),
-            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        );
-        let uniforms_buffer = uniforms_arena.allocate(1);
+        let (uniforms_arena, uniforms_buffer) =
+            GpuArena::new_slice(1, "Shape uniforms arena", BufferUsages::UNIFORM | BufferUsages::COPY_DST, device);
         let uniforms_bind_group = shape::WgpuBindGroup0::from_bindings(
             device,
             shape::WgpuBindGroup0Entries::new(shape::WgpuBindGroup0EntriesParams {
@@ -127,26 +117,26 @@ impl ShapeRenderer {
         let instance_buffers =
             self.instance_buffers.take().filter(|buffers| buffers.len() >= objects.len()).unwrap_or_else(|| {
                 let mut instance_arena = GpuArena::new(
-                    device,
-                    "Shape instance arena",
                     objects.len()
                         * (size_of::<shape::FlagsInput>()
                             + size_of::<shape::PositionInput>()
                             + size_of::<shape::SizeInput>()
                             + size_of::<shape::ColorInput>()
                             + size_of::<shape::ShapeInput>()),
+                    "Shape instance arena",
                     BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                    device,
                 );
                 println!("instance arena size: {}", instance_arena.buffer().size());
                 InstanceBuffers {
-                    flag: instance_arena.allocate(objects.len()),
+                    flags: instance_arena.allocate(objects.len()),
                     position: instance_arena.allocate(objects.len()),
                     size: instance_arena.allocate(objects.len()),
                     color: instance_arena.allocate(objects.len()),
                     shape: instance_arena.allocate(objects.len()),
                 }
             });
-        instance_buffers.flag.enque_write(queue, &objects.flags);
+        instance_buffers.flags.enque_write(queue, &objects.flags);
         instance_buffers.position.enque_write(queue, &objects.position);
         instance_buffers.size.enque_write(queue, &objects.size);
         instance_buffers.color.enque_write(queue, &objects.color);
@@ -161,13 +151,18 @@ impl ShapeRenderer {
         };
         render_pass.set_pipeline(&self.render_pipeline);
         self.uniforms_bind_group.set(render_pass);
-        render_pass.set_vertex_buffer(VertexInput::VERTEX_ATTRIBUTES[0].shader_location, self.vertex_buffer.slice());
-        render_pass.set_vertex_buffer(FlagsInput::VERTEX_ATTRIBUTES[0].shader_location, instance_buffers.flag.slice());
-        render_pass
-            .set_vertex_buffer(PositionInput::VERTEX_ATTRIBUTES[0].shader_location, instance_buffers.position.slice());
-        render_pass.set_vertex_buffer(SizeInput::VERTEX_ATTRIBUTES[0].shader_location, instance_buffers.size.slice());
-        render_pass.set_vertex_buffer(ColorInput::VERTEX_ATTRIBUTES[0].shader_location, instance_buffers.color.slice());
-        render_pass.set_vertex_buffer(ShapeInput::VERTEX_ATTRIBUTES[0].shader_location, instance_buffers.shape.slice());
+
+        fn set_vertex_buffer<T>(render_pass: &mut RenderPass<'_>, slot: u32, vertex_buffer: &GpuSlice<T>) {
+            render_pass.set_vertex_buffer(slot, vertex_buffer.slice(0..vertex_buffer.len()));
+        }
+
+        set_vertex_buffer(render_pass, VertexInput::VERTEX_ATTRIBUTES[0].shader_location, &self.vertex_buffer);
+        set_vertex_buffer(render_pass, FlagsInput::VERTEX_ATTRIBUTES[0].shader_location, &instance_buffers.flags);
+        set_vertex_buffer(render_pass, PositionInput::VERTEX_ATTRIBUTES[0].shader_location, &instance_buffers.position);
+        set_vertex_buffer(render_pass, SizeInput::VERTEX_ATTRIBUTES[0].shader_location, &instance_buffers.size);
+        set_vertex_buffer(render_pass, ColorInput::VERTEX_ATTRIBUTES[0].shader_location, &instance_buffers.color);
+        set_vertex_buffer(render_pass, ShapeInput::VERTEX_ATTRIBUTES[0].shader_location, &instance_buffers.shape);
+
         let start = u32::try_from(instances.start).unwrap();
         let end = u32::try_from(instances.end).unwrap();
         render_pass.draw(0..6, start..end);
