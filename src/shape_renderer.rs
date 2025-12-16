@@ -1,28 +1,72 @@
 use std::ops::Range;
 
 use wgpu::{
-    BlendState, Buffer, BufferBinding, BufferUsages, ColorTargetState, Device, MultisampleState, PipelineCache,
-    PrimitiveState, RenderPass, RenderPipeline, RenderPipelineDescriptor, TextureFormat, VertexStepMode,
-    util::{BufferInitDescriptor, DeviceExt as _},
+    BlendState, BufferBinding, BufferUsages, ColorTargetState, Device, MultisampleState, PipelineCache, PrimitiveState,
+    Queue, RenderPass, RenderPipeline, RenderPipelineDescriptor, TextureFormat, VertexStepMode,
 };
 use winit::dpi::PhysicalSize;
 
-use crate::shape_shaders::shape::{self, InstanceInput, VertexInput};
+use crate::{
+    objects::Objects,
+    shape_shaders::shape::{self, ColorInput, FlagsInput, PositionInput, ShapeInput, SizeInput, VertexInput},
+    wgpu_buffer::WgpuBuffer,
+};
+
+struct Buffers {
+    flag: WgpuBuffer<shape::FlagsInput>,
+    position: WgpuBuffer<shape::PositionInput>,
+    size: WgpuBuffer<shape::SizeInput>,
+    color: WgpuBuffer<shape::ColorInput>,
+    shape: WgpuBuffer<shape::ShapeInput>,
+}
+
+impl Buffers {
+    fn len(&self) -> usize {
+        self.flag.len()
+    }
+}
 
 pub struct ShapeRenderer {
-    vertex_buffer: Buffer,
-    instance_buffer: Option<Buffer>,
-    instance_count: u32,
-    uniforms_bind_group: Option<shape::WgpuBindGroup0>,
+    vertex_buffer: WgpuBuffer<VertexInput>,
     render_pipeline: RenderPipeline,
+    uniforms_buffer: WgpuBuffer<shape::Uniforms>,
+    uniforms_bind_group: shape::WgpuBindGroup0,
+    instance_buffers: Option<Buffers>,
+    instance_count: usize,
 }
 
 impl ShapeRenderer {
-    pub fn new(device: &Device, swapchain_format: TextureFormat, pipeline_cache: &PipelineCache) -> Self {
+    pub fn new(
+        device: &Device,
+        queue: &Queue,
+        swapchain_format: TextureFormat,
+        pipeline_cache: &PipelineCache,
+    ) -> Self {
+        let vertex_buffer =
+            WgpuBuffer::new(device, "Shape vertex buffer", 6, BufferUsages::VERTEX | BufferUsages::COPY_DST);
+        vertex_buffer.enque_write(
+            queue,
+            bytemuck::cast_slice(&[
+                VertexInput::new([1.0, 1.0]),
+                VertexInput::new([-1.0, 1.0]),
+                VertexInput::new([-1.0, -1.0]),
+                VertexInput::new([-1.0, -1.0]),
+                VertexInput::new([1.0, -1.0]),
+                VertexInput::new([1.0, 1.0]),
+            ]),
+        );
+
         let pipeline_layout = shape::create_pipeline_layout(device);
         let shader = shape::create_shader_module_embed_source(device);
 
-        let vertex_entry = shape::vs_main_entry(VertexStepMode::Vertex, VertexStepMode::Instance);
+        let vertex_entry = shape::vs_main_entry(
+            VertexStepMode::Vertex,
+            VertexStepMode::Instance,
+            VertexStepMode::Instance,
+            VertexStepMode::Instance,
+            VertexStepMode::Instance,
+            VertexStepMode::Instance,
+        );
         let vertex_state = shape::vertex_state(&shader, &vertex_entry);
 
         let color_target_state = ColorTargetState {
@@ -44,72 +88,80 @@ impl ShapeRenderer {
             cache: Some(pipeline_cache),
         });
 
-        let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Shape vertex buffer"),
-            contents: bytemuck::cast_slice(&[
-                VertexInput::new([1.0, 1.0]),
-                VertexInput::new([-1.0, 1.0]),
-                VertexInput::new([-1.0, -1.0]),
-                VertexInput::new([-1.0, -1.0]),
-                VertexInput::new([1.0, -1.0]),
-                VertexInput::new([1.0, 1.0]),
-            ]),
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        });
-
-        Self {
-            vertex_buffer,
-            instance_buffer: None,
-            instance_count: 0,
-            render_pipeline,
-            uniforms_bind_group: None,
-        }
-    }
-
-    pub fn prepare(&mut self, device: &Device, instances: &[InstanceInput], viewport_size: PhysicalSize<u32>) {
-        let uniforms = shape::Uniforms::new(viewport_size.into());
-        let uniforms_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Transform buffer"),
-            contents: bytemuck::cast_slice(&[uniforms]),
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        });
-        self.uniforms_bind_group = Some(shape::WgpuBindGroup0::from_bindings(
+        let uniforms_buffer =
+            WgpuBuffer::new(device, "Uniform buffer", 1, BufferUsages::UNIFORM | BufferUsages::COPY_DST);
+        let uniforms_bind_group = shape::WgpuBindGroup0::from_bindings(
             device,
             shape::WgpuBindGroup0Entries::new(shape::WgpuBindGroup0EntriesParams {
                 uniforms: BufferBinding {
-                    buffer: &uniforms_buffer,
+                    buffer: uniforms_buffer.inner(),
                     offset: 0,
                     size: None,
                 },
             }),
-        ));
+        );
 
-        self.instance_buffer = self
-            .instance_buffer
-            .take()
-            .filter(|buffer| {
-                usize::try_from(buffer.size()).is_ok_and(|buffer_size| buffer_size >= size_of_val(instances))
-            })
-            .or_else(|| {
-                Some(device.create_buffer_init(&BufferInitDescriptor {
-                    label: Some("Shape instance buffer"),
-                    contents: bytemuck::cast_slice(instances),
-                    usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                }))
+        Self {
+            vertex_buffer,
+            render_pipeline,
+            uniforms_buffer,
+            uniforms_bind_group,
+            instance_buffers: None,
+            instance_count: 0,
+        }
+    }
+
+    pub fn prepare(&mut self, device: &Device, queue: &Queue, objects: &Objects, viewport_size: PhysicalSize<u32>) {
+        self.uniforms_buffer.enque_write(queue, bytemuck::cast_slice(&[shape::Uniforms::new(viewport_size.into())]));
+
+        let instance_buffers =
+            self.instance_buffers.take().filter(|buffers| buffers.len() >= objects.len()).unwrap_or_else(|| {
+                let usage = BufferUsages::VERTEX | BufferUsages::COPY_DST;
+                Buffers {
+                    flag: WgpuBuffer::new(device, "Shape flag instance buffer", objects.len(), usage),
+                    position: WgpuBuffer::new(device, "Shape position instance buffer", objects.len(), usage),
+                    size: WgpuBuffer::new(device, "Shape size instance buffer", objects.len(), usage),
+                    color: WgpuBuffer::new(device, "Shape color instance buffer", objects.len(), usage),
+                    shape: WgpuBuffer::new(device, "Shape instance buffer", objects.len(), usage),
+                }
             });
-        self.instance_count = u32::try_from(instances.len()).expect("Too many instances");
+        instance_buffers.flag.enque_write(queue, &objects.flags);
+        instance_buffers.position.enque_write(queue, &objects.position);
+        instance_buffers.size.enque_write(queue, &objects.size);
+        instance_buffers.color.enque_write(queue, &objects.color);
+        instance_buffers.shape.enque_write(queue, &objects.shape);
+        self.instance_buffers = Some(instance_buffers);
+        self.instance_count = objects.len();
     }
 
     pub fn render(&self, render_pass: &mut RenderPass<'_>, instances: Range<usize>) {
-        let Some((instance_buffer, uniforms_bind_group)) =
-            self.instance_buffer.as_ref().zip(self.uniforms_bind_group.as_ref())
-        else {
+        let Some(instance_buffers) = self.instance_buffers.as_ref() else {
             panic!("Forgot to call prepare()?")
         };
         render_pass.set_pipeline(&self.render_pipeline);
-        uniforms_bind_group.set(render_pass);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
+        self.uniforms_bind_group.set(render_pass);
+        render_pass
+            .set_vertex_buffer(VertexInput::VERTEX_ATTRIBUTES[0].shader_location, self.vertex_buffer.inner().slice(..));
+        render_pass.set_vertex_buffer(
+            FlagsInput::VERTEX_ATTRIBUTES[0].shader_location,
+            instance_buffers.flag.inner().slice(..),
+        );
+        render_pass.set_vertex_buffer(
+            PositionInput::VERTEX_ATTRIBUTES[0].shader_location,
+            instance_buffers.position.inner().slice(..),
+        );
+        render_pass.set_vertex_buffer(
+            SizeInput::VERTEX_ATTRIBUTES[0].shader_location,
+            instance_buffers.size.inner().slice(..),
+        );
+        render_pass.set_vertex_buffer(
+            ColorInput::VERTEX_ATTRIBUTES[0].shader_location,
+            instance_buffers.color.inner().slice(..),
+        );
+        render_pass.set_vertex_buffer(
+            ShapeInput::VERTEX_ATTRIBUTES[0].shader_location,
+            instance_buffers.shape.inner().slice(..),
+        );
         let start = u32::try_from(instances.start).unwrap();
         let end = u32::try_from(instances.end).unwrap();
         render_pass.draw(0..6, start..end);

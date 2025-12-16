@@ -3,8 +3,28 @@ struct Uniforms {
 }
 
 struct VertexInput {
-    @location(0) position: vec2f,
-};
+    @location(0) inner: vec2f
+}
+
+struct FlagsInput {
+    @location(1) inner: u32
+}
+
+struct PositionInput {
+    @location(2) inner: vec2f
+}
+
+struct SizeInput {
+    @location(3) inner: vec2f
+}
+
+struct ColorInput {
+    @location(4) inner: vec4f
+}
+
+struct ShapeInput {
+    @location(5) inner: u32
+}
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,
@@ -14,34 +34,32 @@ struct VertexOutput {
     @location(3) shape: u32
 };
 
-const INSTANCE_SHOW: u32 = 1 << 0;
-
-struct InstanceInput {
-    @location(1) flags: u32,
-    @location(3) position: vec2f,
-    @location(4) size: vec2f,
-    @location(5) color: vec4f,
-    @location(6) shape: u32
-}
-
 struct FragmentOutput {
     @location(0) color: vec4f
 }
 
 const SHAPE_RECT: u32 = 0;
 const SHAPE_CIRCLE: u32 = 1;
+const FLAG_SHOW: u32 = 1 << 0;
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 @vertex
-fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
+fn vs_main(
+    vertex: VertexInput,
+    flag: FlagsInput,
+    position: PositionInput,
+    size: SizeInput,
+    color: ColorInput,
+    shape: ShapeInput
+) -> VertexOutput {
     var out: VertexOutput;
-    if (instance.flags & INSTANCE_SHOW) == 0 {
+    if (flag.inner & FLAG_SHOW) == 0 {
         return out;
     }
-    let scale = instance.size / uniforms.view_size;
+    let scale = size.inner / uniforms.view_size;
     out.scaling_factor = clamp(min(scale.x, scale.y), 0, 1);
-    let translation = (instance.position / uniforms.view_size * vec2f(2, -2) + vec2(-1, 1)) / scale;
+    let translation = (position.inner / uniforms.view_size * vec2f(2, -2) + vec2(-1, 1)) / scale;
     let translation_matrix = transpose(mat4x4f(
         1, 0, 0, translation.x,
         0, 1, 0, translation.y,
@@ -54,10 +72,10 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
         0, 0,       1, 0,
         0, 0,       0, 1
     );
-    out.clip_position = scale_matrix * translation_matrix * vec4f(vertex.position, 0, 1);
-    out.quad_position = vertex.position;
-    out.color = instance.color;
-    out.shape = instance.shape;
+    out.clip_position = scale_matrix * translation_matrix * vec4f(vertex.inner, 0, 1);
+    out.quad_position = vertex.inner;
+    out.color = color.inner;
+    out.shape = shape.inner;
 
     return out;
 }

@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: 9368f5f314c25fe23828283bf3b940c49731a9ba8573f6a1675f4c2c6b11714a
+// SourceHash: 1bfe586ec6ad2cf23a31c892ac6ca7e324b99e2d381032c0d5d36c647cc3c4e9
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -61,17 +61,17 @@ pub mod shape {
     #[repr(C)]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct VertexInput {
-        pub position: [f32; 2],
+        pub inner: [f32; 2],
     }
     impl VertexInput {
-        pub const fn new(position: [f32; 2]) -> Self {
-            Self { position }
+        pub const fn new(inner: [f32; 2]) -> Self {
+            Self { inner }
         }
     }
     impl VertexInput {
         pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
             format: wgpu::VertexFormat::Float32x2,
-            offset: std::mem::offset_of!(Self, position) as u64,
+            offset: std::mem::offset_of!(Self, inner) as u64,
             shader_location: 0,
         }];
         pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
@@ -84,52 +84,20 @@ pub mod shape {
     }
     #[repr(C)]
     #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct InstanceInput {
-        pub flags: u32,
-        pub position: [f32; 2],
-        pub size: [f32; 2],
-        pub color: [f32; 4],
-        pub shape: u32,
+    pub struct FlagsInput {
+        pub inner: u32,
     }
-    impl InstanceInput {
-        pub const fn new(flags: u32, position: [f32; 2], size: [f32; 2], color: [f32; 4], shape: u32) -> Self {
-            Self {
-                flags,
-                position,
-                size,
-                color,
-                shape,
-            }
+    impl FlagsInput {
+        pub const fn new(inner: u32) -> Self {
+            Self { inner }
         }
     }
-    impl InstanceInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 5] = [
-            wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Uint32,
-                offset: std::mem::offset_of!(Self, flags) as u64,
-                shader_location: 1,
-            },
-            wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x2,
-                offset: std::mem::offset_of!(Self, position) as u64,
-                shader_location: 3,
-            },
-            wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x2,
-                offset: std::mem::offset_of!(Self, size) as u64,
-                shader_location: 4,
-            },
-            wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x4,
-                offset: std::mem::offset_of!(Self, color) as u64,
-                shader_location: 5,
-            },
-            wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Uint32,
-                offset: std::mem::offset_of!(Self, shape) as u64,
-                shader_location: 6,
-            },
-        ];
+    impl FlagsInput {
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
+            format: wgpu::VertexFormat::Uint32,
+            offset: std::mem::offset_of!(Self, inner) as u64,
+            shader_location: 1,
+        }];
         pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
             wgpu::VertexBufferLayout {
                 array_stride: std::mem::size_of::<Self>() as u64,
@@ -138,9 +106,105 @@ pub mod shape {
             }
         }
     }
-    pub const INSTANCE_SHOW: u32 = 1u32;
+    #[repr(C)]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct PositionInput {
+        pub inner: [f32; 2],
+    }
+    impl PositionInput {
+        pub const fn new(inner: [f32; 2]) -> Self {
+            Self { inner }
+        }
+    }
+    impl PositionInput {
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
+            format: wgpu::VertexFormat::Float32x2,
+            offset: std::mem::offset_of!(Self, inner) as u64,
+            shader_location: 2,
+        }];
+        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
+            wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<Self>() as u64,
+                step_mode,
+                attributes: &Self::VERTEX_ATTRIBUTES,
+            }
+        }
+    }
+    #[repr(C)]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct SizeInput {
+        pub inner: [f32; 2],
+    }
+    impl SizeInput {
+        pub const fn new(inner: [f32; 2]) -> Self {
+            Self { inner }
+        }
+    }
+    impl SizeInput {
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
+            format: wgpu::VertexFormat::Float32x2,
+            offset: std::mem::offset_of!(Self, inner) as u64,
+            shader_location: 3,
+        }];
+        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
+            wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<Self>() as u64,
+                step_mode,
+                attributes: &Self::VERTEX_ATTRIBUTES,
+            }
+        }
+    }
+    #[repr(C)]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct ColorInput {
+        pub inner: [f32; 4],
+    }
+    impl ColorInput {
+        pub const fn new(inner: [f32; 4]) -> Self {
+            Self { inner }
+        }
+    }
+    impl ColorInput {
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
+            format: wgpu::VertexFormat::Float32x4,
+            offset: std::mem::offset_of!(Self, inner) as u64,
+            shader_location: 4,
+        }];
+        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
+            wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<Self>() as u64,
+                step_mode,
+                attributes: &Self::VERTEX_ATTRIBUTES,
+            }
+        }
+    }
+    #[repr(C)]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct ShapeInput {
+        pub inner: u32,
+    }
+    impl ShapeInput {
+        pub const fn new(inner: u32) -> Self {
+            Self { inner }
+        }
+    }
+    impl ShapeInput {
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
+            format: wgpu::VertexFormat::Uint32,
+            offset: std::mem::offset_of!(Self, inner) as u64,
+            shader_location: 5,
+        }];
+        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
+            wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<Self>() as u64,
+                step_mode,
+                attributes: &Self::VERTEX_ATTRIBUTES,
+            }
+        }
+    }
     pub const SHAPE_RECT: u32 = 0u32;
     pub const SHAPE_CIRCLE: u32 = 1u32;
+    pub const FLAG_SHOW: u32 = 1u32;
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
     #[derive(Debug)]
@@ -163,12 +227,23 @@ pub mod shape {
             },
         }
     }
-    pub fn vs_main_entry(vertex_input: wgpu::VertexStepMode, instance_input: wgpu::VertexStepMode) -> VertexEntry<2> {
+    pub fn vs_main_entry(
+        vertex_input: wgpu::VertexStepMode,
+        flags_input: wgpu::VertexStepMode,
+        position_input: wgpu::VertexStepMode,
+        size_input: wgpu::VertexStepMode,
+        color_input: wgpu::VertexStepMode,
+        shape_input: wgpu::VertexStepMode,
+    ) -> VertexEntry<6> {
         VertexEntry {
             entry_point: ENTRY_VS_MAIN,
             buffers: [
                 VertexInput::vertex_buffer_layout(vertex_input),
-                InstanceInput::vertex_buffer_layout(instance_input),
+                FlagsInput::vertex_buffer_layout(flags_input),
+                PositionInput::vertex_buffer_layout(position_input),
+                SizeInput::vertex_buffer_layout(size_input),
+                ColorInput::vertex_buffer_layout(color_input),
+                ShapeInput::vertex_buffer_layout(shape_input),
             ],
             constants: Default::default(),
         }
@@ -302,7 +377,27 @@ struct Uniforms {
 }
 
 struct VertexInput {
-    @location(0) position: vec2<f32>,
+    @location(0) inner: vec2<f32>,
+}
+
+struct FlagsInput {
+    @location(1) @interpolate(flat) inner: u32,
+}
+
+struct PositionInput {
+    @location(2) inner: vec2<f32>,
+}
+
+struct SizeInput {
+    @location(3) inner: vec2<f32>,
+}
+
+struct ColorInput {
+    @location(4) inner: vec4<f32>,
+}
+
+struct ShapeInput {
+    @location(5) @interpolate(flat) inner: u32,
 }
 
 struct VertexOutput {
@@ -313,57 +408,49 @@ struct VertexOutput {
     @location(3) @interpolate(flat) shape: u32,
 }
 
-struct InstanceInput {
-    @location(1) @interpolate(flat) flags: u32,
-    @location(3) position: vec2<f32>,
-    @location(4) size: vec2<f32>,
-    @location(5) color: vec4<f32>,
-    @location(6) @interpolate(flat) shape: u32,
-}
-
 struct FragmentOutput {
     @location(0) color: vec4<f32>,
 }
 
-const INSTANCE_SHOW: u32 = 1u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
+const FLAG_SHOW: u32 = 1u;
 
 @group(0) @binding(0) 
 var<uniform> uniforms: Uniforms;
 
 @vertex 
-fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
+fn vs_main(vertex: VertexInput, flag: FlagsInput, position: PositionInput, size: SizeInput, color: ColorInput, shape: ShapeInput) -> VertexOutput {
     var out: VertexOutput;
 
-    if ((instance.flags & INSTANCE_SHOW) == 0u) {
+    if ((flag.inner & FLAG_SHOW) == 0u) {
         let _e7 = out;
         return _e7;
     }
-    let _e11 = uniforms.view_size;
-    let scale = (instance.size / _e11);
+    let _e12 = uniforms.view_size;
+    let scale = (size.inner / _e12);
     out.scaling_factor = clamp(min(scale.x, scale.y), 0f, 1f);
-    let _e23 = uniforms.view_size;
-    let translation = ((((instance.position / _e23) * vec2<f32>(2f, -2f)) + vec2<f32>(-1f, 1f)) / scale);
+    let _e25 = uniforms.view_size;
+    let translation = ((((position.inner / _e25) * vec2<f32>(2f, -2f)) + vec2<f32>(-1f, 1f)) / scale);
     let translation_matrix = transpose(mat4x4<f32>(vec4<f32>(1f, 0f, 0f, translation.x), vec4<f32>(0f, 1f, 0f, translation.y), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(0f, 0f, 0f, 1f)));
     let scale_matrix = mat4x4<f32>(vec4<f32>(scale.x, 0f, 0f, 0f), vec4<f32>(0f, scale.y, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(0f, 0f, 0f, 1f));
-    out.clip_position = ((scale_matrix * translation_matrix) * vec4<f32>(vertex.position, 0f, 1f));
-    out.quad_position = vertex.position;
-    out.color = instance.color;
-    out.shape = instance.shape;
-    let _e91 = out;
-    return _e91;
+    out.clip_position = ((scale_matrix * translation_matrix) * vec4<f32>(vertex.inner, 0f, 1f));
+    out.quad_position = vertex.inner;
+    out.color = color.inner;
+    out.shape = shape.inner;
+    let _e95 = out;
+    return _e95;
 }
 
 @fragment 
 fn fs_main(in: VertexOutput) -> FragmentOutput {
-    var color: vec4<f32>;
+    var color_1: vec4<f32>;
 
-    color = in.color;
+    color_1 = in.color;
     if (in.shape == SHAPE_CIRCLE) {
-        color.w = smoothstep(1f, (1f - clamp((0.002f / in.scaling_factor), 0.002f, 0.3f)), length(in.quad_position));
+        color_1.w = smoothstep(1f, (1f - clamp((0.002f / in.scaling_factor), 0.002f, 0.3f)), length(in.quad_position));
     }
-    let _e19 = color;
+    let _e19 = color_1;
     return FragmentOutput(_e19);
 }
 "#;
@@ -374,6 +461,14 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for shape::Uniforms {}
     unsafe impl bytemuck::Zeroable for shape::VertexInput {}
     unsafe impl bytemuck::Pod for shape::VertexInput {}
-    unsafe impl bytemuck::Zeroable for shape::InstanceInput {}
-    unsafe impl bytemuck::Pod for shape::InstanceInput {}
+    unsafe impl bytemuck::Zeroable for shape::FlagsInput {}
+    unsafe impl bytemuck::Pod for shape::FlagsInput {}
+    unsafe impl bytemuck::Zeroable for shape::PositionInput {}
+    unsafe impl bytemuck::Pod for shape::PositionInput {}
+    unsafe impl bytemuck::Zeroable for shape::SizeInput {}
+    unsafe impl bytemuck::Pod for shape::SizeInput {}
+    unsafe impl bytemuck::Zeroable for shape::ColorInput {}
+    unsafe impl bytemuck::Pod for shape::ColorInput {}
+    unsafe impl bytemuck::Zeroable for shape::ShapeInput {}
+    unsafe impl bytemuck::Pod for shape::ShapeInput {}
 }

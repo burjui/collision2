@@ -1,5 +1,7 @@
+pub mod objects;
 pub mod shape_renderer;
 mod shape_shaders;
+pub mod wgpu_buffer;
 
 use std::{sync::Arc, time::Instant};
 
@@ -17,8 +19,9 @@ use winit::{
 };
 
 use crate::{
+    objects::{ObjectPrototype, Objects},
     shape_renderer::ShapeRenderer,
-    shape_shaders::shape::{self, INSTANCE_SHOW},
+    shape_shaders::shape::{self, FLAG_SHOW},
 };
 
 fn main() {
@@ -42,7 +45,7 @@ impl App<'_> {
 }
 
 struct AppState<'a> {
-    instances: Vec<shape::InstanceInput>,
+    objects: Objects,
     shape_renderer: ShapeRenderer,
     surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
@@ -55,7 +58,7 @@ impl ApplicationHandler for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let mut window_attributes = WindowAttributes::default();
         window_attributes.inner_size = Some(PhysicalSize::new(1600, 800).into());
-        window_attributes.resizable = false;
+        window_attributes.resizable = true;
         let window = Arc::new(event_loop.create_window(window_attributes).expect("Failed to create window"));
         let surface = self.wgpu.create_surface(window.clone()).unwrap();
 
@@ -85,57 +88,59 @@ impl ApplicationHandler for App<'_> {
 
         let window_size = Vector2::<f32>::new(window_size.cast().width, window_size.cast().height);
         println!("Window size: {}x{}", window_size.x, window_size.y);
-        let mut instances = vec![];
+
+        let mut objects = Objects::new();
         let circles = {
-            const RADIUS: f32 = 2.0;
+            const RADIUS: f32 = 1.0;
             let shape_count = window_size * 0.5 / RADIUS;
             println!("Shape count: {}", (shape_count.x * shape_count.y) as usize);
             (0..shape_count.x as usize).cartesian_product(0..shape_count.y as usize).map(move |(i, j)| {
                 let (i, j) = (i as f32, j as f32);
                 let position = [RADIUS * (i * 2.0 + 1.0), RADIUS * (j * 2.0 + 1.0)];
-                shape::InstanceInput::new(
-                    INSTANCE_SHOW,
+                ObjectPrototype {
+                    flags: FLAG_SHOW,
                     position,
-                    [RADIUS * 2.0, RADIUS * 2.0],
-                    [random(), random(), random(), 1.0],
-                    shape::SHAPE_CIRCLE,
-                )
+                    size: [RADIUS * 2.0, RADIUS * 2.0],
+                    color: [random(), random(), random(), 1.0],
+                    shape: shape::SHAPE_CIRCLE,
+                }
             })
         };
+
         const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
-        let top = shape::InstanceInput::new(
-            INSTANCE_SHOW,
-            [window_size.x / 2.0, 0.5],
-            [window_size.x, 1.0],
-            RED,
-            shape::SHAPE_RECT,
-        );
-        let bottom = shape::InstanceInput::new(
-            INSTANCE_SHOW,
-            [window_size.x / 2.0, window_size.y - 0.5],
-            [window_size.x, 1.0],
-            RED,
-            shape::SHAPE_RECT,
-        );
-        let left = shape::InstanceInput::new(
-            INSTANCE_SHOW,
-            [0.5, window_size.y / 2.0],
-            [1.0, window_size.y],
-            RED,
-            shape::SHAPE_RECT,
-        );
-        let right = shape::InstanceInput::new(
-            INSTANCE_SHOW,
-            [window_size.x - 0.5, window_size.y / 2.0],
-            [1.0, window_size.y],
-            RED,
-            shape::SHAPE_RECT,
-        );
-        instances.extend(circles);
-        instances.push(top);
-        instances.push(bottom);
-        instances.push(left);
-        instances.push(right);
+        let top = ObjectPrototype {
+            flags: FLAG_SHOW,
+            position: [window_size.x / 2.0, 0.5],
+            size: [window_size.x, 1.0],
+            color: RED,
+            shape: shape::SHAPE_RECT,
+        };
+        let bottom = ObjectPrototype {
+            flags: FLAG_SHOW,
+            position: [window_size.x / 2.0, window_size.y - 0.5],
+            size: [window_size.x, 1.0],
+            color: RED,
+            shape: shape::SHAPE_RECT,
+        };
+        let left = ObjectPrototype {
+            flags: FLAG_SHOW,
+            position: [0.5, window_size.y / 2.0],
+            size: [1.0, window_size.y],
+            color: RED,
+            shape: shape::SHAPE_RECT,
+        };
+        let right = ObjectPrototype {
+            flags: FLAG_SHOW,
+            position: [window_size.x - 0.5, window_size.y / 2.0],
+            size: [1.0, window_size.y],
+            color: RED,
+            shape: shape::SHAPE_RECT,
+        };
+        objects.extend(circles);
+        objects.push(top);
+        objects.push(bottom);
+        objects.push(left);
+        objects.push(right);
 
         let pipeline_cache = unsafe {
             device.create_pipeline_cache(&wgpu::PipelineCacheDescriptor {
@@ -144,10 +149,10 @@ impl ApplicationHandler for App<'_> {
                 fallback: true,
             })
         };
-        let shape_renderer = ShapeRenderer::new(&device, swapchain_format, &pipeline_cache);
+        let shape_renderer = ShapeRenderer::new(&device, &queue, swapchain_format, &pipeline_cache);
 
         self.state = Some(AppState {
-            instances,
+            objects,
             shape_renderer,
             surface_config,
             queue,
@@ -191,8 +196,8 @@ impl ApplicationHandler for App<'_> {
                 });
 
                 println!("Window inner size: {:?}", state.window.inner_size());
-                state.shape_renderer.prepare(&state.device, &state.instances, state.window.inner_size());
-                state.shape_renderer.render(&mut render_pass, 0..state.instances.len());
+                state.shape_renderer.prepare(&state.device, &state.queue, &state.objects, state.window.inner_size());
+                state.shape_renderer.render(&mut render_pass, 0..state.objects.len());
 
                 drop(render_pass);
                 let submission_index = state.queue.submit(Some(encoder.finish()));
