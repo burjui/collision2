@@ -145,26 +145,29 @@ impl ShapeRenderer {
         self.instance_count = objects.len();
     }
 
-    pub fn render(&self, render_pass: &mut RenderPass<'_>, instances: Range<usize>) {
-        let Some(instance_buffers) = self.instance_buffers.as_ref() else {
+    pub fn render(&self, rpass: &mut RenderPass<'_>, instances: Range<usize>) {
+        let Some(InstanceBuffers {
+            flags,
+            position,
+            size,
+            color,
+            shape,
+        }) = self.instance_buffers.as_ref()
+        else {
             panic!("Forgot to call prepare()?")
         };
-        render_pass.set_pipeline(&self.render_pipeline);
-        self.uniforms_bind_group.set(render_pass);
+        rpass.set_pipeline(&self.render_pipeline);
+        self.uniforms_bind_group.set(rpass);
 
-        fn set_vertex_buffer<T>(render_pass: &mut RenderPass<'_>, slot: u32, vertex_buffer: &GpuSlice<T>) {
-            render_pass.set_vertex_buffer(slot, vertex_buffer.slice(0..vertex_buffer.len()));
-        }
-
-        set_vertex_buffer(render_pass, VertexInput::VERTEX_ATTRIBUTES[0].shader_location, &self.vertex_buffer);
-        set_vertex_buffer(render_pass, FlagsInput::VERTEX_ATTRIBUTES[0].shader_location, &instance_buffers.flags);
-        set_vertex_buffer(render_pass, PositionInput::VERTEX_ATTRIBUTES[0].shader_location, &instance_buffers.position);
-        set_vertex_buffer(render_pass, SizeInput::VERTEX_ATTRIBUTES[0].shader_location, &instance_buffers.size);
-        set_vertex_buffer(render_pass, ColorInput::VERTEX_ATTRIBUTES[0].shader_location, &instance_buffers.color);
-        set_vertex_buffer(render_pass, ShapeInput::VERTEX_ATTRIBUTES[0].shader_location, &instance_buffers.shape);
+        rpass.set_vertex_buffer(VertexInput::VERTEX_ATTRIBUTES[0].shader_location, self.vertex_buffer.as_slice());
+        rpass.set_vertex_buffer(FlagsInput::VERTEX_ATTRIBUTES[0].shader_location, flags.slice(instances.clone()));
+        rpass.set_vertex_buffer(PositionInput::VERTEX_ATTRIBUTES[0].shader_location, position.slice(instances.clone()));
+        rpass.set_vertex_buffer(SizeInput::VERTEX_ATTRIBUTES[0].shader_location, size.slice(instances.clone()));
+        rpass.set_vertex_buffer(ColorInput::VERTEX_ATTRIBUTES[0].shader_location, color.slice(instances.clone()));
+        rpass.set_vertex_buffer(ShapeInput::VERTEX_ATTRIBUTES[0].shader_location, shape.slice(instances.clone()));
 
         let start = u32::try_from(instances.start).unwrap();
         let end = u32::try_from(instances.end).unwrap();
-        render_pass.draw(0..6, start..end);
+        rpass.draw(0..6, start..end);
     }
 }

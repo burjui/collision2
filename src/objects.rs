@@ -37,20 +37,20 @@ impl Objects {
         self.shape.push(shape::ShapeInput { inner: prototype.shape });
     }
 
-    pub fn reserve(&mut self, additional: usize) {
-        self.flags.reserve(additional);
-        self.position.reserve(additional);
-        self.size.reserve(additional);
-        self.color.reserve(additional);
-        self.shape.reserve(additional);
-    }
-
     pub fn extend(&mut self, iter: impl IntoIterator<Item = ObjectPrototype>) {
         let iter = iter.into_iter();
         self.reserve(iter.size_hint().0);
         for prototype in iter {
             self.push(prototype);
         }
+    }
+
+    pub fn reserve(&mut self, additional: usize) {
+        self.flags.reserve(additional);
+        self.position.reserve(additional);
+        self.size.reserve(additional);
+        self.color.reserve(additional);
+        self.shape.reserve(additional);
     }
 
     pub fn len(&self) -> usize {

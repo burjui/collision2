@@ -63,21 +63,28 @@ impl<T> GpuSlice<T> {
     }
 
     pub fn len(&self) -> usize {
+        self.size() / size_of::<T>()
+    }
+
+    pub fn size(&self) -> usize {
         (self.range.end - self.range.start).try_into().unwrap()
     }
 
+    pub fn as_slice(&self) -> BufferSlice<'_> {
+        self.buffer.slice(self.range.clone())
+    }
+
     pub fn slice(&self, range: Range<usize>) -> BufferSlice<'_> {
-        let start: u64 = range.start.try_into().unwrap();
-        let end: u64 = range.end.try_into().unwrap();
-        let slice_length = end - start;
-        let self_length = self.range.end - self.range.start;
+        let slice_size = range.len() * size_of::<T>();
+        let start = self.range.start + u64::try_from(range.start * size_of::<T>()).unwrap();
+        let end = start + u64::try_from(slice_size).unwrap();
         assert!(
-            slice_length <= self_length,
+            start >= self.range.start && end <= self.range.end,
             "Range {start}..{end} is out of bounds ({}..{})",
             self.range.start,
             self.range.end
         );
-        self.buffer.slice(self.range.start + start..self.range.start + end)
+        self.buffer.slice(start..end)
     }
 
     pub fn enque_write(&self, queue: &Queue, data: &[T])
