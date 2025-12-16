@@ -1,7 +1,7 @@
+pub mod gpu_arena;
 pub mod objects;
 pub mod shape_renderer;
 mod shape_shaders;
-pub mod wgpu_buffer;
 
 use std::{sync::Arc, time::Instant};
 
