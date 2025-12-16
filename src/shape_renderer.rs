@@ -127,7 +127,7 @@ impl ShapeRenderer {
                     BufferUsages::VERTEX | BufferUsages::COPY_DST,
                     device,
                 );
-                println!("instance arena size: {}", instance_arena.buffer().size());
+                println!("Instance arena size: {}", instance_arena.buffer().size());
                 InstanceBuffers {
                     flags: instance_arena.allocate(objects.len()),
                     position: instance_arena.allocate(objects.len()),
@@ -160,11 +160,11 @@ impl ShapeRenderer {
         self.uniforms_bind_group.set(rpass);
 
         rpass.set_vertex_buffer(VertexInput::VERTEX_ATTRIBUTES[0].shader_location, self.vertex_buffer.as_slice());
-        rpass.set_vertex_buffer(FlagsInput::VERTEX_ATTRIBUTES[0].shader_location, flags.slice(instances.clone()));
-        rpass.set_vertex_buffer(PositionInput::VERTEX_ATTRIBUTES[0].shader_location, position.slice(instances.clone()));
-        rpass.set_vertex_buffer(SizeInput::VERTEX_ATTRIBUTES[0].shader_location, size.slice(instances.clone()));
-        rpass.set_vertex_buffer(ColorInput::VERTEX_ATTRIBUTES[0].shader_location, color.slice(instances.clone()));
-        rpass.set_vertex_buffer(ShapeInput::VERTEX_ATTRIBUTES[0].shader_location, shape.slice(instances.clone()));
+        rpass.set_vertex_buffer(FlagsInput::VERTEX_ATTRIBUTES[0].shader_location, flags.as_slice());
+        rpass.set_vertex_buffer(PositionInput::VERTEX_ATTRIBUTES[0].shader_location, position.as_slice());
+        rpass.set_vertex_buffer(SizeInput::VERTEX_ATTRIBUTES[0].shader_location, size.as_slice());
+        rpass.set_vertex_buffer(ColorInput::VERTEX_ATTRIBUTES[0].shader_location, color.as_slice());
+        rpass.set_vertex_buffer(ShapeInput::VERTEX_ATTRIBUTES[0].shader_location, shape.as_slice());
 
         let start = u32::try_from(instances.start).unwrap();
         let end = u32::try_from(instances.end).unwrap();
