@@ -2,22 +2,25 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: 1bfe586ec6ad2cf23a31c892ac6ca7e324b99e2d381032c0d5d36c647cc3c4e9
+// SourceHash: 22f39a44ae62c214d23839e1a9fed5fcc72dfd024df62238f545dceb96123847
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
     Shape,
+    Integration,
 }
 impl ShaderEntry {
     pub fn create_pipeline_layout(&self, device: &wgpu::Device) -> wgpu::PipelineLayout {
         match self {
             Self::Shape => shape::create_pipeline_layout(device),
+            Self::Integration => integration::create_pipeline_layout(device),
         }
     }
     pub fn create_shader_module_embed_source(&self, device: &wgpu::Device) -> wgpu::ShaderModule {
         match self {
             Self::Shape => shape::create_shader_module_embed_source(device),
+            Self::Integration => integration::create_shader_module_embed_source(device),
         }
     }
 }
@@ -36,6 +39,11 @@ mod _root {
             self.set_bind_group(index, bind_group, offsets);
         }
     }
+    impl SetBindGroup for wgpu::ComputePass<'_> {
+        fn set_bind_group(&mut self, index: u32, bind_group: &wgpu::BindGroup, offsets: &[wgpu::DynamicOffset]) {
+            self.set_bind_group(index, bind_group, offsets);
+        }
+    }
 }
 pub mod layout_asserts {
     use super::{_root, _root::*};
@@ -43,6 +51,18 @@ pub mod layout_asserts {
     const SHAPE_UNIFORMS_ASSERTS: () = {
         assert!(std::mem::offset_of!(shape::Uniforms, view_size) == 0);
         assert!(std::mem::size_of::<shape::Uniforms>() == 8);
+    };
+    const INTEGRATION_COMPUTE_MASS_ASSERTS: () = {
+        assert!(std::mem::offset_of!(integration::ComputeMass, inner) == 0);
+        assert!(std::mem::size_of::<integration::ComputeMass>() == 4);
+    };
+    const INTEGRATION_COMPUTE_VELOCITY_ASSERTS: () = {
+        assert!(std::mem::offset_of!(integration::ComputeVelocity, inner) == 0);
+        assert!(std::mem::size_of::<integration::ComputeVelocity>() == 8);
+    };
+    const INTEGRATION_COMPUTE_POSITION_ASSERTS: () = {
+        assert!(std::mem::offset_of!(integration::ComputePosition, inner) == 0);
+        assert!(std::mem::size_of::<integration::ComputePosition>() == 8);
     };
 }
 pub mod shape {
@@ -471,4 +491,245 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for shape::ColorInput {}
     unsafe impl bytemuck::Zeroable for shape::ShapeInput {}
     unsafe impl bytemuck::Pod for shape::ShapeInput {}
+    unsafe impl bytemuck::Zeroable for integration::ComputeMass {}
+    unsafe impl bytemuck::Pod for integration::ComputeMass {}
+    unsafe impl bytemuck::Zeroable for integration::ComputeVelocity {}
+    unsafe impl bytemuck::Pod for integration::ComputeVelocity {}
+    unsafe impl bytemuck::Zeroable for integration::ComputePosition {}
+    unsafe impl bytemuck::Pod for integration::ComputePosition {}
+}
+pub mod integration {
+    use super::{_root, _root::*};
+    #[repr(C, align(4))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct ComputeMass {
+        #[doc = "offset: 0, size: 4, type: `f32`"]
+        pub inner: f32,
+    }
+    impl ComputeMass {
+        pub const fn new(inner: f32) -> Self {
+            Self { inner }
+        }
+    }
+    #[repr(C, align(8))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct ComputeVelocity {
+        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
+        pub inner: [f32; 2],
+    }
+    impl ComputeVelocity {
+        pub const fn new(inner: [f32; 2]) -> Self {
+            Self { inner }
+        }
+    }
+    #[repr(C, align(8))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct ComputePosition {
+        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
+        pub inner: [f32; 2],
+    }
+    impl ComputePosition {
+        pub const fn new(inner: [f32; 2]) -> Self {
+            Self { inner }
+        }
+    }
+    pub mod compute {
+        use super::{_root, _root::*};
+        pub const CS_MAIN_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
+        pub fn create_cs_main_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
+            let module = super::create_shader_module_embed_source(device);
+            let layout = super::create_pipeline_layout(device);
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline cs_main"),
+                layout: Some(&layout),
+                module: &module,
+                entry_point: Some("cs_main"),
+                compilation_options: Default::default(),
+                cache: None,
+            })
+        }
+    }
+    pub const ENTRY_CS_MAIN: &str = "cs_main";
+    #[derive(Debug)]
+    pub struct WgpuBindGroup0EntriesParams<'a> {
+        pub dt: wgpu::BufferBinding<'a>,
+        pub mass: wgpu::BufferBinding<'a>,
+        pub velocity: wgpu::BufferBinding<'a>,
+        pub position: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup0Entries<'a> {
+        pub dt: wgpu::BindGroupEntry<'a>,
+        pub mass: wgpu::BindGroupEntry<'a>,
+        pub velocity: wgpu::BindGroupEntry<'a>,
+        pub position: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup0Entries<'a> {
+        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
+            Self {
+                dt: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.dt),
+                },
+                mass: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.mass),
+                },
+                velocity: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.velocity),
+                },
+                position: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.position),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
+            [self.dt, self.mass, self.velocity, self.position]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup0(wgpu::BindGroup);
+    impl WgpuBindGroup0 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("Integration::BindGroup0::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"dt\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"mass\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"velocity\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"position\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Integration::BindGroup0"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(0, &self.0, &[]);
+        }
+    }
+    #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
+    #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
+    #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
+    #[doc = "   - Bind group 1: More frequent updates"]
+    #[doc = "   - Bind group 2: More frequent updates"]
+    #[doc = "   - Bind group 3: Most frequent updates (e.g. per draw resources)"]
+    #[derive(Debug, Copy, Clone)]
+    pub struct WgpuBindGroups<'a> {
+        pub bind_group0: &'a WgpuBindGroup0,
+    }
+    impl<'a> WgpuBindGroups<'a> {
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            self.bind_group0.set(pass);
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuPipelineLayout;
+    impl WgpuPipelineLayout {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
+            entries
+        }
+    }
+    pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
+        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Integration::PipelineLayout"),
+            bind_group_layouts: &[&WgpuBindGroup0::get_bind_group_layout(device)],
+            push_constant_ranges: &[],
+        })
+    }
+    pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
+        let source = std::borrow::Cow::Borrowed(SHADER_STRING);
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("integration.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(source),
+        })
+    }
+    pub const SHADER_STRING: &str = r#"
+struct ComputeMass {
+    inner: f32,
+}
+
+struct ComputeVelocity {
+    inner: vec2<f32>,
+}
+
+struct ComputePosition {
+    inner: vec2<f32>,
+}
+
+@group(0) @binding(0) 
+var<storage> dt: f32;
+@group(0) @binding(1) 
+var<storage> mass: array<ComputeMass>;
+@group(0) @binding(2) 
+var<storage> velocity: array<ComputeVelocity>;
+@group(0) @binding(3) 
+var<storage, read_write> position: array<ComputePosition>;
+
+@compute @workgroup_size(64, 1, 1) 
+fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let index = gid.x;
+    if (index >= arrayLength((&mass))) {
+        return;
+    }
+    let _e11 = velocity[index].inner;
+    let _e13 = dt;
+    let _e15 = position[index].inner;
+    position[index].inner = (_e15 + (_e11 * _e13));
+    return;
+}
+"#;
 }

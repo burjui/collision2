@@ -62,6 +62,10 @@ impl<T> GpuSlice<T> {
         }
     }
 
+    pub fn buffer(&self) -> &Buffer {
+        &self.buffer
+    }
+
     pub fn len(&self) -> usize {
         self.size() / size_of::<T>()
     }
@@ -70,7 +74,7 @@ impl<T> GpuSlice<T> {
         (self.range.end - self.range.start).try_into().unwrap()
     }
 
-    pub fn as_slice(&self) -> BufferSlice<'_> {
+    pub fn slice_all(&self) -> BufferSlice<'_> {
         self.buffer.slice(self.range.clone())
     }
 
@@ -87,7 +91,7 @@ impl<T> GpuSlice<T> {
         self.buffer.slice(start..end)
     }
 
-    pub fn enque_write(&self, queue: &Queue, data: &[T])
+    pub fn write(&self, queue: &Queue, data: &[T])
     where
         T: NoUninit,
     {
@@ -96,5 +100,10 @@ impl<T> GpuSlice<T> {
         assert!(data_size <= size);
         let mut view = queue.write_buffer_with(&self.buffer, self.range.start, data_size.try_into().unwrap()).unwrap();
         view.as_mut().copy_from_slice(bytemuck::cast_slice(data));
+    }
+
+    pub fn cast<U>(&self) -> GpuSlice<U> {
+        assert!(size_of::<U>() == size_of::<T>());
+        GpuSlice::new(self.buffer.clone(), self.range.clone())
     }
 }

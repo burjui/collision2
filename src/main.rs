@@ -1,14 +1,17 @@
 pub mod gpu_arena;
+pub mod integration;
 pub mod objects;
+pub mod shaders;
 pub mod shape_renderer;
-mod shape_shaders;
 
+use core::f32;
 use std::{sync::Arc, time::Instant};
 
 use itertools::Itertools;
 use nalgebra::Vector2;
 use pollster::block_on;
-use rand::random;
+use rand::{random, random_range};
+use wgpu::BufferUsages;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -19,9 +22,12 @@ use winit::{
 };
 
 use crate::{
+    gpu_arena::{GpuArena, GpuSlice},
+    integration::GpuIntegrator,
     objects::{ObjectPrototype, Objects},
+    shaders::integration::{ComputeMass, ComputeVelocity},
+    shaders::shape::{self, FLAG_SHOW},
     shape_renderer::ShapeRenderer,
-    shape_shaders::shape::{self, FLAG_SHOW},
 };
 
 fn main() {
@@ -46,7 +52,19 @@ impl App<'_> {
 
 struct AppState<'a> {
     objects: Objects,
+    velocities: GpuSlice<ComputeVelocity>,
+    masses: GpuSlice<ComputeMass>,
+    flags: GpuSlice<shape::FlagsInput>,
+    positions: GpuSlice<shape::PositionInput>,
+    sizes: GpuSlice<shape::SizeInput>,
+    colors: GpuSlice<shape::ColorInput>,
+    shapes: GpuSlice<shape::ShapeInput>,
+
     shape_renderer: ShapeRenderer,
+    integrator: GpuIntegrator,
+    dt: GpuSlice<f32>,
+    last_update: Instant,
+
     surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
     device: wgpu::Device,
@@ -91,13 +109,20 @@ impl ApplicationHandler for App<'_> {
 
         let mut objects = Objects::new();
         let circles = {
-            const RADIUS: f32 = 1.0;
+            const RADIUS: f32 = 0.5;
+            const VELOCITY_MAX: f32 = 300.0;
+
             let shape_count = window_size * 0.5 / RADIUS;
             println!("Shape count: {}", (shape_count.x * shape_count.y) as usize);
             (0..shape_count.x as usize).cartesian_product(0..shape_count.y as usize).map(move |(i, j)| {
                 let (i, j) = (i as f32, j as f32);
                 let position = [RADIUS * (i * 2.0 + 1.0), RADIUS * (j * 2.0 + 1.0)];
                 ObjectPrototype {
+                    mass: 1.0,
+                    velocity: [
+                        random_range(-VELOCITY_MAX..VELOCITY_MAX),
+                        random_range(-VELOCITY_MAX..VELOCITY_MAX),
+                    ],
                     flags: FLAG_SHOW,
                     position,
                     size: [RADIUS * 2.0, RADIUS * 2.0],
@@ -109,6 +134,8 @@ impl ApplicationHandler for App<'_> {
 
         const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
         let top = ObjectPrototype {
+            mass: f32::INFINITY,
+            velocity: [0.0, 0.0],
             flags: FLAG_SHOW,
             position: [window_size.x / 2.0, 0.5],
             size: [window_size.x, 1.0],
@@ -116,6 +143,8 @@ impl ApplicationHandler for App<'_> {
             shape: shape::SHAPE_RECT,
         };
         let bottom = ObjectPrototype {
+            mass: f32::INFINITY,
+            velocity: [0.0, 0.0],
             flags: FLAG_SHOW,
             position: [window_size.x / 2.0, window_size.y - 0.5],
             size: [window_size.x, 1.0],
@@ -123,6 +152,8 @@ impl ApplicationHandler for App<'_> {
             shape: shape::SHAPE_RECT,
         };
         let left = ObjectPrototype {
+            mass: f32::INFINITY,
+            velocity: [0.0, 0.0],
             flags: FLAG_SHOW,
             position: [0.5, window_size.y / 2.0],
             size: [1.0, window_size.y],
@@ -130,6 +161,8 @@ impl ApplicationHandler for App<'_> {
             shape: shape::SHAPE_RECT,
         };
         let right = ObjectPrototype {
+            mass: f32::INFINITY,
+            velocity: [0.0, 0.0],
             flags: FLAG_SHOW,
             position: [window_size.x - 0.5, window_size.y / 2.0],
             size: [1.0, window_size.y],
@@ -142,6 +175,32 @@ impl ApplicationHandler for App<'_> {
         objects.push(left);
         objects.push(right);
 
+        let access_mode = BufferUsages::COPY_DST;
+        let (_, velocities) =
+            GpuArena::new_slice(objects.len(), "Velocity arena", BufferUsages::STORAGE | access_mode, &device);
+        let (_, masses) =
+            GpuArena::new_slice(objects.len(), "Mass arena", BufferUsages::STORAGE | access_mode, &device);
+        let (_, flags) = GpuArena::new_slice(objects.len(), "Flags arena", BufferUsages::VERTEX | access_mode, &device);
+        let (_, positions) = GpuArena::new_slice(
+            objects.len(),
+            "Position arena",
+            BufferUsages::VERTEX | BufferUsages::STORAGE | access_mode,
+            &device,
+        );
+        let (_, sizes) = GpuArena::new_slice(objects.len(), "Size arena", BufferUsages::VERTEX | access_mode, &device);
+        let (_, colors) =
+            GpuArena::new_slice(objects.len(), "Color arena", BufferUsages::VERTEX | access_mode, &device);
+        let (_, shapes) =
+            GpuArena::new_slice(objects.len(), "Shape arena", BufferUsages::VERTEX | access_mode, &device);
+
+        masses.write(&queue, &objects.mass);
+        velocities.write(&queue, &objects.velocity);
+        flags.write(&queue, &objects.flags);
+        positions.write(&queue, &objects.position);
+        sizes.write(&queue, &objects.size);
+        colors.write(&queue, &objects.color);
+        shapes.write(&queue, &objects.shape);
+
         let pipeline_cache = unsafe {
             device.create_pipeline_cache(&wgpu::PipelineCacheDescriptor {
                 label: None,
@@ -151,9 +210,23 @@ impl ApplicationHandler for App<'_> {
         };
         let shape_renderer = ShapeRenderer::new(&device, &queue, swapchain_format, &pipeline_cache);
 
+        let integrator = GpuIntegrator::new(&device);
+        let (_, dt) = GpuArena::new_slice(1, "Delta time arena", BufferUsages::STORAGE | access_mode, &device);
+        dt.write(&queue, &[0.001]);
+
         self.state = Some(AppState {
             objects,
+            velocities,
+            masses,
+            flags,
+            positions,
+            sizes,
+            colors,
+            shapes,
             shape_renderer,
+            integrator,
+            dt,
+            last_update: Instant::now(),
             surface_config,
             queue,
             device,
@@ -195,19 +268,20 @@ impl ApplicationHandler for App<'_> {
                     occlusion_query_set: None,
                 });
 
-                println!("Window inner size: {:?}", state.window.inner_size());
-                state.shape_renderer.prepare(&state.device, &state.queue, &state.objects, state.window.inner_size());
-                state.shape_renderer.render(&mut render_pass, 0..state.objects.len());
+                state.shape_renderer.prepare(&state.queue, state.window.inner_size());
+                state.shape_renderer.render(
+                    &mut render_pass,
+                    0..state.objects.len(),
+                    &state.flags,
+                    &state.positions,
+                    &state.sizes,
+                    &state.colors,
+                    &state.shapes,
+                );
 
                 drop(render_pass);
-                let submission_index = state.queue.submit(Some(encoder.finish()));
-                state
-                    .device
-                    .poll(wgpu::PollType::Wait {
-                        submission_index: Some(submission_index),
-                        timeout: None,
-                    })
-                    .unwrap();
+
+                state.queue.submit(Some(encoder.finish()));
                 state.window.pre_present_notify();
                 frame.present();
 
@@ -240,6 +314,24 @@ impl ApplicationHandler for App<'_> {
             } => event_loop.exit(),
 
             _ => (),
+        }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(state) = &mut self.state {
+            let now = Instant::now();
+            let dt = (now - state.last_update).as_secs_f32();
+            state.last_update = now;
+            state.dt.write(&state.queue, &[dt]);
+            state.integrator.compute(
+                &state.device,
+                &state.queue,
+                &state.dt,
+                &state.positions.cast(),
+                &state.velocities,
+                &state.masses,
+            );
+            state.window.request_redraw();
         }
     }
 }

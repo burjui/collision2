@@ -1,6 +1,11 @@
-use crate::shape_shaders::shape;
+use crate::shaders::{
+    integration::{ComputeMass, ComputeVelocity},
+    shape::{ColorInput, FlagsInput, PositionInput, ShapeInput, SizeInput},
+};
 
 pub struct ObjectPrototype {
+    pub mass: f32,
+    pub velocity: [f32; 2],
     pub flags: u32,
     pub position: [f32; 2],
     pub size: [f32; 2],
@@ -9,16 +14,20 @@ pub struct ObjectPrototype {
 }
 
 pub struct Objects {
-    pub flags: Vec<shape::FlagsInput>,
-    pub position: Vec<shape::PositionInput>,
-    pub size: Vec<shape::SizeInput>,
-    pub color: Vec<shape::ColorInput>,
-    pub shape: Vec<shape::ShapeInput>,
+    pub mass: Vec<ComputeMass>,
+    pub velocity: Vec<ComputeVelocity>,
+    pub flags: Vec<FlagsInput>,
+    pub position: Vec<PositionInput>,
+    pub size: Vec<SizeInput>,
+    pub color: Vec<ColorInput>,
+    pub shape: Vec<ShapeInput>,
 }
 
 impl Objects {
     pub fn new() -> Self {
         Self {
+            mass: vec![],
+            velocity: vec![],
             flags: vec![],
             position: vec![],
             size: vec![],
@@ -28,13 +37,13 @@ impl Objects {
     }
 
     pub fn push(&mut self, prototype: ObjectPrototype) {
-        self.flags.push(shape::FlagsInput { inner: prototype.flags });
-        self.position.push(shape::PositionInput {
-            inner: prototype.position,
-        });
-        self.size.push(shape::SizeInput { inner: prototype.size });
-        self.color.push(shape::ColorInput { inner: prototype.color });
-        self.shape.push(shape::ShapeInput { inner: prototype.shape });
+        self.mass.push(ComputeMass::new(prototype.mass));
+        self.velocity.push(ComputeVelocity::new(prototype.velocity));
+        self.flags.push(FlagsInput::new(prototype.flags));
+        self.position.push(PositionInput::new(prototype.position));
+        self.size.push(SizeInput::new(prototype.size));
+        self.color.push(ColorInput::new(prototype.color));
+        self.shape.push(ShapeInput::new(prototype.shape));
     }
 
     pub fn extend(&mut self, iter: impl IntoIterator<Item = ObjectPrototype>) {
@@ -46,6 +55,8 @@ impl Objects {
     }
 
     pub fn reserve(&mut self, additional: usize) {
+        self.mass.reserve(additional);
+        self.velocity.reserve(additional);
         self.flags.reserve(additional);
         self.position.reserve(additional);
         self.size.reserve(additional);
