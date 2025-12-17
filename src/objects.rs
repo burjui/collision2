@@ -13,6 +13,7 @@ pub struct ObjectPrototype {
     pub shape: u32,
 }
 
+#[derive(Default)]
 pub struct Objects {
     pub mass: Vec<ComputeMass>,
     pub velocity: Vec<ComputeVelocity>,
@@ -24,18 +25,6 @@ pub struct Objects {
 }
 
 impl Objects {
-    pub fn new() -> Self {
-        Self {
-            mass: vec![],
-            velocity: vec![],
-            flags: vec![],
-            position: vec![],
-            size: vec![],
-            color: vec![],
-            shape: vec![],
-        }
-    }
-
     pub fn push(&mut self, prototype: ObjectPrototype) {
         self.mass.push(ComputeMass::new(prototype.mass));
         self.velocity.push(ComputeVelocity::new(prototype.velocity));
@@ -66,5 +55,9 @@ impl Objects {
 
     pub fn len(&self) -> usize {
         self.flags.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }

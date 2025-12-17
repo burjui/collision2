@@ -38,15 +38,15 @@ impl GpuArena {
     }
 
     pub fn allocate<T>(&mut self, length: usize) -> GpuSlice<T> {
-        let start: u64 = self.start.try_into().unwrap();
         let length: u64 = (length * size_of::<T>()).try_into().unwrap();
-        let end = start + length;
-        assert!(end <= self.buffer.size(), "Arena is out of space");
-        self.start = end;
-        GpuSlice::new(self.buffer.clone(), start..end)
+        let range = self.start..self.start + length;
+        assert!(range.end <= self.buffer.size(), "Arena is out of space");
+        self.start = range.end;
+        GpuSlice::new(self.buffer.clone(), range)
     }
 }
 
+#[derive(Clone)]
 pub struct GpuSlice<T> {
     buffer: Buffer,
     range: Range<u64>,
@@ -68,6 +68,10 @@ impl<T> GpuSlice<T> {
 
     pub fn len(&self) -> usize {
         self.size() / size_of::<T>()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn size(&self) -> usize {

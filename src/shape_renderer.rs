@@ -28,7 +28,7 @@ impl ShapeRenderer {
         let (_, vertex_buffer) =
             GpuArena::new_slice(6, "Shape vertex arena", BufferUsages::VERTEX | BufferUsages::COPY_DST, device);
         vertex_buffer.write(
-            &queue,
+            queue,
             &[
                 VertexInput::new([1.0, 1.0]),
                 VertexInput::new([-1.0, 1.0]),
@@ -92,6 +92,7 @@ impl ShapeRenderer {
         let uniforms = [shape::Uniforms::new(viewport_size.into())];
         self.uniforms_buffer.write(queue, &uniforms);
     }
+
 
     pub fn render(
         &self,

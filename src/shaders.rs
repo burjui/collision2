@@ -2,23 +2,26 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: 22f39a44ae62c214d23839e1a9fed5fcc72dfd024df62238f545dceb96123847
+// SourceHash: 51e29dd5680158a4e99312f194adb7159908567e5b4074d628b7381af85b7788
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
+    Common,
     Shape,
     Integration,
 }
 impl ShaderEntry {
     pub fn create_pipeline_layout(&self, device: &wgpu::Device) -> wgpu::PipelineLayout {
         match self {
+            Self::Common => common::create_pipeline_layout(device),
             Self::Shape => shape::create_pipeline_layout(device),
             Self::Integration => integration::create_pipeline_layout(device),
         }
     }
     pub fn create_shader_module_embed_source(&self, device: &wgpu::Device) -> wgpu::ShaderModule {
         match self {
+            Self::Common => common::create_shader_module_embed_source(device),
             Self::Shape => shape::create_shader_module_embed_source(device),
             Self::Integration => integration::create_shader_module_embed_source(device),
         }
@@ -64,6 +67,39 @@ pub mod layout_asserts {
         assert!(std::mem::offset_of!(integration::ComputePosition, inner) == 0);
         assert!(std::mem::size_of::<integration::ComputePosition>() == 8);
     };
+    const INTEGRATION_COMPUTE_FLAGS_ASSERTS: () = {
+        assert!(std::mem::offset_of!(integration::ComputeFlags, inner) == 0);
+        assert!(std::mem::size_of::<integration::ComputeFlags>() == 4);
+    };
+}
+pub mod common {
+    use super::{_root, _root::*};
+    pub const FLAG_SHOW: u32 = 1u32;
+    #[derive(Debug)]
+    pub struct WgpuPipelineLayout;
+    impl WgpuPipelineLayout {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 0]) -> [wgpu::BindGroupLayout; 0] {
+            entries
+        }
+    }
+    pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
+        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Common::PipelineLayout"),
+            bind_group_layouts: &[],
+            push_constant_ranges: &[],
+        })
+    }
+    pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
+        let source = std::borrow::Cow::Borrowed(SHADER_STRING);
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("common.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(source),
+        })
+    }
+    pub const SHADER_STRING: &str = r#"
+const FLAG_SHOW: u32 = 1u;
+
+"#;
 }
 pub mod shape {
     use super::{_root, _root::*};
@@ -224,7 +260,6 @@ pub mod shape {
     }
     pub const SHAPE_RECT: u32 = 0u32;
     pub const SHAPE_CIRCLE: u32 = 1u32;
-    pub const FLAG_SHOW: u32 = 1u32;
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
     #[derive(Debug)]
@@ -432,9 +467,9 @@ struct FragmentOutput {
     @location(0) color: vec4<f32>,
 }
 
+const FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
-const FLAG_SHOW: u32 = 1u;
 
 @group(0) @binding(0) 
 var<uniform> uniforms: Uniforms;
@@ -443,7 +478,7 @@ var<uniform> uniforms: Uniforms;
 fn vs_main(vertex: VertexInput, flag: FlagsInput, position: PositionInput, size: SizeInput, color: ColorInput, shape: ShapeInput) -> VertexOutput {
     var out: VertexOutput;
 
-    if ((flag.inner & FLAG_SHOW) == 0u) {
+    if ((flag.inner & FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         let _e7 = out;
         return _e7;
     }
@@ -497,6 +532,8 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for integration::ComputeVelocity {}
     unsafe impl bytemuck::Zeroable for integration::ComputePosition {}
     unsafe impl bytemuck::Pod for integration::ComputePosition {}
+    unsafe impl bytemuck::Zeroable for integration::ComputeFlags {}
+    unsafe impl bytemuck::Pod for integration::ComputeFlags {}
 }
 pub mod integration {
     use super::{_root, _root::*};
@@ -533,6 +570,17 @@ pub mod integration {
             Self { inner }
         }
     }
+    #[repr(C, align(4))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct ComputeFlags {
+        #[doc = "offset: 0, size: 4, type: `u32`"]
+        pub inner: u32,
+    }
+    impl ComputeFlags {
+        pub const fn new(inner: u32) -> Self {
+            Self { inner }
+        }
+    }
     pub mod compute {
         use super::{_root, _root::*};
         pub const CS_MAIN_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -556,6 +604,7 @@ pub mod integration {
         pub mass: wgpu::BufferBinding<'a>,
         pub velocity: wgpu::BufferBinding<'a>,
         pub position: wgpu::BufferBinding<'a>,
+        pub flags: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
@@ -563,6 +612,7 @@ pub mod integration {
         pub mass: wgpu::BindGroupEntry<'a>,
         pub velocity: wgpu::BindGroupEntry<'a>,
         pub position: wgpu::BindGroupEntry<'a>,
+        pub flags: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -583,10 +633,14 @@ pub mod integration {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.position),
                 },
+                flags: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.flags),
+                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
-            [self.dt, self.mass, self.velocity, self.position]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
+            [self.dt, self.mass, self.velocity, self.position, self.flags]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -625,7 +679,7 @@ pub mod integration {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -634,6 +688,17 @@ pub mod integration {
                 #[doc = " @binding(3): \"position\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(4): \"flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -710,14 +775,22 @@ struct ComputePosition {
     inner: vec2<f32>,
 }
 
+struct ComputeFlags {
+    inner: u32,
+}
+
+const FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
+
 @group(0) @binding(0) 
 var<storage> dt: f32;
 @group(0) @binding(1) 
 var<storage> mass: array<ComputeMass>;
 @group(0) @binding(2) 
-var<storage> velocity: array<ComputeVelocity>;
+var<storage, read_write> velocity: array<ComputeVelocity>;
 @group(0) @binding(3) 
 var<storage, read_write> position: array<ComputePosition>;
+@group(0) @binding(4) 
+var<storage, read_write> flags: array<ComputeFlags>;
 
 @compute @workgroup_size(64, 1, 1) 
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -725,11 +798,27 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (index >= arrayLength((&mass))) {
         return;
     }
-    let _e11 = velocity[index].inner;
-    let _e13 = dt;
-    let _e15 = position[index].inner;
-    position[index].inner = (_e15 + (_e11 * _e13));
-    return;
+    let _e11 = position[index].inner;
+    let to_blackhole = (vec2<f32>(800f, 400f) - _e11);
+    let direction = normalize(to_blackhole);
+    let distance = length(to_blackhole);
+    let _e18 = mass[index].inner;
+    let gravity = (((direction * _e18) * 10000000f) / vec2((distance * distance)));
+    let v = velocity[index].inner;
+    let _e33 = dt;
+    let _e37 = dt;
+    velocity[index].inner = ((v + (_e33 * gravity)) - ((v * _e37) * 0.5f));
+    let _e46 = dt;
+    let _e50 = velocity[index].inner;
+    let _e52 = position[index].inner;
+    position[index].inner = (_e52 + (_e46 * _e50));
+    if (distance < 100f) {
+        let _e60 = flags[index].inner;
+        flags[index].inner = (_e60 & 4294967294u);
+        return;
+    } else {
+        return;
+    }
 }
 "#;
 }
