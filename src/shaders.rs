@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: ea804ede606e8c358afeb74bf94e08c17bb6fbe4750b42cb22c2ab30e7c3a883
+// SourceHash: 8329b983fae9b7c7444185ba026b8289684f94ea6debb5725a02b824bccffae1
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -519,20 +519,20 @@ const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
 const VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(1f, 1f), vec2<f32>(-1f, 1f), vec2<f32>(-1f, -1f), vec2<f32>(-1f, -1f), vec2<f32>(1f, -1f), vec2<f32>(1f, 1f));
 
-@group(0) @binding(0)
+@group(0) @binding(0) 
 var<uniform> view_size: vec2<f32>;
-@group(0) @binding(1)
+@group(0) @binding(1) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(2)
+@group(0) @binding(2) 
 var<storage> position: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(3)
+@group(0) @binding(3) 
 var<storage> size: array<SizeX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(4)
+@group(0) @binding(4) 
 var<storage> color_1: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(5)
+@group(0) @binding(5) 
 var<storage> shape: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
 
-@vertex
+@vertex 
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput;
 
@@ -561,7 +561,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     return _e104;
 }
 
-@fragment
+@fragment 
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     var color: vec4<f32>;
 
@@ -653,7 +653,7 @@ pub mod integration {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
                         min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
@@ -779,18 +779,18 @@ const FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const WORKGROUP_SIZE: u32 = 64u;
 
-@group(0) @binding(0)
-var<storage> dt: f32;
-@group(0) @binding(1)
+@group(0) @binding(0) 
+var<uniform> dt: f32;
+@group(0) @binding(1) 
 var<storage> mass: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(2)
+@group(0) @binding(2) 
 var<storage, read_write> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(3)
+@group(0) @binding(3) 
 var<storage, read_write> position: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(4)
+@group(0) @binding(4) 
 var<storage, read_write> velocity: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 
-@compute @workgroup_size(64, 1, 1)
+@compute @workgroup_size(64, 1, 1) 
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var v: vec2<f32>;
     var x: vec2<f32>;

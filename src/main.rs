@@ -8,7 +8,7 @@ pub mod shape_renderer;
 
 use core::f32;
 use std::{
-    sync::Arc,
+    sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
@@ -76,6 +76,7 @@ struct AppState<'a> {
 
     shape_renderer: ShapeRenderer,
     exit_notification_sender: Sender<()>,
+    sim_property_mutex: Arc<Mutex<()>>,
 
     surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
@@ -216,6 +217,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         };
         let shape_renderer = ShapeRenderer::new(&device, swapchain_format, &pipeline_cache);
         let (exit_notification_sender, exit_notification_receiver) = crossbeam::channel::bounded(1);
+        let sim_property_mutex = Arc::new(Mutex::new(()));
 
         {
             let window = window.clone();
@@ -225,12 +227,14 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             let flags = flags.clone();
             let event_loop_proxy = self.event_loop_proxy.clone();
             let exit_notification_receiver = exit_notification_receiver.clone();
+            let sim_property_mutex = sim_property_mutex.clone();
             thread::spawn(move || {
                 let mut last_integration = Instant::now();
                 let mut last_redraw = Instant::now();
                 let integrator = GpuIntegrator::new(&device);
-                let dt_buffer = GpuBuffer::new(1, "Delta time arena", BufferUsages::STORAGE | access_mode, &device);
-                dt_buffer.write(&queue, &[0.001]);
+                let dt_buffer = GpuBuffer::new(1, "Delta time buffer", BufferUsages::UNIFORM | access_mode, &device);
+                dt_buffer.write(&queue, &[0.01]);
+                device.poll(PollType::wait_indefinitely()).unwrap();
 
                 loop {
                     if exit_notification_receiver.try_recv().is_ok() {
@@ -246,17 +250,12 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
                     let dt = (now - last_integration).as_secs_f32();
                     last_integration = now;
-
                     dt_buffer.write(&queue, &[dt]);
-                    let submission_index = integrator.compute(
-                        &device,
-                        &queue,
-                        &dt_buffer,
-                        unsafe { &positions.cast() },
-                        &velocities,
-                        &masses,
-                        &flags,
-                    );
+
+                    let guard = sim_property_mutex.lock();
+                    let submission_index =
+                        integrator.compute(&device, &queue, &dt_buffer, &flags, &positions, &velocities, &masses);
+                    drop(guard);
                     device
                         .poll(PollType::Wait {
                             submission_index: Some(submission_index),
@@ -276,6 +275,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
             shape_renderer,
             exit_notification_sender,
+            sim_property_mutex,
 
             surface_config,
             queue,
@@ -320,6 +320,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
                 state.shape_renderer.prepare(&state.queue, state.window.inner_size());
                 let object_count = state.flags.len();
+
                 state.shape_renderer.render(
                     &state.device,
                     &mut render_pass,
@@ -330,10 +331,12 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     &state.colors,
                     &state.shapes,
                 );
-
                 drop(render_pass);
 
+                let guard = state.sim_property_mutex.lock();
                 state.queue.submit(Some(encoder.finish()));
+                drop(guard);
+
                 state.window.pre_present_notify();
                 frame.present();
 
@@ -381,7 +384,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(state) = &self.state {
-            state.exit_notification_sender.send(()).unwrap();
+            let _ = state.exit_notification_sender.try_send(());
         }
     }
 }

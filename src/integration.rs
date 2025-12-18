@@ -27,19 +27,19 @@ impl GpuIntegrator {
         device: &Device,
         queue: &Queue,
         dt: &GpuBuffer<f32>,
+        flags: &GpuBuffer<Flags>,
         positions: &GpuBuffer<Position>,
         velocities: &GpuBuffer<Velocity>,
         masses: &GpuBuffer<Mass>,
-        flags: &GpuBuffer<Flags>,
     ) -> SubmissionIndex {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 dt: dt.buffer().as_entire_buffer_binding(),
-                mass: masses.buffer().as_entire_buffer_binding(),
                 flags: flags.buffer().as_entire_buffer_binding(),
-                velocity: velocities.buffer().as_entire_buffer_binding(),
                 position: positions.buffer().as_entire_buffer_binding(),
+                velocity: velocities.buffer().as_entire_buffer_binding(),
+                mass: masses.buffer().as_entire_buffer_binding(),
             }),
         );
 

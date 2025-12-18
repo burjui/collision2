@@ -1,7 +1,7 @@
 #import common::{FLAG_SHOW, FLAG_PHYSICAL, Mass, Velocity, Position, Flags}
 
 
-@group(0) @binding(0) var<storage, read> dt: f32;
+@group(0) @binding(0) var<uniform> dt: f32;
 @group(0) @binding(1) var<storage, read> mass: array<Mass>;
 @group(0) @binding(2) var<storage, read_write> flags: array<Flags>;
 @group(0) @binding(3) var<storage, read_write> position: array<Position>;
