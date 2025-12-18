@@ -1,4 +1,8 @@
-use std::{marker::PhantomData, mem::size_of, ops::RangeBounds};
+use std::{
+    marker::PhantomData,
+    mem::size_of,
+    ops::{Bound, RangeBounds},
+};
 
 use bytemuck::NoUninit;
 use wgpu::{Buffer, BufferSlice, COPY_BUFFER_ALIGNMENT, Device, Queue};
@@ -39,14 +43,14 @@ impl<T> GpuBuffer<T> {
 
     pub fn slice(&self, bounds: impl RangeBounds<usize>) -> BufferSlice<'_> {
         let start = match bounds.start_bound() {
-            std::ops::Bound::Included(&start) => start,
-            std::ops::Bound::Excluded(&start) => start + 1,
-            std::ops::Bound::Unbounded => 0,
+            Bound::Included(&start) => start,
+            Bound::Excluded(&start) => start + 1,
+            Bound::Unbounded => 0,
         };
         let end = match bounds.end_bound() {
-            std::ops::Bound::Included(&end) => end,
-            std::ops::Bound::Excluded(&end) => end - 1,
-            std::ops::Bound::Unbounded => self.len(),
+            Bound::Included(&end) => end + 1,
+            Bound::Excluded(&end) => end,
+            Bound::Unbounded => self.len(),
         };
         let slice_start = u64::try_from(start * size_of::<T>()).unwrap();
         let slice_end = u64::try_from(end * size_of::<T>()).unwrap();

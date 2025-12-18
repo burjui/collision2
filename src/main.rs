@@ -3,21 +3,19 @@
 pub mod gpu_buffer;
 pub mod integration;
 pub mod objects;
+pub mod scene;
 pub mod shaders;
 pub mod shape_renderer;
 
-use core::f32;
 use std::{
+    ops::Range,
     sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
 
 use crossbeam::channel::Sender;
-use itertools::Itertools;
-use nalgebra::Vector2;
 use pollster::block_on;
-use rand::random;
 use wgpu::{BufferUsages, PollError, PollStatus, PollType, SubmissionIndex};
 use winit::{
     application::ApplicationHandler,
@@ -29,13 +27,7 @@ use winit::{
 };
 
 use crate::{
-    gpu_buffer::GpuBuffer,
-    integration::GpuIntegrator,
-    objects::{ObjectPrototype, Objects},
-    shaders::{
-        common::{FLAG_PHYSICAL, FLAG_SHOW},
-        shape::{self},
-    },
+    gpu_buffer::GpuBuffer, integration::GpuIntegrator, objects::Objects, scene::create_scene,
     shape_renderer::ShapeRenderer,
 };
 
@@ -47,7 +39,6 @@ fn main() {
 }
 
 struct App<'a> {
-    wgpu: wgpu::Instance,
     state: Option<AppState<'a>>,
     event_loop_proxy: EventLoopProxy<AppEvent>,
 }
@@ -55,7 +46,6 @@ struct App<'a> {
 impl App<'_> {
     fn new(event_loop_proxy: EventLoopProxy<AppEvent>) -> Self {
         Self {
-            wgpu: wgpu::Instance::new(&wgpu::InstanceDescriptor::from_env_or_default()),
             state: None,
             event_loop_proxy,
         }
@@ -82,126 +72,24 @@ struct AppState<'a> {
 
 impl ApplicationHandler<AppEvent> for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // TODO refactor this pile
-
         let mut window_attributes = WindowAttributes::default();
         window_attributes.inner_size = Some(PhysicalSize::new(1600, 800).into());
-        window_attributes.resizable = true;
+        window_attributes.resizable = false;
         let window = Arc::new(event_loop.create_window(window_attributes).expect("Failed to create window"));
-        let surface = self.wgpu.create_surface(window.clone()).unwrap();
-
-        let adapter = block_on(self.wgpu.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::from_env().unwrap_or(wgpu::PowerPreference::None),
-            force_fallback_adapter: false,
-            compatible_surface: Some(&surface),
-        }))
-        .expect("Failed to find an appropriate adapter");
-
-        let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: None,
-            required_features: wgpu::Features::PIPELINE_CACHE,
-            required_limits: wgpu::Limits::defaults().using_resolution(adapter.limits()),
-            experimental_features: wgpu::ExperimentalFeatures::disabled(),
-            memory_hints: wgpu::MemoryHints::Performance,
-            trace: wgpu::Trace::Off,
-        }))
-        .expect("Failed to create device");
-
-        let swapchain_capabilities = surface.get_capabilities(&adapter);
-        let swapchain_format = swapchain_capabilities.formats[0];
-
+        let wgpu = wgpu::Instance::new(&wgpu::InstanceDescriptor::from_env_or_default());
+        let surface = wgpu.create_surface(window.clone()).unwrap();
+        let (adapter, device, queue, swapchain_format) = init_wgpu(&wgpu, &surface);
         let window_size = window.inner_size();
         let surface_config = surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap();
         surface.configure(&device, &surface_config);
 
-        let window_size = Vector2::<f32>::new(window_size.cast().width, window_size.cast().height);
-        println!("Window size: {}x{}", window_size.x, window_size.y);
-
         let mut objects = Objects::default();
-        let circles = {
-            const RADIUS: f32 = 0.2;
-            // const VELOCITY_MAX: f32 = 0.01;
+        create_scene(window_size, &mut objects);
+        let object_count = objects.len();
+        let buffers = objects.to_buffers(&device, &queue);
 
-            let shape_count: Vector2<usize> = (window_size * 0.5 / RADIUS).try_cast().unwrap();
-            println!("Shape count: {}", (shape_count.x * shape_count.y));
-            (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(i, j)| {
-                let (i, j) = (i as f32, j as f32);
-                let position = [RADIUS * (i * 2.0 + 1.0), RADIUS * (j * 2.0 + 1.0)];
-                ObjectPrototype {
-                    flags: FLAG_SHOW | FLAG_PHYSICAL,
-                    position,
-                    velocity: [
-                        // random_range(-VELOCITY_MAX..VELOCITY_MAX),
-                        // random_range(-VELOCITY_MAX..VELOCITY_MAX),
-                        0.0, 0.0,
-                    ],
-                    mass: 1.0,
-                    size: [RADIUS * 2.0, RADIUS * 2.0],
-                    color: [random(), random(), random(), 1.0],
-                    shape: shape::SHAPE_CIRCLE,
-                }
-            })
-        };
-
-        const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
-        let top = ObjectPrototype {
-            flags: FLAG_SHOW,
-            position: [window_size.x / 2.0, 0.5],
-            velocity: [0.0, 0.0],
-            mass: f32::INFINITY,
-            size: [window_size.x, 1.0],
-            color: RED,
-            shape: shape::SHAPE_RECT,
-        };
-        let bottom = ObjectPrototype {
-            flags: FLAG_SHOW,
-            position: [window_size.x / 2.0, window_size.y - 0.5],
-            velocity: [0.0, 0.0],
-            mass: f32::INFINITY,
-            size: [window_size.x, 1.0],
-            color: RED,
-            shape: shape::SHAPE_RECT,
-        };
-        let left = ObjectPrototype {
-            flags: FLAG_SHOW,
-            velocity: [0.0, 0.0],
-            position: [0.5, window_size.y / 2.0],
-            mass: f32::INFINITY,
-            size: [1.0, window_size.y],
-            color: RED,
-            shape: shape::SHAPE_RECT,
-        };
-        let right = ObjectPrototype {
-            flags: FLAG_SHOW,
-            position: [window_size.x - 0.5, window_size.y / 2.0],
-            velocity: [0.0, 0.0],
-            mass: f32::INFINITY,
-            size: [1.0, window_size.y],
-            color: RED,
-            shape: shape::SHAPE_RECT,
-        };
-        objects.extend(circles);
-        objects.push(top);
-        objects.push(bottom);
-        objects.push(left);
-        objects.push(right);
-
-        let access_mode = BufferUsages::COPY_DST;
-        let flags = GpuBuffer::new(objects.len(), "flags buffer", BufferUsages::STORAGE | access_mode, &device);
-        let positions = GpuBuffer::new(objects.len(), "position buffer", BufferUsages::STORAGE | access_mode, &device);
-        let velocities = GpuBuffer::new(objects.len(), "velocity buffer", BufferUsages::STORAGE | access_mode, &device);
-        let masses = GpuBuffer::new(objects.len(), "mass buffer", BufferUsages::STORAGE | access_mode, &device);
-        let sizes = GpuBuffer::new(objects.len(), "size buffer", BufferUsages::STORAGE | access_mode, &device);
-        let colors = GpuBuffer::new(objects.len(), "color buffer", BufferUsages::STORAGE | access_mode, &device);
-        let shapes = GpuBuffer::new(objects.len(), "shape buffer", BufferUsages::STORAGE | access_mode, &device);
-
-        flags.write(&queue, &objects.flags);
-        positions.write(&queue, &objects.position);
-        velocities.write(&queue, &objects.velocity);
-        masses.write(&queue, &objects.mass);
-        sizes.write(&queue, &objects.size);
-        colors.write(&queue, &objects.color);
-        shapes.write(&queue, &objects.shape);
+        println!("Window size: {}x{}", window_size.width, window_size.height);
+        println!("Object count: {}", object_count);
 
         let pipeline_cache = unsafe {
             device.create_pipeline_cache(&wgpu::PipelineCacheDescriptor {
@@ -214,54 +102,32 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             &device,
             swapchain_format,
             &pipeline_cache,
-            flags.clone(),
-            positions.clone(),
-            sizes,
-            colors,
-            shapes,
+            buffers.flags.clone(),
+            buffers.positions.clone(),
+            buffers.sizes,
+            buffers.colors,
+            buffers.shapes,
         );
         let (exit_notification_sender, exit_notification_receiver) = crossbeam::channel::bounded(1);
         let sim_property_mutex = Arc::new(Mutex::new(()));
 
-        {
-            let window = window.clone();
-            let device = device.clone();
-            let queue = queue.clone();
-            let event_loop_proxy = self.event_loop_proxy.clone();
-            let exit_notification_receiver = exit_notification_receiver.clone();
-            let sim_property_mutex = sim_property_mutex.clone();
-            thread::spawn(move || {
-                let mut last_redraw = Instant::now();
-                let integrator = GpuIntegrator::new(&device);
-                let dt_buffer = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | access_mode, &device);
-                dt_buffer.write(&queue, &[0.01]);
-
-                loop {
-                    if exit_notification_receiver.try_recv().is_ok() {
-                        break;
-                    }
-
-                    let now = Instant::now();
-                    if now - last_redraw >= Duration::from_secs_f32(1.0 / 60.0) {
-                        last_redraw = now;
-                        event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
-                        window.request_redraw();
-                    }
-
-                    let guard = sim_property_mutex.lock();
-                    let submission_index =
-                        integrator.compute(&device, &queue, &dt_buffer, &flags, &positions, &velocities, &masses);
-                    drop(guard);
-                    device.wait_for_submission(submission_index).unwrap();
-                }
-            });
-        }
+        spawn_simulation_thread(
+            buffers.flags,
+            buffers.positions,
+            buffers.velocities,
+            buffers.masses,
+            device.clone(),
+            queue.clone(),
+            self.event_loop_proxy.clone(),
+            exit_notification_receiver.clone(),
+            sim_property_mutex.clone(),
+        );
 
         self.state = Some(AppState {
             shape_renderer,
             exit_notification_sender,
             sim_property_mutex,
-            object_count: objects.len(),
+            object_count,
 
             surface_config,
             queue,
@@ -285,37 +151,18 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             WindowEvent::RedrawRequested => {
                 if let Some(state) = &mut self.state {
                     let start = Instant::now();
-                    let mut encoder =
-                        state.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-                    let frame = state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
-                    let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-                    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: None,
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &view,
-                            depth_slice: None,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                                store: wgpu::StoreOp::Store,
-                            },
-                        })],
-                        depth_stencil_attachment: None,
-                        timestamp_writes: None,
-                        occlusion_query_set: None,
-                    });
-                    state.shape_renderer.prepare(&state.queue, state.window.inner_size());
-                    state.shape_renderer.render(&mut render_pass, 0..state.object_count);
-                    drop(render_pass);
-
-                    let guard = state.sim_property_mutex.lock();
-                    let submission_index = state.queue.submit(Some(encoder.finish()));
-                    state.device.wait_for_submission(submission_index).unwrap();
-                    drop(guard);
-
+                    let frame = render_scene(
+                        &mut state.shape_renderer,
+                        0..state.object_count,
+                        &state.device,
+                        &state.queue,
+                        &state.surface,
+                        state.window.inner_size(),
+                        &state.sim_property_mutex,
+                    );
                     state.window.pre_present_notify();
                     frame.present();
-                    println!("Rendered {} objects in {} ms", state.object_count, start.elapsed().as_millis());
+                    println!("Rendered {} shapes in {} ms", state.object_count, start.elapsed().as_millis());
                 }
             }
 
@@ -363,6 +210,107 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             let _ = state.exit_notification_sender.try_send(());
         }
     }
+}
+
+fn init_wgpu(
+    wgpu: &wgpu::Instance,
+    surface: &wgpu::Surface<'_>,
+) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue, wgpu::TextureFormat) {
+    let adapter = block_on(wgpu.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::from_env().unwrap_or(wgpu::PowerPreference::None),
+        force_fallback_adapter: false,
+        compatible_surface: Some(surface),
+    }))
+    .expect("Failed to find an appropriate adapter");
+
+    let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        label: None,
+        required_features: wgpu::Features::PIPELINE_CACHE,
+        required_limits: wgpu::Limits::defaults().using_resolution(adapter.limits()),
+        experimental_features: wgpu::ExperimentalFeatures::disabled(),
+        memory_hints: wgpu::MemoryHints::Performance,
+        trace: wgpu::Trace::Off,
+    }))
+    .expect("Failed to create device");
+
+    let swapchain_capabilities = surface.get_capabilities(&adapter);
+    let swapchain_format = swapchain_capabilities.formats[0];
+    (adapter, device, queue, swapchain_format)
+}
+
+fn render_scene(
+    shape_renderer: &mut ShapeRenderer,
+    range: Range<usize>,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    surface: &wgpu::Surface,
+    view_size: PhysicalSize<u32>,
+    queue_submission_mutex: &Mutex<()>,
+) -> wgpu::SurfaceTexture {
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+    let frame = surface.get_current_texture().expect("Failed to acquire next swap chain texture");
+    let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: None,
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view: &view,
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                store: wgpu::StoreOp::Store,
+            },
+        })],
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+    });
+    shape_renderer.prepare(queue, view_size);
+    shape_renderer.render(&mut render_pass, range);
+    drop(render_pass);
+
+    let guard = queue_submission_mutex.lock();
+    let submission_index = queue.submit(Some(encoder.finish()));
+    device.wait_for_submission(submission_index).unwrap();
+    drop(guard);
+    frame
+}
+
+fn spawn_simulation_thread(
+    flags: GpuBuffer<shaders::common::Flags>,
+    positions: GpuBuffer<shaders::common::Position>,
+    velocities: GpuBuffer<shaders::common::Velocity>,
+    masses: GpuBuffer<shaders::common::Mass>,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    event_loop_proxy: EventLoopProxy<AppEvent>,
+    exit_notification_receiver: crossbeam::channel::Receiver<()>,
+    queue_submission_mutex: Arc<Mutex<()>>,
+) {
+    thread::spawn(move || {
+        let mut last_redraw = Instant::now();
+        let integrator = GpuIntegrator::new(&device);
+        let dt_buffer = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
+        dt_buffer.write(&queue, &[0.01]);
+
+        loop {
+            if exit_notification_receiver.try_recv().is_ok() {
+                break;
+            }
+
+            let now = Instant::now();
+            if now - last_redraw >= Duration::from_secs_f32(1.0 / 60.0) {
+                last_redraw = now;
+                event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
+            }
+
+            let guard = queue_submission_mutex.lock();
+            let submission_index =
+                integrator.compute(&device, &queue, &dt_buffer, &flags, &positions, &velocities, &masses);
+            drop(guard);
+            device.wait_for_submission(submission_index).unwrap();
+        }
+    });
 }
 
 trait DeviceUtis {
