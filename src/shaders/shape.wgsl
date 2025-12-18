@@ -1,32 +1,4 @@
-#import common::FLAG_SHOW
-
-struct Uniforms {
-    view_size: vec2f
-}
-
-struct VertexInput {
-    @location(0) inner: vec2f
-}
-
-struct FlagsInput {
-    @location(1) inner: u32
-}
-
-struct PositionInput {
-    @location(2) inner: vec2f,
-}
-
-struct SizeInput {
-    @location(3) inner: vec2f
-}
-
-struct ColorInput {
-    @location(4) inner: vec4f
-}
-
-struct ShapeInput {
-    @location(5) inner: u32
-}
+#import common::{FLAG_SHOW, Flags, Position, Size, Color, Shape}
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,
@@ -43,25 +15,34 @@ struct FragmentOutput {
 const SHAPE_RECT: u32 = 0;
 const SHAPE_CIRCLE: u32 = 1;
 
-@group(0) @binding(0) var<uniform> uniforms: Uniforms;
+@group(0) @binding(0) var<uniform> view_size: vec2f;
+@group(0) @binding(1) var<storage, read> flags: array<Flags>;
+@group(0) @binding(2) var<storage, read> position: array<Position>;
+@group(0) @binding(3) var<storage, read> size: array<Size>;
+@group(0) @binding(4) var<storage, read> color: array<Color>;
+@group(0) @binding(5) var<storage, read> shape: array<Shape>;
+
+const VERTICES = array<vec2f, 6>(
+    vec2f(1.0, 1.0),
+    vec2f(-1.0, 1.0),
+    vec2f(-1.0, -1.0),
+    vec2f(-1.0, -1.0),
+    vec2f(1.0, -1.0),
+    vec2f(1.0, 1.0),
+);
 
 @vertex
 fn vs_main(
-    vertex: VertexInput, // TODO remove, embed vertices in shader
-    // TODO pass these in as uniforms
-    flag: FlagsInput,
-    position: PositionInput,
-    size: SizeInput,
-    color: ColorInput,
-    shape: ShapeInput
+    @builtin(vertex_index) vertex_index: u32,
+    @builtin(instance_index) i: u32,
 ) -> VertexOutput {
     var out: VertexOutput;
-    if (flag.inner & FLAG_SHOW) == 0 {
+    if (flags[i].inner & FLAG_SHOW) == 0 {
         return out;
     }
-    let scale = size.inner / uniforms.view_size;
+    let scale = size[i].inner / view_size;
     out.scaling_factor = clamp(min(scale.x, scale.y), 0, 1);
-    let translation = (position.inner / uniforms.view_size * vec2f(2, -2) + vec2(-1, 1)) / scale;
+    let translation = (position[i].inner / view_size * vec2f(2, -2) + vec2(-1, 1)) / scale;
     let translation_matrix = transpose(mat4x4f(
         1, 0, 0, translation.x,
         0, 1, 0, translation.y,
@@ -74,10 +55,11 @@ fn vs_main(
         0, 0,       1, 0,
         0, 0,       0, 1
     );
-    out.clip_position = scale_matrix * translation_matrix * vec4f(vertex.inner, 0, 1);
-    out.quad_position = vertex.inner;
-    out.color = color.inner;
-    out.shape = shape.inner;
+    let vertex = VERTICES[vertex_index];
+    out.clip_position = scale_matrix * translation_matrix * vec4f(vertex, 0, 1);
+    out.quad_position = vertex;
+    out.color = color[i].inner;
+    out.shape = shape[i].inner;
 
     return out;
 }

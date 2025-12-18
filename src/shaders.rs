@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: a167cca5e00c9e9829b34c78b9b34791a9ba067d8d41c405a29d111a30fd2a69
+// SourceHash: ea804ede606e8c358afeb74bf94e08c17bb6fbe4750b42cb22c2ab30e7c3a883
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -51,31 +51,116 @@ mod _root {
 pub mod layout_asserts {
     use super::{_root, _root::*};
     const WGSL_BASE_TYPE_ASSERTS: () = {};
-    const SHAPE_UNIFORMS_ASSERTS: () = {
-        assert!(std::mem::offset_of!(shape::Uniforms, view_size) == 0);
-        assert!(std::mem::size_of::<shape::Uniforms>() == 8);
+    const COMMON_FLAGS_ASSERTS: () = {
+        assert!(std::mem::offset_of!(common::Flags, inner) == 0);
+        assert!(std::mem::size_of::<common::Flags>() == 4);
     };
-    const INTEGRATION_COMPUTE_MASS_ASSERTS: () = {
-        assert!(std::mem::offset_of!(integration::ComputeMass, inner) == 0);
-        assert!(std::mem::size_of::<integration::ComputeMass>() == 4);
+    const COMMON_POSITION_ASSERTS: () = {
+        assert!(std::mem::offset_of!(common::Position, inner) == 0);
+        assert!(std::mem::size_of::<common::Position>() == 8);
     };
-    const INTEGRATION_COMPUTE_VELOCITY_ASSERTS: () = {
-        assert!(std::mem::offset_of!(integration::ComputeVelocity, inner) == 0);
-        assert!(std::mem::size_of::<integration::ComputeVelocity>() == 8);
+    const COMMON_SIZE_ASSERTS: () = {
+        assert!(std::mem::offset_of!(common::Size, inner) == 0);
+        assert!(std::mem::size_of::<common::Size>() == 8);
     };
-    const INTEGRATION_COMPUTE_POSITION_ASSERTS: () = {
-        assert!(std::mem::offset_of!(integration::ComputePosition, inner) == 0);
-        assert!(std::mem::size_of::<integration::ComputePosition>() == 8);
+    const COMMON_COLOR_ASSERTS: () = {
+        assert!(std::mem::offset_of!(common::Color, inner) == 0);
+        assert!(std::mem::size_of::<common::Color>() == 16);
     };
-    const INTEGRATION_COMPUTE_FLAGS_ASSERTS: () = {
-        assert!(std::mem::offset_of!(integration::ComputeFlags, inner) == 0);
-        assert!(std::mem::size_of::<integration::ComputeFlags>() == 4);
+    const COMMON_SHAPE_ASSERTS: () = {
+        assert!(std::mem::offset_of!(common::Shape, inner) == 0);
+        assert!(std::mem::size_of::<common::Shape>() == 4);
+    };
+    const COMMON_VELOCITY_ASSERTS: () = {
+        assert!(std::mem::offset_of!(common::Velocity, inner) == 0);
+        assert!(std::mem::size_of::<common::Velocity>() == 8);
+    };
+    const COMMON_MASS_ASSERTS: () = {
+        assert!(std::mem::offset_of!(common::Mass, inner) == 0);
+        assert!(std::mem::size_of::<common::Mass>() == 4);
     };
 }
 pub mod common {
     use super::{_root, _root::*};
     pub const FLAG_SHOW: u32 = 1u32;
     pub const FLAG_PHYSICAL: u32 = 2u32;
+    #[repr(C, align(4))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct Flags {
+        #[doc = "offset: 0, size: 4, type: `u32`"]
+        pub inner: u32,
+    }
+    impl Flags {
+        pub const fn new(inner: u32) -> Self {
+            Self { inner }
+        }
+    }
+    #[repr(C, align(8))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct Position {
+        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
+        pub inner: [f32; 2],
+    }
+    impl Position {
+        pub const fn new(inner: [f32; 2]) -> Self {
+            Self { inner }
+        }
+    }
+    #[repr(C, align(8))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct Size {
+        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
+        pub inner: [f32; 2],
+    }
+    impl Size {
+        pub const fn new(inner: [f32; 2]) -> Self {
+            Self { inner }
+        }
+    }
+    #[repr(C, align(16))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct Color {
+        #[doc = "offset: 0, size: 16, type: `vec4<f32>`"]
+        pub inner: [f32; 4],
+    }
+    impl Color {
+        pub const fn new(inner: [f32; 4]) -> Self {
+            Self { inner }
+        }
+    }
+    #[repr(C, align(4))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct Shape {
+        #[doc = "offset: 0, size: 4, type: `u32`"]
+        pub inner: u32,
+    }
+    impl Shape {
+        pub const fn new(inner: u32) -> Self {
+            Self { inner }
+        }
+    }
+    #[repr(C, align(8))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct Velocity {
+        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
+        pub inner: [f32; 2],
+    }
+    impl Velocity {
+        pub const fn new(inner: [f32; 2]) -> Self {
+            Self { inner }
+        }
+    }
+    #[repr(C, align(4))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct Mass {
+        #[doc = "offset: 0, size: 4, type: `f32`"]
+        pub inner: f32,
+    }
+    impl Mass {
+        pub const fn new(inner: f32) -> Self {
+            Self { inner }
+        }
+    }
     #[derive(Debug)]
     pub struct WgpuPipelineLayout;
     impl WgpuPipelineLayout {
@@ -98,168 +183,58 @@ pub mod common {
         })
     }
     pub const SHADER_STRING: &str = r#"
+struct Velocity {
+    inner: vec2<f32>,
+}
+
+struct Mass {
+    inner: f32,
+}
+
+struct Flags {
+    inner: u32,
+}
+
+struct Position {
+    inner: vec2<f32>,
+}
+
+struct Size {
+    inner: vec2<f32>,
+}
+
+struct Color {
+    inner: vec4<f32>,
+}
+
+struct Shape {
+    inner: u32,
+}
+
 const FLAG_SHOW: u32 = 1u;
 const FLAG_PHYSICAL: u32 = 2u;
 
 "#;
 }
+pub mod bytemuck_impls {
+    use super::{_root, _root::*};
+    unsafe impl bytemuck::Zeroable for common::Flags {}
+    unsafe impl bytemuck::Pod for common::Flags {}
+    unsafe impl bytemuck::Zeroable for common::Position {}
+    unsafe impl bytemuck::Pod for common::Position {}
+    unsafe impl bytemuck::Zeroable for common::Size {}
+    unsafe impl bytemuck::Pod for common::Size {}
+    unsafe impl bytemuck::Zeroable for common::Color {}
+    unsafe impl bytemuck::Pod for common::Color {}
+    unsafe impl bytemuck::Zeroable for common::Shape {}
+    unsafe impl bytemuck::Pod for common::Shape {}
+    unsafe impl bytemuck::Zeroable for common::Velocity {}
+    unsafe impl bytemuck::Pod for common::Velocity {}
+    unsafe impl bytemuck::Zeroable for common::Mass {}
+    unsafe impl bytemuck::Pod for common::Mass {}
+}
 pub mod shape {
     use super::{_root, _root::*};
-    #[repr(C, align(8))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct Uniforms {
-        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
-        pub view_size: [f32; 2],
-    }
-    impl Uniforms {
-        pub const fn new(view_size: [f32; 2]) -> Self {
-            Self { view_size }
-        }
-    }
-    #[repr(C)]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct VertexInput {
-        pub inner: [f32; 2],
-    }
-    impl VertexInput {
-        pub const fn new(inner: [f32; 2]) -> Self {
-            Self { inner }
-        }
-    }
-    impl VertexInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
-            format: wgpu::VertexFormat::Float32x2,
-            offset: std::mem::offset_of!(Self, inner) as u64,
-            shader_location: 0,
-        }];
-        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
-            wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<Self>() as u64,
-                step_mode,
-                attributes: &Self::VERTEX_ATTRIBUTES,
-            }
-        }
-    }
-    #[repr(C)]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct FlagsInput {
-        pub inner: u32,
-    }
-    impl FlagsInput {
-        pub const fn new(inner: u32) -> Self {
-            Self { inner }
-        }
-    }
-    impl FlagsInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
-            format: wgpu::VertexFormat::Uint32,
-            offset: std::mem::offset_of!(Self, inner) as u64,
-            shader_location: 1,
-        }];
-        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
-            wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<Self>() as u64,
-                step_mode,
-                attributes: &Self::VERTEX_ATTRIBUTES,
-            }
-        }
-    }
-    #[repr(C)]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct PositionInput {
-        pub inner: [f32; 2],
-    }
-    impl PositionInput {
-        pub const fn new(inner: [f32; 2]) -> Self {
-            Self { inner }
-        }
-    }
-    impl PositionInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
-            format: wgpu::VertexFormat::Float32x2,
-            offset: std::mem::offset_of!(Self, inner) as u64,
-            shader_location: 2,
-        }];
-        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
-            wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<Self>() as u64,
-                step_mode,
-                attributes: &Self::VERTEX_ATTRIBUTES,
-            }
-        }
-    }
-    #[repr(C)]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct SizeInput {
-        pub inner: [f32; 2],
-    }
-    impl SizeInput {
-        pub const fn new(inner: [f32; 2]) -> Self {
-            Self { inner }
-        }
-    }
-    impl SizeInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
-            format: wgpu::VertexFormat::Float32x2,
-            offset: std::mem::offset_of!(Self, inner) as u64,
-            shader_location: 3,
-        }];
-        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
-            wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<Self>() as u64,
-                step_mode,
-                attributes: &Self::VERTEX_ATTRIBUTES,
-            }
-        }
-    }
-    #[repr(C)]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct ColorInput {
-        pub inner: [f32; 4],
-    }
-    impl ColorInput {
-        pub const fn new(inner: [f32; 4]) -> Self {
-            Self { inner }
-        }
-    }
-    impl ColorInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
-            format: wgpu::VertexFormat::Float32x4,
-            offset: std::mem::offset_of!(Self, inner) as u64,
-            shader_location: 4,
-        }];
-        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
-            wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<Self>() as u64,
-                step_mode,
-                attributes: &Self::VERTEX_ATTRIBUTES,
-            }
-        }
-    }
-    #[repr(C)]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct ShapeInput {
-        pub inner: u32,
-    }
-    impl ShapeInput {
-        pub const fn new(inner: u32) -> Self {
-            Self { inner }
-        }
-    }
-    impl ShapeInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
-            format: wgpu::VertexFormat::Uint32,
-            offset: std::mem::offset_of!(Self, inner) as u64,
-            shader_location: 5,
-        }];
-        pub const fn vertex_buffer_layout(step_mode: wgpu::VertexStepMode) -> wgpu::VertexBufferLayout<'static> {
-            wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<Self>() as u64,
-                step_mode,
-                attributes: &Self::VERTEX_ATTRIBUTES,
-            }
-        }
-    }
     pub const SHAPE_RECT: u32 = 0u32;
     pub const SHAPE_CIRCLE: u32 = 1u32;
     pub const ENTRY_VS_MAIN: &str = "vs_main";
@@ -284,24 +259,10 @@ pub mod shape {
             },
         }
     }
-    pub fn vs_main_entry(
-        vertex_input: wgpu::VertexStepMode,
-        flags_input: wgpu::VertexStepMode,
-        position_input: wgpu::VertexStepMode,
-        size_input: wgpu::VertexStepMode,
-        color_input: wgpu::VertexStepMode,
-        shape_input: wgpu::VertexStepMode,
-    ) -> VertexEntry<6> {
+    pub fn vs_main_entry() -> VertexEntry<0> {
         VertexEntry {
             entry_point: ENTRY_VS_MAIN,
-            buffers: [
-                VertexInput::vertex_buffer_layout(vertex_input),
-                FlagsInput::vertex_buffer_layout(flags_input),
-                PositionInput::vertex_buffer_layout(position_input),
-                SizeInput::vertex_buffer_layout(size_input),
-                ColorInput::vertex_buffer_layout(color_input),
-                ShapeInput::vertex_buffer_layout(shape_input),
-            ],
+            buffers: [],
             constants: Default::default(),
         }
     }
@@ -334,23 +295,60 @@ pub mod shape {
     }
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub uniforms: wgpu::BufferBinding<'a>,
+        pub view_size: wgpu::BufferBinding<'a>,
+        pub flags: wgpu::BufferBinding<'a>,
+        pub position: wgpu::BufferBinding<'a>,
+        pub size: wgpu::BufferBinding<'a>,
+        pub color: wgpu::BufferBinding<'a>,
+        pub shape: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
-        pub uniforms: wgpu::BindGroupEntry<'a>,
+        pub view_size: wgpu::BindGroupEntry<'a>,
+        pub flags: wgpu::BindGroupEntry<'a>,
+        pub position: wgpu::BindGroupEntry<'a>,
+        pub size: wgpu::BindGroupEntry<'a>,
+        pub color: wgpu::BindGroupEntry<'a>,
+        pub shape: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
             Self {
-                uniforms: wgpu::BindGroupEntry {
+                view_size: wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.uniforms),
+                    resource: wgpu::BindingResource::Buffer(params.view_size),
+                },
+                flags: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.flags),
+                },
+                position: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.position),
+                },
+                size: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.size),
+                },
+                color: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.color),
+                },
+                shape: wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Buffer(params.shape),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 1] {
-            [self.uniforms]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
+            [
+                self.view_size,
+                self.flags,
+                self.position,
+                self.size,
+                self.color,
+                self.shape,
+            ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -362,14 +360,69 @@ pub mod shape {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("Shape::BindGroup0::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(0): \"uniforms\""]
+                #[doc = " @binding(0): \"view_size\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::shape::Uniforms>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<[f32; 2]>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"position\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"size\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(4): \"color\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(5): \"shape\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
                     count: None,
                 },
@@ -429,32 +482,24 @@ pub mod shape {
         })
     }
     pub const SHADER_STRING: &str = r#"
-struct Uniforms {
-    view_size: vec2<f32>,
+struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
+    inner: u32,
 }
 
-struct VertexInput {
-    @location(0) inner: vec2<f32>,
+struct PositionX_naga_oil_mod_XMNXW23LPNYX {
+    inner: vec2<f32>,
 }
 
-struct FlagsInput {
-    @location(1) @interpolate(flat) inner: u32,
+struct SizeX_naga_oil_mod_XMNXW23LPNYX {
+    inner: vec2<f32>,
 }
 
-struct PositionInput {
-    @location(2) inner: vec2<f32>,
+struct ColorX_naga_oil_mod_XMNXW23LPNYX {
+    inner: vec4<f32>,
 }
 
-struct SizeInput {
-    @location(3) inner: vec2<f32>,
-}
-
-struct ColorInput {
-    @location(4) inner: vec4<f32>,
-}
-
-struct ShapeInput {
-    @location(5) @interpolate(flat) inner: u32,
+struct ShapeX_naga_oil_mod_XMNXW23LPNYX {
+    inner: u32,
 }
 
 struct VertexOutput {
@@ -472,117 +517,65 @@ struct FragmentOutput {
 const FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
+const VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(1f, 1f), vec2<f32>(-1f, 1f), vec2<f32>(-1f, -1f), vec2<f32>(-1f, -1f), vec2<f32>(1f, -1f), vec2<f32>(1f, 1f));
 
-@group(0) @binding(0) 
-var<uniform> uniforms: Uniforms;
+@group(0) @binding(0)
+var<uniform> view_size: vec2<f32>;
+@group(0) @binding(1)
+var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(2)
+var<storage> position: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(3)
+var<storage> size: array<SizeX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(4)
+var<storage> color_1: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(5)
+var<storage> shape: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
 
-@vertex 
-fn vs_main(vertex: VertexInput, flag: FlagsInput, position: PositionInput, size: SizeInput, color: ColorInput, shape: ShapeInput) -> VertexOutput {
+@vertex
+fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput;
 
-    if ((flag.inner & FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
-        let _e7 = out;
-        return _e7;
+    let _e4 = flags[i].inner;
+    if ((_e4 & FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+        let _e10 = out;
+        return _e10;
     }
-    let _e12 = uniforms.view_size;
-    let scale = (size.inner / _e12);
+    let _e14 = size[i].inner;
+    let _e16 = view_size;
+    let scale = (_e14 / _e16);
     out.scaling_factor = clamp(min(scale.x, scale.y), 0f, 1f);
-    let _e25 = uniforms.view_size;
-    let translation = ((((position.inner / _e25) * vec2<f32>(2f, -2f)) + vec2<f32>(-1f, 1f)) / scale);
+    let _e28 = position[i].inner;
+    let _e30 = view_size;
+    let translation = ((((_e28 / _e30) * vec2<f32>(2f, -2f)) + vec2<f32>(-1f, 1f)) / scale);
     let translation_matrix = transpose(mat4x4<f32>(vec4<f32>(1f, 0f, 0f, translation.x), vec4<f32>(0f, 1f, 0f, translation.y), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(0f, 0f, 0f, 1f)));
     let scale_matrix = mat4x4<f32>(vec4<f32>(scale.x, 0f, 0f, 0f), vec4<f32>(0f, scale.y, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(0f, 0f, 0f, 1f));
-    out.clip_position = ((scale_matrix * translation_matrix) * vec4<f32>(vertex.inner, 0f, 1f));
-    out.quad_position = vertex.inner;
-    out.color = color.inner;
-    out.shape = shape.inner;
-    let _e95 = out;
-    return _e95;
+    let vertex = VERTICES[vertex_index];
+    out.clip_position = ((scale_matrix * translation_matrix) * vec4<f32>(vertex, 0f, 1f));
+    out.quad_position = vertex;
+    let _e98 = color_1[i].inner;
+    out.color = _e98;
+    let _e103 = shape[i].inner;
+    out.shape = _e103;
+    let _e104 = out;
+    return _e104;
 }
 
-@fragment 
+@fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
-    var color_1: vec4<f32>;
+    var color: vec4<f32>;
 
-    color_1 = in.color;
+    color = in.color;
     if (in.shape == SHAPE_CIRCLE) {
-        color_1.w = smoothstep(1f, (1f - clamp((0.002f / in.scaling_factor), 0.002f, 0.3f)), length(in.quad_position));
+        color.w = smoothstep(1f, (1f - clamp((0.002f / in.scaling_factor), 0.002f, 0.3f)), length(in.quad_position));
     }
-    let _e19 = color_1;
+    let _e19 = color;
     return FragmentOutput(_e19);
 }
 "#;
 }
-pub mod bytemuck_impls {
-    use super::{_root, _root::*};
-    unsafe impl bytemuck::Zeroable for shape::Uniforms {}
-    unsafe impl bytemuck::Pod for shape::Uniforms {}
-    unsafe impl bytemuck::Zeroable for shape::VertexInput {}
-    unsafe impl bytemuck::Pod for shape::VertexInput {}
-    unsafe impl bytemuck::Zeroable for shape::FlagsInput {}
-    unsafe impl bytemuck::Pod for shape::FlagsInput {}
-    unsafe impl bytemuck::Zeroable for shape::PositionInput {}
-    unsafe impl bytemuck::Pod for shape::PositionInput {}
-    unsafe impl bytemuck::Zeroable for shape::SizeInput {}
-    unsafe impl bytemuck::Pod for shape::SizeInput {}
-    unsafe impl bytemuck::Zeroable for shape::ColorInput {}
-    unsafe impl bytemuck::Pod for shape::ColorInput {}
-    unsafe impl bytemuck::Zeroable for shape::ShapeInput {}
-    unsafe impl bytemuck::Pod for shape::ShapeInput {}
-    unsafe impl bytemuck::Zeroable for integration::ComputeMass {}
-    unsafe impl bytemuck::Pod for integration::ComputeMass {}
-    unsafe impl bytemuck::Zeroable for integration::ComputeVelocity {}
-    unsafe impl bytemuck::Pod for integration::ComputeVelocity {}
-    unsafe impl bytemuck::Zeroable for integration::ComputePosition {}
-    unsafe impl bytemuck::Pod for integration::ComputePosition {}
-    unsafe impl bytemuck::Zeroable for integration::ComputeFlags {}
-    unsafe impl bytemuck::Pod for integration::ComputeFlags {}
-}
 pub mod integration {
     use super::{_root, _root::*};
-    #[repr(C, align(4))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct ComputeMass {
-        #[doc = "offset: 0, size: 4, type: `f32`"]
-        pub inner: f32,
-    }
-    impl ComputeMass {
-        pub const fn new(inner: f32) -> Self {
-            Self { inner }
-        }
-    }
-    #[repr(C, align(8))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct ComputeVelocity {
-        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
-        pub inner: [f32; 2],
-    }
-    impl ComputeVelocity {
-        pub const fn new(inner: [f32; 2]) -> Self {
-            Self { inner }
-        }
-    }
-    #[repr(C, align(8))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct ComputePosition {
-        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
-        pub inner: [f32; 2],
-    }
-    impl ComputePosition {
-        pub const fn new(inner: [f32; 2]) -> Self {
-            Self { inner }
-        }
-    }
-    #[repr(C, align(4))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct ComputeFlags {
-        #[doc = "offset: 0, size: 4, type: `u32`"]
-        pub inner: u32,
-    }
-    impl ComputeFlags {
-        pub const fn new(inner: u32) -> Self {
-            Self { inner }
-        }
-    }
     pub const WORKGROUP_SIZE: u32 = 64u32;
     pub mod compute {
         use super::{_root, _root::*};
@@ -605,17 +598,17 @@ pub mod integration {
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub dt: wgpu::BufferBinding<'a>,
         pub mass: wgpu::BufferBinding<'a>,
-        pub velocity: wgpu::BufferBinding<'a>,
-        pub position: wgpu::BufferBinding<'a>,
         pub flags: wgpu::BufferBinding<'a>,
+        pub position: wgpu::BufferBinding<'a>,
+        pub velocity: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub dt: wgpu::BindGroupEntry<'a>,
         pub mass: wgpu::BindGroupEntry<'a>,
-        pub velocity: wgpu::BindGroupEntry<'a>,
-        pub position: wgpu::BindGroupEntry<'a>,
         pub flags: wgpu::BindGroupEntry<'a>,
+        pub position: wgpu::BindGroupEntry<'a>,
+        pub velocity: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -628,22 +621,22 @@ pub mod integration {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.mass),
                 },
-                velocity: wgpu::BindGroupEntry {
+                flags: wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.velocity),
+                    resource: wgpu::BindingResource::Buffer(params.flags),
                 },
                 position: wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.position),
                 },
-                flags: wgpu::BindGroupEntry {
+                velocity: wgpu::BindGroupEntry {
                     binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.flags),
+                    resource: wgpu::BindingResource::Buffer(params.velocity),
                 },
             }
         }
         pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
-            [self.dt, self.mass, self.velocity, self.position, self.flags]
+            [self.dt, self.mass, self.flags, self.position, self.velocity]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -677,7 +670,7 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"velocity\""]
+                #[doc = " @binding(2): \"flags\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -699,7 +692,7 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(4): \"flags\""]
+                #[doc = " @binding(4): \"velocity\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -766,38 +759,38 @@ pub mod integration {
         })
     }
     pub const SHADER_STRING: &str = r#"
-struct ComputeMass {
+struct VelocityX_naga_oil_mod_XMNXW23LPNYX {
+    inner: vec2<f32>,
+}
+
+struct MassX_naga_oil_mod_XMNXW23LPNYX {
     inner: f32,
 }
 
-struct ComputeVelocity {
-    inner: vec2<f32>,
-}
-
-struct ComputePosition {
-    inner: vec2<f32>,
-}
-
-struct ComputeFlags {
+struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
     inner: u32,
+}
+
+struct PositionX_naga_oil_mod_XMNXW23LPNYX {
+    inner: vec2<f32>,
 }
 
 const FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const WORKGROUP_SIZE: u32 = 64u;
 
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<storage> dt: f32;
-@group(0) @binding(1) 
-var<storage> mass: array<ComputeMass>;
-@group(0) @binding(2) 
-var<storage, read_write> velocity: array<ComputeVelocity>;
-@group(0) @binding(3) 
-var<storage, read_write> position: array<ComputePosition>;
-@group(0) @binding(4) 
-var<storage, read_write> flags: array<ComputeFlags>;
+@group(0) @binding(1)
+var<storage> mass: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(2)
+var<storage, read_write> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(3)
+var<storage, read_write> position: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(4)
+var<storage, read_write> velocity: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 
-@compute @workgroup_size(64, 1, 1) 
+@compute @workgroup_size(64, 1, 1)
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var v: vec2<f32>;
     var x: vec2<f32>;

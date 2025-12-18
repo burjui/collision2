@@ -3,11 +3,11 @@ use wgpu::{CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline, Dev
 use crate::{
     gpu_buffer::GpuBuffer,
     shaders::{
+        common::{Flags, Mass, Position, Velocity},
         integration::{
-            ComputeMass, ComputePosition, ComputeVelocity, WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries,
-            WgpuBindGroup0EntriesParams, compute::create_cs_main_pipeline_embed_source,
+            WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
+            compute::create_cs_main_pipeline_embed_source,
         },
-        shape,
     },
 };
 
@@ -27,19 +27,19 @@ impl GpuIntegrator {
         device: &Device,
         queue: &Queue,
         dt: &GpuBuffer<f32>,
-        positions: &GpuBuffer<ComputePosition>,
-        velocities: &GpuBuffer<ComputeVelocity>,
-        masses: &GpuBuffer<ComputeMass>,
-        flags: &GpuBuffer<shape::FlagsInput>,
+        positions: &GpuBuffer<Position>,
+        velocities: &GpuBuffer<Velocity>,
+        masses: &GpuBuffer<Mass>,
+        flags: &GpuBuffer<Flags>,
     ) -> SubmissionIndex {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 dt: dt.buffer().as_entire_buffer_binding(),
                 mass: masses.buffer().as_entire_buffer_binding(),
+                flags: flags.buffer().as_entire_buffer_binding(),
                 velocity: velocities.buffer().as_entire_buffer_binding(),
                 position: positions.buffer().as_entire_buffer_binding(),
-                flags: flags.buffer().as_entire_buffer_binding(),
             }),
         );
 

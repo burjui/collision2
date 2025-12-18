@@ -1,26 +1,11 @@
-#import common::{FLAG_SHOW, FLAG_PHYSICAL}
+#import common::{FLAG_SHOW, FLAG_PHYSICAL, Mass, Velocity, Position, Flags}
 
-struct ComputeMass {
-    inner: f32
-}
-
-struct ComputeVelocity {
-    inner: vec2f
-}
-
-struct ComputePosition {
-    inner: vec2f
-}
-
-struct ComputeFlags {
-    inner: u32
-}
 
 @group(0) @binding(0) var<storage, read> dt: f32;
-@group(0) @binding(1) var<storage, read> mass: array<ComputeMass>;
-@group(0) @binding(2) var<storage, read_write> velocity: array<ComputeVelocity>;
-@group(0) @binding(3) var<storage, read_write> position: array<ComputePosition>;
-@group(0) @binding(4) var<storage, read_write> flags: array<ComputeFlags>;
+@group(0) @binding(1) var<storage, read> mass: array<Mass>;
+@group(0) @binding(2) var<storage, read_write> flags: array<Flags>;
+@group(0) @binding(3) var<storage, read_write> position: array<Position>;
+@group(0) @binding(4) var<storage, read_write> velocity: array<Velocity>;
 
 const WORKGROUP_SIZE: u32 = 64;
 

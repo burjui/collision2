@@ -33,7 +33,7 @@ use crate::{
     integration::GpuIntegrator,
     objects::{ObjectPrototype, Objects},
     shaders::{
-        common::{FLAG_PHYSICAL, FLAG_SHOW},
+        common::{Color, FLAG_PHYSICAL, FLAG_SHOW, Flags, Position, Shape, Size},
         shape::{self},
     },
     shape_renderer::ShapeRenderer,
@@ -68,11 +68,11 @@ enum AppEvent {
 }
 
 struct AppState<'a> {
-    flags: GpuBuffer<shape::FlagsInput>,
-    positions: GpuBuffer<shape::PositionInput>,
-    sizes: GpuBuffer<shape::SizeInput>,
-    colors: GpuBuffer<shape::ColorInput>,
-    shapes: GpuBuffer<shape::ShapeInput>,
+    flags: GpuBuffer<Flags>,
+    positions: GpuBuffer<Position>,
+    sizes: GpuBuffer<Size>,
+    colors: GpuBuffer<Color>,
+    shapes: GpuBuffer<Shape>,
 
     shape_renderer: ShapeRenderer,
     exit_notification_sender: Sender<()>,
@@ -111,10 +111,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         }))
         .expect("Failed to create device");
 
-        println!("Max bind groups: {}", device.limits().max_bind_groups);
-        println!("Max bindings per bind group: {}", device.limits().max_bindings_per_bind_group);
-        println!("Max uniform buffers per shader stage: {}", device.limits().max_uniform_buffers_per_shader_stage);
-
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
@@ -136,14 +132,14 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 let (i, j) = (i as f32, j as f32);
                 let position = [RADIUS * (i * 2.0 + 1.0), RADIUS * (j * 2.0 + 1.0)];
                 ObjectPrototype {
-                    mass: 1.0,
+                    flags: FLAG_SHOW | FLAG_PHYSICAL,
+                    position,
                     velocity: [
                         // random_range(-VELOCITY_MAX..VELOCITY_MAX),
                         // random_range(-VELOCITY_MAX..VELOCITY_MAX),
                         0.0, 0.0,
                     ],
-                    flags: FLAG_SHOW | FLAG_PHYSICAL,
-                    position,
+                    mass: 1.0,
                     size: [RADIUS * 2.0, RADIUS * 2.0],
                     color: [random(), random(), random(), 1.0],
                     shape: shape::SHAPE_CIRCLE,
@@ -153,37 +149,37 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
         const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
         let top = ObjectPrototype {
-            mass: f32::INFINITY,
-            velocity: [0.0, 0.0],
             flags: FLAG_SHOW,
             position: [window_size.x / 2.0, 0.5],
+            velocity: [0.0, 0.0],
+            mass: f32::INFINITY,
             size: [window_size.x, 1.0],
             color: RED,
             shape: shape::SHAPE_RECT,
         };
         let bottom = ObjectPrototype {
-            mass: f32::INFINITY,
-            velocity: [0.0, 0.0],
             flags: FLAG_SHOW,
             position: [window_size.x / 2.0, window_size.y - 0.5],
+            velocity: [0.0, 0.0],
+            mass: f32::INFINITY,
             size: [window_size.x, 1.0],
             color: RED,
             shape: shape::SHAPE_RECT,
         };
         let left = ObjectPrototype {
-            mass: f32::INFINITY,
-            velocity: [0.0, 0.0],
             flags: FLAG_SHOW,
+            velocity: [0.0, 0.0],
             position: [0.5, window_size.y / 2.0],
+            mass: f32::INFINITY,
             size: [1.0, window_size.y],
             color: RED,
             shape: shape::SHAPE_RECT,
         };
         let right = ObjectPrototype {
-            mass: f32::INFINITY,
-            velocity: [0.0, 0.0],
             flags: FLAG_SHOW,
             position: [window_size.x - 0.5, window_size.y / 2.0],
+            velocity: [0.0, 0.0],
+            mass: f32::INFINITY,
             size: [1.0, window_size.y],
             color: RED,
             shape: shape::SHAPE_RECT,
@@ -195,28 +191,18 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         objects.push(right);
 
         let access_mode = BufferUsages::COPY_DST;
+        let flags = GpuBuffer::new(objects.len(), "Flags buffer", BufferUsages::STORAGE | access_mode, &device);
+        let positions = GpuBuffer::new(objects.len(), "Position buffer", BufferUsages::STORAGE | access_mode, &device);
         let velocities = GpuBuffer::new(objects.len(), "Velocity buffer", BufferUsages::STORAGE | access_mode, &device);
         let masses = GpuBuffer::new(objects.len(), "Mass buffer", BufferUsages::STORAGE | access_mode, &device);
-        let flags = GpuBuffer::new(
-            objects.len(),
-            "Flags buffer",
-            BufferUsages::VERTEX | BufferUsages::STORAGE | access_mode,
-            &device,
-        );
-        let positions = GpuBuffer::new(
-            objects.len(),
-            "Position buffer",
-            BufferUsages::VERTEX | BufferUsages::STORAGE | access_mode,
-            &device,
-        );
-        let sizes = GpuBuffer::new(objects.len(), "Size buffer", BufferUsages::VERTEX | access_mode, &device);
-        let colors = GpuBuffer::new(objects.len(), "Color buffer", BufferUsages::VERTEX | access_mode, &device);
-        let shapes = GpuBuffer::new(objects.len(), "Shape buffer", BufferUsages::VERTEX | access_mode, &device);
+        let sizes = GpuBuffer::new(objects.len(), "Size buffer", BufferUsages::STORAGE | access_mode, &device);
+        let colors = GpuBuffer::new(objects.len(), "Color buffer", BufferUsages::STORAGE | access_mode, &device);
+        let shapes = GpuBuffer::new(objects.len(), "Shape buffer", BufferUsages::STORAGE | access_mode, &device);
 
-        masses.write(&queue, &objects.mass);
-        velocities.write(&queue, &objects.velocity);
         flags.write(&queue, &objects.flags);
         positions.write(&queue, &objects.position);
+        velocities.write(&queue, &objects.velocity);
+        masses.write(&queue, &objects.mass);
         sizes.write(&queue, &objects.size);
         colors.write(&queue, &objects.color);
         shapes.write(&queue, &objects.shape);
@@ -228,7 +214,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 fallback: true,
             })
         };
-        let shape_renderer = ShapeRenderer::new(&device, &queue, swapchain_format, &pipeline_cache);
+        let shape_renderer = ShapeRenderer::new(&device, swapchain_format, &pipeline_cache);
         let (exit_notification_sender, exit_notification_receiver) = crossbeam::channel::bounded(1);
 
         {
@@ -335,6 +321,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 state.shape_renderer.prepare(&state.queue, state.window.inner_size());
                 let object_count = state.flags.len();
                 state.shape_renderer.render(
+                    &state.device,
                     &mut render_pass,
                     0..object_count,
                     &state.flags,
