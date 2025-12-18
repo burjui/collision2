@@ -229,10 +229,9 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             let exit_notification_receiver = exit_notification_receiver.clone();
             let sim_property_mutex = sim_property_mutex.clone();
             thread::spawn(move || {
-                let mut last_integration = Instant::now();
                 let mut last_redraw = Instant::now();
                 let integrator = GpuIntegrator::new(&device);
-                let dt_buffer = GpuBuffer::new(1, "Delta time buffer", BufferUsages::UNIFORM | access_mode, &device);
+                let dt_buffer = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | access_mode, &device);
                 dt_buffer.write(&queue, &[0.01]);
                 device.poll(PollType::wait_indefinitely()).unwrap();
 
@@ -247,10 +246,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
                         window.request_redraw();
                     }
-
-                    let dt = (now - last_integration).as_secs_f32();
-                    last_integration = now;
-                    dt_buffer.write(&queue, &[dt]);
 
                     let guard = sim_property_mutex.lock();
                     let submission_index =
