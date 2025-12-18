@@ -8,7 +8,7 @@ pub mod shape_renderer;
 
 use core::f32;
 use std::{
-    sync::{Arc, Mutex},
+    sync::Arc,
     thread,
     time::{Duration, Instant},
 };
@@ -68,7 +68,6 @@ enum AppEvent {
 }
 
 struct AppState<'a> {
-    objects: Arc<Mutex<Objects>>,
     flags: GpuSlice<shape::FlagsInput>,
     positions: GpuSlice<shape::PositionInput>,
     sizes: GpuSlice<shape::SizeInput>,
@@ -87,6 +86,8 @@ struct AppState<'a> {
 
 impl ApplicationHandler<AppEvent> for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        // TODO refactor this pile
+
         let mut window_attributes = WindowAttributes::default();
         window_attributes.inner_size = Some(PhysicalSize::new(1600, 800).into());
         window_attributes.resizable = true;
@@ -122,7 +123,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
         let mut objects = Objects::default();
         let circles = {
-            const RADIUS: f32 = 1.0;
+            const RADIUS: f32 = 0.2;
             // const VELOCITY_MAX: f32 = 0.01;
 
             let shape_count = window_size * 0.5 / RADIUS;
@@ -230,7 +231,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let shape_renderer = ShapeRenderer::new(&device, &queue, swapchain_format, &pipeline_cache);
         let (exit_notification_sender, exit_notification_receiver) = crossbeam::channel::bounded(1);
 
-        let objects = Arc::new(Mutex::new(objects));
         {
             let window = window.clone();
             let device = device.clone();
@@ -283,7 +283,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         }
 
         self.state = Some(AppState {
-            objects,
             flags,
             positions,
             sizes,
@@ -335,7 +334,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 });
 
                 state.shape_renderer.prepare(&state.queue, state.window.inner_size());
-                let object_count = state.objects.lock().unwrap().len();
+                let object_count = state.flags.len();
                 state.shape_renderer.render(
                     &mut render_pass,
                     0..object_count,

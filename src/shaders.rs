@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: 51e29dd5680158a4e99312f194adb7159908567e5b4074d628b7381af85b7788
+// SourceHash: f7c5b444a6990047dadafc410498b9eb05c9110596b8a79d0bed0b975120c2ce
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -581,6 +581,7 @@ pub mod integration {
             Self { inner }
         }
     }
+    pub const WORKGROUP_SIZE: u32 = 64u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CS_MAIN_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -780,6 +781,7 @@ struct ComputeFlags {
 }
 
 const FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
+const WORKGROUP_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 
 var<storage> dt: f32;
@@ -794,27 +796,27 @@ var<storage, read_write> flags: array<ComputeFlags>;
 
 @compute @workgroup_size(64, 1, 1) 
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let index = gid.x;
+    let index = (gid.x + ((gid.y * 65536u) * WORKGROUP_SIZE));
     if (index >= arrayLength((&mass))) {
         return;
     }
-    let _e11 = position[index].inner;
-    let to_blackhole = (vec2<f32>(800f, 400f) - _e11);
+    let _e17 = position[index].inner;
+    let to_blackhole = (vec2<f32>(800f, 400f) - _e17);
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    let _e18 = mass[index].inner;
-    let gravity = (((direction * _e18) * 10000000f) / vec2((distance * distance)));
+    let _e24 = mass[index].inner;
+    let gravity = (((direction * _e24) * 10000000f) / vec2((distance * distance)));
     let v = velocity[index].inner;
-    let _e33 = dt;
-    let _e37 = dt;
-    velocity[index].inner = ((v + (_e33 * gravity)) - ((v * _e37) * 0.5f));
-    let _e46 = dt;
-    let _e50 = velocity[index].inner;
-    let _e52 = position[index].inner;
-    position[index].inner = (_e52 + (_e46 * _e50));
+    let _e39 = dt;
+    let _e43 = dt;
+    velocity[index].inner = ((v + (_e39 * gravity)) - ((v * _e43) * 0.5f));
+    let _e52 = dt;
+    let _e56 = velocity[index].inner;
+    let _e58 = position[index].inner;
+    position[index].inner = (_e58 + (_e52 * _e56));
     if (distance < 100f) {
-        let _e60 = flags[index].inner;
-        flags[index].inner = (_e60 & 4294967294u);
+        let _e66 = flags[index].inner;
+        flags[index].inner = (_e66 & 4294967294u);
         return;
     } else {
         return;

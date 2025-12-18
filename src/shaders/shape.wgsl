@@ -47,7 +47,7 @@ const SHAPE_CIRCLE: u32 = 1;
 
 @vertex
 fn vs_main(
-    vertex: VertexInput,
+    vertex: VertexInput, // TODO remove, embed vertices in shader
     // TODO pass these in as uniforms
     flag: FlagsInput,
     position: PositionInput,

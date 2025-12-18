@@ -22,12 +22,14 @@ struct ComputeFlags {
 @group(0) @binding(3) var<storage, read_write> position: array<ComputePosition>;
 @group(0) @binding(4) var<storage, read_write> flags: array<ComputeFlags>;
 
+const WORKGROUP_SIZE: u32 = 64;
+
 @compute
-@workgroup_size(64)
+@workgroup_size(WORKGROUP_SIZE)
 fn cs_main(
     @builtin(global_invocation_id) gid: vec3<u32>,
 ) {
-    let index = gid.x;
+    let index = gid.x + gid.y * 65536 * WORKGROUP_SIZE;
     if index >= arrayLength(&mass) {
         return;
     }
