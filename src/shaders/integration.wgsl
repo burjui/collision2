@@ -40,7 +40,7 @@ fn cs_main(
     var v = velocity[index].inner;
     var x = position[index].inner;
     let a = direction * 10000000 / (distance * distance);
-    v = v + dt * a;// - v * dt * 0.5;
+    v = v + dt * a;
     x += dt * v;
 
     if distance < 100 {

@@ -1,7 +1,7 @@
 use wgpu::{CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline, Device, Queue, SubmissionIndex};
 
 use crate::{
-    gpu_arena::GpuSlice,
+    gpu_buffer::GpuBuffer,
     shaders::{
         integration::{
             ComputeMass, ComputePosition, ComputeVelocity, WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries,
@@ -26,11 +26,11 @@ impl GpuIntegrator {
         &self,
         device: &Device,
         queue: &Queue,
-        dt: &GpuSlice<f32>,
-        positions: &GpuSlice<ComputePosition>,
-        velocities: &GpuSlice<ComputeVelocity>,
-        masses: &GpuSlice<ComputeMass>,
-        flags: &GpuSlice<shape::FlagsInput>,
+        dt: &GpuBuffer<f32>,
+        positions: &GpuBuffer<ComputePosition>,
+        velocities: &GpuBuffer<ComputeVelocity>,
+        masses: &GpuBuffer<ComputeMass>,
+        flags: &GpuBuffer<shape::FlagsInput>,
     ) -> SubmissionIndex {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,

@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
-pub mod gpu_arena;
+pub mod gpu_buffer;
 pub mod integration;
 pub mod objects;
 pub mod shaders;
@@ -29,7 +29,7 @@ use winit::{
 };
 
 use crate::{
-    gpu_arena::{GpuArena, GpuSlice},
+    gpu_buffer::GpuBuffer,
     integration::GpuIntegrator,
     objects::{ObjectPrototype, Objects},
     shaders::{
@@ -68,11 +68,11 @@ enum AppEvent {
 }
 
 struct AppState<'a> {
-    flags: GpuSlice<shape::FlagsInput>,
-    positions: GpuSlice<shape::PositionInput>,
-    sizes: GpuSlice<shape::SizeInput>,
-    colors: GpuSlice<shape::ColorInput>,
-    shapes: GpuSlice<shape::ShapeInput>,
+    flags: GpuBuffer<shape::FlagsInput>,
+    positions: GpuBuffer<shape::PositionInput>,
+    sizes: GpuBuffer<shape::SizeInput>,
+    colors: GpuBuffer<shape::ColorInput>,
+    shapes: GpuBuffer<shape::ShapeInput>,
 
     shape_renderer: ShapeRenderer,
     exit_notification_sender: Sender<()>,
@@ -195,27 +195,23 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         objects.push(right);
 
         let access_mode = BufferUsages::COPY_DST;
-        let (_, velocities) =
-            GpuArena::new_slice(objects.len(), "Velocity arena", BufferUsages::STORAGE | access_mode, &device);
-        let (_, masses) =
-            GpuArena::new_slice(objects.len(), "Mass arena", BufferUsages::STORAGE | access_mode, &device);
-        let (_, flags) = GpuArena::new_slice(
+        let velocities = GpuBuffer::new(objects.len(), "Velocity buffer", BufferUsages::STORAGE | access_mode, &device);
+        let masses = GpuBuffer::new(objects.len(), "Mass buffer", BufferUsages::STORAGE | access_mode, &device);
+        let flags = GpuBuffer::new(
             objects.len(),
-            "Flags arena",
+            "Flags buffer",
             BufferUsages::VERTEX | BufferUsages::STORAGE | access_mode,
             &device,
         );
-        let (_, positions) = GpuArena::new_slice(
+        let positions = GpuBuffer::new(
             objects.len(),
-            "Position arena",
+            "Position buffer",
             BufferUsages::VERTEX | BufferUsages::STORAGE | access_mode,
             &device,
         );
-        let (_, sizes) = GpuArena::new_slice(objects.len(), "Size arena", BufferUsages::VERTEX | access_mode, &device);
-        let (_, colors) =
-            GpuArena::new_slice(objects.len(), "Color arena", BufferUsages::VERTEX | access_mode, &device);
-        let (_, shapes) =
-            GpuArena::new_slice(objects.len(), "Shape arena", BufferUsages::VERTEX | access_mode, &device);
+        let sizes = GpuBuffer::new(objects.len(), "Size buffer", BufferUsages::VERTEX | access_mode, &device);
+        let colors = GpuBuffer::new(objects.len(), "Color buffer", BufferUsages::VERTEX | access_mode, &device);
+        let shapes = GpuBuffer::new(objects.len(), "Shape buffer", BufferUsages::VERTEX | access_mode, &device);
 
         masses.write(&queue, &objects.mass);
         velocities.write(&queue, &objects.velocity);
@@ -247,8 +243,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 let mut last_integration = Instant::now();
                 let mut last_redraw = Instant::now();
                 let integrator = GpuIntegrator::new(&device);
-                let (_, dt_buffer) =
-                    GpuArena::new_slice(1, "Delta time arena", BufferUsages::STORAGE | access_mode, &device);
+                let dt_buffer = GpuBuffer::new(1, "Delta time arena", BufferUsages::STORAGE | access_mode, &device);
                 dt_buffer.write(&queue, &[0.001]);
 
                 loop {
@@ -271,7 +266,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &device,
                         &queue,
                         &dt_buffer,
-                        &positions.cast(),
+                        unsafe { &positions.cast() },
                         &velocities,
                         &masses,
                         &flags,
