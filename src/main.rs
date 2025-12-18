@@ -33,7 +33,7 @@ use crate::{
     integration::GpuIntegrator,
     objects::{ObjectPrototype, Objects},
     shaders::{
-        common::FLAG_SHOW,
+        common::{FLAG_PHYSICAL, FLAG_SHOW},
         shape::{self},
     },
     shape_renderer::ShapeRenderer,
@@ -111,6 +111,10 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         }))
         .expect("Failed to create device");
 
+        println!("Max bind groups: {}", device.limits().max_bind_groups);
+        println!("Max bindings per bind group: {}", device.limits().max_bindings_per_bind_group);
+        println!("Max uniform buffers per shader stage: {}", device.limits().max_uniform_buffers_per_shader_stage);
+
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
@@ -136,9 +140,9 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     velocity: [
                         // random_range(-VELOCITY_MAX..VELOCITY_MAX),
                         // random_range(-VELOCITY_MAX..VELOCITY_MAX),
-                        100.0, 0.0,
+                        0.0, 0.0,
                     ],
-                    flags: FLAG_SHOW,
+                    flags: FLAG_SHOW | FLAG_PHYSICAL,
                     position,
                     size: [RADIUS * 2.0, RADIUS * 2.0],
                     color: [random(), random(), random(), 1.0],

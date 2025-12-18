@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: f7c5b444a6990047dadafc410498b9eb05c9110596b8a79d0bed0b975120c2ce
+// SourceHash: dfa2c2cfd5589eed88cba7ce195c9874bd0792e3bd82bad29e5bbfb2f96c2571
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -75,6 +75,7 @@ pub mod layout_asserts {
 pub mod common {
     use super::{_root, _root::*};
     pub const FLAG_SHOW: u32 = 1u32;
+    pub const FLAG_PHYSICAL: u32 = 2u32;
     #[derive(Debug)]
     pub struct WgpuPipelineLayout;
     impl WgpuPipelineLayout {
@@ -98,6 +99,7 @@ pub mod common {
     }
     pub const SHADER_STRING: &str = r#"
 const FLAG_SHOW: u32 = 1u;
+const FLAG_PHYSICAL: u32 = 2u;
 
 "#;
 }
@@ -781,6 +783,7 @@ struct ComputeFlags {
 }
 
 const FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
+const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const WORKGROUP_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 
@@ -796,31 +799,40 @@ var<storage, read_write> flags: array<ComputeFlags>;
 
 @compute @workgroup_size(64, 1, 1) 
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    var v: vec2<f32>;
+    var x: vec2<f32>;
+
     let index = (gid.x + ((gid.y * 65536u) * WORKGROUP_SIZE));
-    if (index >= arrayLength((&mass))) {
+    let _e14 = flags[index].inner;
+    if ((index >= arrayLength((&mass))) || ((_e14 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u)) {
         return;
     }
-    let _e17 = position[index].inner;
-    let to_blackhole = (vec2<f32>(800f, 400f) - _e17);
+    let _e26 = position[index].inner;
+    let to_blackhole = (vec2<f32>(800f, 400f) - _e26);
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    let _e24 = mass[index].inner;
-    let gravity = (((direction * _e24) * 10000000f) / vec2((distance * distance)));
-    let v = velocity[index].inner;
-    let _e39 = dt;
-    let _e43 = dt;
-    velocity[index].inner = ((v + (_e39 * gravity)) - ((v * _e43) * 0.5f));
-    let _e52 = dt;
-    let _e56 = velocity[index].inner;
-    let _e58 = position[index].inner;
-    position[index].inner = (_e58 + (_e52 * _e56));
+    let _e33 = velocity[index].inner;
+    v = _e33;
+    let _e38 = position[index].inner;
+    x = _e38;
+    let a = ((direction * 10000000f) / vec2((distance * distance)));
+    let _e45 = v;
+    let _e47 = dt;
+    v = (_e45 + (_e47 * a));
+    let _e51 = dt;
+    let _e52 = v;
+    let _e54 = x;
+    x = (_e54 + (_e51 * _e52));
     if (distance < 100f) {
-        let _e66 = flags[index].inner;
-        flags[index].inner = (_e66 & 4294967294u);
-        return;
-    } else {
-        return;
+        let _e62 = flags[index].inner;
+        flags[index].inner = (_e62 & 4294967292u);
+        v = vec2<f32>();
     }
+    let _e68 = v;
+    velocity[index].inner = _e68;
+    let _e72 = x;
+    position[index].inner = _e72;
+    return;
 }
 "#;
 }

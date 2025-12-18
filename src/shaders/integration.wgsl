@@ -1,4 +1,4 @@
-#import common::FLAG_SHOW
+#import common::{FLAG_SHOW, FLAG_PHYSICAL}
 
 struct ComputeMass {
     inner: f32
@@ -30,19 +30,23 @@ fn cs_main(
     @builtin(global_invocation_id) gid: vec3<u32>,
 ) {
     let index = gid.x + gid.y * 65536 * WORKGROUP_SIZE;
-    if index >= arrayLength(&mass) {
+    if index >= arrayLength(&mass) || (flags[index].inner & FLAG_PHYSICAL) == 0 {
         return;
     }
     const blackhole_position = vec2f(800, 400);
     let to_blackhole = blackhole_position - position[index].inner;
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    let gravity = direction * mass[index].inner * 10000000 / (distance * distance);
-    let v = velocity[index].inner;
-    velocity[index].inner = v + dt * gravity - v * dt * 0.5;
-    position[index].inner += dt * velocity[index].inner;
+    var v = velocity[index].inner;
+    var x = position[index].inner;
+    let a = direction * 10000000 / (distance * distance);
+    v = v + dt * a;// - v * dt * 0.5;
+    x += dt * v;
 
     if distance < 100 {
-        flags[index].inner &= ~FLAG_SHOW;
+        flags[index].inner &= ~(FLAG_PHYSICAL | FLAG_SHOW);
+        v = vec2f();
     }
+    velocity[index].inner = v;
+    position[index].inner = x;
 }
