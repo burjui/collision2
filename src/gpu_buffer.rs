@@ -69,14 +69,6 @@ impl<T> GpuBuffer<T> {
         view.as_mut().copy_from_slice(bytemuck::cast_slice(data));
     }
 
-    pub unsafe fn cast<U>(&self) -> GpuBuffer<U> {
-        assert!(size_of::<U>() == size_of::<T>());
-        GpuBuffer {
-            buffer: self.buffer.clone(),
-            _marker: PhantomData,
-        }
-    }
-
     fn size(&self) -> usize {
         self.buffer.size().try_into().unwrap()
     }

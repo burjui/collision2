@@ -18,7 +18,7 @@ use itertools::Itertools;
 use nalgebra::Vector2;
 use pollster::block_on;
 use rand::random;
-use wgpu::{BufferUsages, PollType};
+use wgpu::{BufferUsages, PollError, PollStatus, PollType, SubmissionIndex};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -33,7 +33,7 @@ use crate::{
     integration::GpuIntegrator,
     objects::{ObjectPrototype, Objects},
     shaders::{
-        common::{Color, FLAG_PHYSICAL, FLAG_SHOW, Flags, Position, Shape, Size},
+        common::{FLAG_PHYSICAL, FLAG_SHOW},
         shape::{self},
     },
     shape_renderer::ShapeRenderer,
@@ -68,15 +68,10 @@ enum AppEvent {
 }
 
 struct AppState<'a> {
-    flags: GpuBuffer<Flags>,
-    positions: GpuBuffer<Position>,
-    sizes: GpuBuffer<Size>,
-    colors: GpuBuffer<Color>,
-    shapes: GpuBuffer<Shape>,
-
     shape_renderer: ShapeRenderer,
     exit_notification_sender: Sender<()>,
     sim_property_mutex: Arc<Mutex<()>>,
+    object_count: usize,
 
     surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
@@ -127,9 +122,9 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             const RADIUS: f32 = 0.2;
             // const VELOCITY_MAX: f32 = 0.01;
 
-            let shape_count = window_size * 0.5 / RADIUS;
-            println!("Shape count: {}", (shape_count.x * shape_count.y) as usize);
-            (0..shape_count.x as usize).cartesian_product(0..shape_count.y as usize).map(move |(i, j)| {
+            let shape_count: Vector2<usize> = (window_size * 0.5 / RADIUS).try_cast().unwrap();
+            println!("Shape count: {}", (shape_count.x * shape_count.y));
+            (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(i, j)| {
                 let (i, j) = (i as f32, j as f32);
                 let position = [RADIUS * (i * 2.0 + 1.0), RADIUS * (j * 2.0 + 1.0)];
                 ObjectPrototype {
@@ -192,13 +187,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         objects.push(right);
 
         let access_mode = BufferUsages::COPY_DST;
-        let flags = GpuBuffer::new(objects.len(), "Flags buffer", BufferUsages::STORAGE | access_mode, &device);
-        let positions = GpuBuffer::new(objects.len(), "Position buffer", BufferUsages::STORAGE | access_mode, &device);
-        let velocities = GpuBuffer::new(objects.len(), "Velocity buffer", BufferUsages::STORAGE | access_mode, &device);
-        let masses = GpuBuffer::new(objects.len(), "Mass buffer", BufferUsages::STORAGE | access_mode, &device);
-        let sizes = GpuBuffer::new(objects.len(), "Size buffer", BufferUsages::STORAGE | access_mode, &device);
-        let colors = GpuBuffer::new(objects.len(), "Color buffer", BufferUsages::STORAGE | access_mode, &device);
-        let shapes = GpuBuffer::new(objects.len(), "Shape buffer", BufferUsages::STORAGE | access_mode, &device);
+        let flags = GpuBuffer::new(objects.len(), "flags buffer", BufferUsages::STORAGE | access_mode, &device);
+        let positions = GpuBuffer::new(objects.len(), "position buffer", BufferUsages::STORAGE | access_mode, &device);
+        let velocities = GpuBuffer::new(objects.len(), "velocity buffer", BufferUsages::STORAGE | access_mode, &device);
+        let masses = GpuBuffer::new(objects.len(), "mass buffer", BufferUsages::STORAGE | access_mode, &device);
+        let sizes = GpuBuffer::new(objects.len(), "size buffer", BufferUsages::STORAGE | access_mode, &device);
+        let colors = GpuBuffer::new(objects.len(), "color buffer", BufferUsages::STORAGE | access_mode, &device);
+        let shapes = GpuBuffer::new(objects.len(), "shape buffer", BufferUsages::STORAGE | access_mode, &device);
 
         flags.write(&queue, &objects.flags);
         positions.write(&queue, &objects.position);
@@ -215,7 +210,16 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 fallback: true,
             })
         };
-        let shape_renderer = ShapeRenderer::new(&device, swapchain_format, &pipeline_cache);
+        let shape_renderer = ShapeRenderer::new(
+            &device,
+            swapchain_format,
+            &pipeline_cache,
+            flags.clone(),
+            positions.clone(),
+            sizes,
+            colors,
+            shapes,
+        );
         let (exit_notification_sender, exit_notification_receiver) = crossbeam::channel::bounded(1);
         let sim_property_mutex = Arc::new(Mutex::new(()));
 
@@ -223,8 +227,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             let window = window.clone();
             let device = device.clone();
             let queue = queue.clone();
-            let positions = positions.clone();
-            let flags = flags.clone();
             let event_loop_proxy = self.event_loop_proxy.clone();
             let exit_notification_receiver = exit_notification_receiver.clone();
             let sim_property_mutex = sim_property_mutex.clone();
@@ -233,7 +235,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 let integrator = GpuIntegrator::new(&device);
                 let dt_buffer = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | access_mode, &device);
                 dt_buffer.write(&queue, &[0.01]);
-                device.poll(PollType::wait_indefinitely()).unwrap();
 
                 loop {
                     if exit_notification_receiver.try_recv().is_ok() {
@@ -251,26 +252,16 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     let submission_index =
                         integrator.compute(&device, &queue, &dt_buffer, &flags, &positions, &velocities, &masses);
                     drop(guard);
-                    device
-                        .poll(PollType::Wait {
-                            submission_index: Some(submission_index),
-                            timeout: None,
-                        })
-                        .unwrap();
+                    device.wait_for_submission(submission_index).unwrap();
                 }
             });
         }
 
         self.state = Some(AppState {
-            flags,
-            positions,
-            sizes,
-            colors,
-            shapes,
-
             shape_renderer,
             exit_notification_sender,
             sim_property_mutex,
+            object_count: objects.len(),
 
             surface_config,
             queue,
@@ -283,59 +274,49 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) => {
-                let state = self.state.as_mut().unwrap();
-                state.surface_config.width = size.width;
-                state.surface_config.height = size.height;
-                state.surface.configure(&state.device, &state.surface_config);
-                state.window.request_redraw();
+                if let Some(state) = &mut self.state {
+                    state.surface_config.width = size.width;
+                    state.surface_config.height = size.height;
+                    state.surface.configure(&state.device, &state.surface_config);
+                    state.window.request_redraw();
+                }
             }
 
             WindowEvent::RedrawRequested => {
-                let start = Instant::now();
+                if let Some(state) = &mut self.state {
+                    let start = Instant::now();
+                    let mut encoder =
+                        state.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+                    let frame = state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
+                    let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+                    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: None,
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &view,
+                            depth_slice: None,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                    });
+                    state.shape_renderer.prepare(&state.queue, state.window.inner_size());
+                    state.shape_renderer.render(&mut render_pass, 0..state.object_count);
+                    drop(render_pass);
 
-                let state = self.state.as_mut().unwrap();
-                let mut encoder = state.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-                let frame = state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
-                let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: None,
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
+                    let guard = state.sim_property_mutex.lock();
+                    let submission_index = state.queue.submit(Some(encoder.finish()));
+                    state.device.wait_for_submission(submission_index).unwrap();
+                    drop(guard);
 
-                state.shape_renderer.prepare(&state.queue, state.window.inner_size());
-                let object_count = state.flags.len();
-
-                state.shape_renderer.render(
-                    &state.device,
-                    &mut render_pass,
-                    0..object_count,
-                    &state.flags,
-                    &state.positions,
-                    &state.sizes,
-                    &state.colors,
-                    &state.shapes,
-                );
-                drop(render_pass);
-
-                let guard = state.sim_property_mutex.lock();
-                state.queue.submit(Some(encoder.finish()));
-                drop(guard);
-
-                state.window.pre_present_notify();
-                frame.present();
-
-                println!("Rendered {} objects in {} ms", object_count, start.elapsed().as_millis());
+                    state.window.pre_present_notify();
+                    frame.present();
+                    println!("Rendered {} objects in {} ms", state.object_count, start.elapsed().as_millis());
+                }
             }
 
             WindowEvent::KeyboardInput {
@@ -381,5 +362,18 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         if let Some(state) = &self.state {
             let _ = state.exit_notification_sender.try_send(());
         }
+    }
+}
+
+trait DeviceUtis {
+    fn wait_for_submission(&self, submission_index: SubmissionIndex) -> Result<PollStatus, PollError>;
+}
+
+impl DeviceUtis for wgpu::Device {
+    fn wait_for_submission(&self, submission_index: SubmissionIndex) -> Result<PollStatus, PollError> {
+        self.poll(PollType::Wait {
+            submission_index: Some(submission_index),
+            timeout: None,
+        })
     }
 }
