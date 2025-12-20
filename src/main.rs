@@ -60,8 +60,8 @@ enum AppEvent {
 struct AppState<'a> {
     shape_renderer: ShapeRenderer,
     exit_notification_sender: Sender<()>,
-    sim_property_mutex: Arc<Mutex<()>>,
     object_count: usize,
+    queue_submission_mutex: Arc<Mutex<()>>,
 
     surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
@@ -109,7 +109,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             buffers.shapes,
         );
         let (exit_notification_sender, exit_notification_receiver) = crossbeam::channel::bounded(1);
-        let sim_property_mutex = Arc::new(Mutex::new(()));
+        let queue_submission_mutex = Arc::new(Mutex::new(()));
 
         spawn_simulation_thread(
             buffers.flags,
@@ -120,14 +120,14 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             queue.clone(),
             self.event_loop_proxy.clone(),
             exit_notification_receiver.clone(),
-            sim_property_mutex.clone(),
+            queue_submission_mutex.clone(),
         );
 
         self.state = Some(AppState {
             shape_renderer,
             exit_notification_sender,
-            sim_property_mutex,
             object_count,
+            queue_submission_mutex,
 
             surface_config,
             queue,
@@ -158,7 +158,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &state.queue,
                         &state.surface,
                         state.window.inner_size(),
-                        &state.sim_property_mutex,
+                        &state.queue_submission_mutex,
                     );
                     state.window.pre_present_notify();
                     frame.present();
@@ -265,14 +265,15 @@ fn render_scene(
         timestamp_writes: None,
         occlusion_query_set: None,
     });
+
     shape_renderer.prepare(queue, view_size);
     shape_renderer.render(&mut render_pass, range);
     drop(render_pass);
 
     let guard = queue_submission_mutex.lock();
     let submission_index = queue.submit(Some(encoder.finish()));
-    device.wait_for_submission(submission_index).unwrap();
     drop(guard);
+    device.wait_for_submission(submission_index).unwrap();
     frame
 }
 
@@ -292,6 +293,18 @@ fn spawn_simulation_thread(
         let integrator = GpuIntegrator::new(&device);
         let dt_buffer = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         dt_buffer.write(&queue, &[0.01]);
+        let processed = GpuBuffer::new(
+            1,
+            "processed buffer",
+            BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
+            &device,
+        );
+        let processed_mapped = GpuBuffer::<u32>::new(
+            1,
+            "processed mapped buffer",
+            BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+            &device,
+        );
 
         loop {
             if exit_notification_receiver.try_recv().is_ok() {
@@ -304,11 +317,19 @@ fn spawn_simulation_thread(
                 event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
             }
 
+            processed.write(&queue, &[0]);
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
             let guard = queue_submission_mutex.lock();
-            let submission_index =
-                integrator.compute(&device, &queue, &dt_buffer, &flags, &positions, &velocities, &masses);
-            drop(guard);
+            integrator.compute(&device, &queue, &dt_buffer, &flags, &positions, &velocities, &masses, &processed);
+            encoder.copy_buffer_to_buffer(&processed.buffer(), 0, &processed_mapped.buffer(), 0, 4);
+            let submission_index = queue.submit(Some(encoder.finish()));
             device.wait_for_submission(submission_index).unwrap();
+            drop(guard);
+
+            let mut processed_value = [0u32];
+            processed_mapped.read(&device, &mut processed_value);
+            assert_eq!(processed_value[0], u32::try_from(flags.len()).unwrap());
+            println!("integated {} particles", processed_value[0]);
         }
     });
 }

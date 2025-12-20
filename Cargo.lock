@@ -2906,8 +2906,6 @@ dependencies = [
 [[package]]
 name = "wgsl_bindgen"
 version = "0.21.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f7f7f4457cd74c91dda4cd1b94350b5c8a4c5f1e18698e191c53d8f9c6ef6d1"
 dependencies = [
  "blake3",
  "case",

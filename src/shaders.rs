@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: 8329b983fae9b7c7444185ba026b8289684f94ea6debb5725a02b824bccffae1
+// SourceHash: 657cb1c5207f68022515180fa2905c4835765c9016624b1143d81c3b289f429c
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -601,6 +601,7 @@ pub mod integration {
         pub flags: wgpu::BufferBinding<'a>,
         pub position: wgpu::BufferBinding<'a>,
         pub velocity: wgpu::BufferBinding<'a>,
+        pub processed: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
@@ -609,6 +610,7 @@ pub mod integration {
         pub flags: wgpu::BindGroupEntry<'a>,
         pub position: wgpu::BindGroupEntry<'a>,
         pub velocity: wgpu::BindGroupEntry<'a>,
+        pub processed: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -633,10 +635,21 @@ pub mod integration {
                     binding: 4,
                     resource: wgpu::BindingResource::Buffer(params.velocity),
                 },
+                processed: wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Buffer(params.processed),
+                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
-            [self.dt, self.mass, self.flags, self.position, self.velocity]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
+            [
+                self.dt,
+                self.mass,
+                self.flags,
+                self.position,
+                self.velocity,
+                self.processed,
+            ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -700,6 +713,17 @@ pub mod integration {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
                         min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(5): \"processed\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -789,42 +813,48 @@ var<storage, read_write> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 var<storage, read_write> position: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(4) 
 var<storage, read_write> velocity: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(5) 
+var<storage, read_write> processed: atomic<u32>;
 
 @compute @workgroup_size(64, 1, 1) 
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var v: vec2<f32>;
     var x: vec2<f32>;
 
-    let index = (gid.x + ((gid.y * 65536u) * WORKGROUP_SIZE));
-    let _e14 = flags[index].inner;
-    if ((index >= arrayLength((&mass))) || ((_e14 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u)) {
+    let index = (gid.x + ((gid.y * 65535u) * WORKGROUP_SIZE));
+    if (index >= arrayLength((&mass))) {
         return;
     }
-    let _e26 = position[index].inner;
-    let to_blackhole = (vec2<f32>(800f, 400f) - _e26);
+    let _e13 = atomicAdd((&processed), 1u);
+    let _e17 = flags[index].inner;
+    if ((_e17 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+        return;
+    }
+    let _e28 = position[index].inner;
+    let to_blackhole = (vec2<f32>(800f, 400f) - _e28);
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    let _e33 = velocity[index].inner;
-    v = _e33;
-    let _e38 = position[index].inner;
-    x = _e38;
+    let _e35 = velocity[index].inner;
+    v = _e35;
+    let _e40 = position[index].inner;
+    x = _e40;
     let a = ((direction * 10000000f) / vec2((distance * distance)));
-    let _e45 = v;
-    let _e47 = dt;
-    v = (_e45 + (_e47 * a));
-    let _e51 = dt;
-    let _e52 = v;
-    let _e54 = x;
-    x = (_e54 + (_e51 * _e52));
+    let _e47 = v;
+    let _e49 = dt;
+    v = (_e47 + (_e49 * a));
+    let _e53 = dt;
+    let _e54 = v;
+    let _e56 = x;
+    x = (_e56 + (_e53 * _e54));
     if (distance < 100f) {
-        let _e62 = flags[index].inner;
-        flags[index].inner = (_e62 & 4294967292u);
+        let _e64 = flags[index].inner;
+        flags[index].inner = (_e64 & 4294967292u);
         v = vec2<f32>();
     }
-    let _e68 = v;
-    velocity[index].inner = _e68;
-    let _e72 = x;
-    position[index].inner = _e72;
+    let _e70 = v;
+    velocity[index].inner = _e70;
+    let _e74 = x;
+    position[index].inner = _e74;
     return;
 }
 "#;

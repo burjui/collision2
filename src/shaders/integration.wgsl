@@ -6,6 +6,8 @@
 @group(0) @binding(2) var<storage, read_write> flags: array<Flags>;
 @group(0) @binding(3) var<storage, read_write> position: array<Position>;
 @group(0) @binding(4) var<storage, read_write> velocity: array<Velocity>;
+@group(0) @binding(5) var<storage, read_write> processed: atomic<u32>;
+
 
 const WORKGROUP_SIZE: u32 = 64;
 
@@ -14,8 +16,12 @@ const WORKGROUP_SIZE: u32 = 64;
 fn cs_main(
     @builtin(global_invocation_id) gid: vec3<u32>,
 ) {
-    let index = gid.x + gid.y * 65536 * WORKGROUP_SIZE;
-    if index >= arrayLength(&mass) || (flags[index].inner & FLAG_PHYSICAL) == 0 {
+    let index = gid.x + gid.y * 65535 * WORKGROUP_SIZE;
+    if index >= arrayLength(&mass) {
+        return;
+    }
+    atomicAdd(&processed, 1);
+    if (flags[index].inner & FLAG_PHYSICAL) == 0 {
         return;
     }
     const blackhole_position = vec2f(800, 400);

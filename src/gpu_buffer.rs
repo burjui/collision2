@@ -4,8 +4,9 @@ use std::{
     ops::{Bound, RangeBounds},
 };
 
-use bytemuck::NoUninit;
-use wgpu::{Buffer, BufferSlice, COPY_BUFFER_ALIGNMENT, Device, Queue};
+use bytemuck::{NoUninit, Pod};
+use crossbeam::sync::WaitGroup;
+use wgpu::{Buffer, BufferSlice, COPY_BUFFER_ALIGNMENT, Device, MapMode, PollType, Queue};
 
 #[derive(Clone)]
 pub struct GpuBuffer<T> {
@@ -63,17 +64,39 @@ impl<T> GpuBuffer<T> {
         self.buffer.slice(slice_start..slice_end)
     }
 
-    pub fn write(&self, queue: &Queue, data: &[T])
+    pub fn write(&self, queue: &Queue, src: &[T])
     where
         T: NoUninit,
     {
-        let data_size = u64::try_from(size_of_val(data)).unwrap();
+        let data_size = u64::try_from(size_of_val(src)).unwrap();
         assert!(data_size <= self.buffer.size());
         let mut view = queue.write_buffer_with(&self.buffer, 0, data_size.try_into().unwrap()).unwrap();
-        view.as_mut().copy_from_slice(bytemuck::cast_slice(data));
+        view.as_mut().copy_from_slice(bytemuck::cast_slice(src));
     }
 
     fn size(&self) -> usize {
         self.buffer.size().try_into().unwrap()
+    }
+
+    pub fn read(&self, device: &Device, dst: &mut [T])
+    where
+        T: Pod,
+    {
+        let dst_size = u64::try_from(size_of_val(dst)).unwrap();
+        assert!(dst_size >= self.buffer.size());
+
+        let wait_group = WaitGroup::new();
+        let wg = wait_group.clone();
+        self.buffer.map_async(MapMode::Read, .., |result| {
+            result.unwrap();
+            drop(wg);
+        });
+        device.poll(PollType::Poll).unwrap();
+        wait_group.wait();
+
+        let view = self.buffer.get_mapped_range(0..dst_size);
+        dst.copy_from_slice(bytemuck::cast_slice(&*view));
+        drop(view);
+        self.buffer.unmap();
     }
 }
