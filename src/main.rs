@@ -9,7 +9,7 @@ pub mod shape_renderer;
 
 use std::{
     ops::Range,
-    sync::{Arc, Mutex},
+    sync::Arc,
     thread,
     time::{Duration, Instant},
 };
@@ -61,7 +61,6 @@ struct AppState<'a> {
     shape_renderer: ShapeRenderer,
     exit_notification_sender: Sender<()>,
     object_count: usize,
-    queue_submission_mutex: Arc<Mutex<()>>,
 
     surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
@@ -109,7 +108,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             buffers.shapes,
         );
         let (exit_notification_sender, exit_notification_receiver) = crossbeam::channel::bounded(1);
-        let queue_submission_mutex = Arc::new(Mutex::new(()));
 
         spawn_simulation_thread(
             buffers.flags,
@@ -120,14 +118,12 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             queue.clone(),
             self.event_loop_proxy.clone(),
             exit_notification_receiver.clone(),
-            queue_submission_mutex.clone(),
         );
 
         self.state = Some(AppState {
             shape_renderer,
             exit_notification_sender,
             object_count,
-            queue_submission_mutex,
 
             surface_config,
             queue,
@@ -158,7 +154,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &state.queue,
                         &state.surface,
                         state.window.inner_size(),
-                        &state.queue_submission_mutex,
                     );
                     state.window.pre_present_notify();
                     frame.present();
@@ -245,7 +240,6 @@ fn render_scene(
     queue: &wgpu::Queue,
     surface: &wgpu::Surface,
     view_size: PhysicalSize<u32>,
-    queue_submission_mutex: &Mutex<()>,
 ) -> wgpu::SurfaceTexture {
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
     let frame = surface.get_current_texture().expect("Failed to acquire next swap chain texture");
@@ -270,9 +264,7 @@ fn render_scene(
     shape_renderer.render(&mut render_pass, range);
     drop(render_pass);
 
-    let guard = queue_submission_mutex.lock();
     let submission_index = queue.submit(Some(encoder.finish()));
-    drop(guard);
     device.wait_for_submission(submission_index).unwrap();
     frame
 }
@@ -286,13 +278,12 @@ fn spawn_simulation_thread(
     queue: wgpu::Queue,
     event_loop_proxy: EventLoopProxy<AppEvent>,
     exit_notification_receiver: crossbeam::channel::Receiver<()>,
-    queue_submission_mutex: Arc<Mutex<()>>,
 ) {
     thread::spawn(move || {
         let mut last_redraw = Instant::now();
         let integrator = GpuIntegrator::new(&device);
         let dt_buffer = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt_buffer.write(&queue, &[0.01]);
+        dt_buffer.write(&queue, &[0.003]);
         let processed = GpuBuffer::new(
             1,
             "processed buffer",
@@ -302,7 +293,7 @@ fn spawn_simulation_thread(
         let processed_mapped = GpuBuffer::<u32>::new(
             1,
             "processed mapped buffer",
-            BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+            BufferUsages::MAP_READ | BufferUsages::COPY_DST,
             &device,
         );
 
@@ -318,18 +309,23 @@ fn spawn_simulation_thread(
             }
 
             processed.write(&queue, &[0]);
+            queue.submit([]);
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-            let guard = queue_submission_mutex.lock();
             integrator.compute(&device, &queue, &dt_buffer, &flags, &positions, &velocities, &masses, &processed);
-            encoder.copy_buffer_to_buffer(&processed.buffer(), 0, &processed_mapped.buffer(), 0, 4);
+            encoder.copy_buffer_to_buffer(
+                processed.buffer(),
+                0,
+                processed_mapped.buffer(),
+                0,
+                processed_mapped.buffer().size(),
+            );
             let submission_index = queue.submit(Some(encoder.finish()));
             device.wait_for_submission(submission_index).unwrap();
-            drop(guard);
 
-            let mut processed_value = [0u32];
-            processed_mapped.read(&device, &mut processed_value);
+            let processed_value = &mut [0u32];
+            processed_mapped.read(&device, processed_value);
             assert_eq!(processed_value[0], u32::try_from(flags.len()).unwrap());
-            println!("integated {} particles", processed_value[0]);
+            println!("integated {} objects", processed_value[0]);
         }
     });
 }
