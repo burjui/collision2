@@ -14,7 +14,7 @@ use crate::{
 pub fn create_scene(window_size: PhysicalSize<u32>, objects: &mut Objects) {
     let window_size = Vector2::new(window_size.width as f32, window_size.height as f32);
     let circles = {
-        const RADIUS: f32 = 0.3;
+        const RADIUS: f32 = 0.5;
         // const VELOCITY_MAX: f32 = 0.01;
         let shape_count: Vector2<usize> = (window_size / (RADIUS * 2.0)).try_cast().unwrap();
         (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(i, j)| {

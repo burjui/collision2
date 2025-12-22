@@ -283,7 +283,7 @@ fn spawn_simulation_thread(
         let mut last_redraw = Instant::now();
         let integrator = GpuIntegrator::new(&device);
         let dt_buffer = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt_buffer.write(&queue, &[0.003]);
+        dt_buffer.write(&queue, &[0.001]);
         let processed = GpuBuffer::new(
             1,
             "processed buffer",

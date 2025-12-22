@@ -30,7 +30,8 @@ fn cs_main(
     let distance = length(to_blackhole);
     var v = velocity[index].inner;
     var x = position[index].inner;
-    let a = direction * 10000000 / (distance * distance);
+    let bh_gravity = direction * 10000000 / (distance * distance);
+    let a = bh_gravity;
     v = v + dt * a;
     x += dt * v;
 
