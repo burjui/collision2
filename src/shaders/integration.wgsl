@@ -1,13 +1,11 @@
 #import common::{FLAG_SHOW, FLAG_PHYSICAL, Mass, Velocity, Position, Flags}
 
-
 @group(0) @binding(0) var<uniform> dt: f32;
 @group(0) @binding(1) var<storage, read> mass: array<Mass>;
 @group(0) @binding(2) var<storage, read_write> flags: array<Flags>;
 @group(0) @binding(3) var<storage, read_write> position: array<Position>;
 @group(0) @binding(4) var<storage, read_write> velocity: array<Velocity>;
 @group(0) @binding(5) var<storage, read_write> processed: atomic<u32>;
-
 
 const WORKGROUP_SIZE: u32 = 64;
 
