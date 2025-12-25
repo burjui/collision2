@@ -16,7 +16,7 @@ use std::{
 
 use crossbeam::channel::Sender;
 use pollster::block_on;
-use wgpu::{BufferUsages, PollError, PollStatus, PollType, SubmissionIndex};
+use wgpu::{BufferUsages, PollError, PollStatus, PollType, PresentMode, SubmissionIndex};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -79,7 +79,10 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let surface = wgpu.create_surface(window.clone()).unwrap();
         let (adapter, device, queue, swapchain_format) = init_wgpu(&wgpu, &surface);
         let window_size = window.inner_size();
-        let surface_config = surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap();
+        let surface_config = wgpu::SurfaceConfiguration {
+            present_mode: PresentMode::AutoVsync,
+            ..surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap()
+        };
         surface.configure(&device, &surface_config);
 
         let mut objects = Objects::default();
@@ -102,8 +105,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             swapchain_format,
             &pipeline_cache,
             buffers.flags.clone(),
-            buffers.positions.clone(),
-            buffers.sizes,
+            buffers.aabbs.clone(),
             buffers.colors,
             buffers.shapes,
         );
@@ -111,7 +113,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
         spawn_simulation_thread(
             buffers.flags,
-            buffers.positions,
+            buffers.aabbs,
             buffers.velocities,
             buffers.masses,
             device.clone(),
@@ -271,7 +273,7 @@ fn render_scene(
 
 fn spawn_simulation_thread(
     flags: GpuBuffer<shaders::common::Flags>,
-    positions: GpuBuffer<shaders::common::Position>,
+    aabbs: GpuBuffer<shaders::common::AABB>,
     velocities: GpuBuffer<shaders::common::Velocity>,
     masses: GpuBuffer<shaders::common::Mass>,
     device: wgpu::Device,
@@ -311,7 +313,7 @@ fn spawn_simulation_thread(
             processed.write(&queue, &[0]);
             queue.submit([]);
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-            integrator.compute(&device, &queue, &dt_buffer, &flags, &positions, &velocities, &masses, &processed);
+            integrator.compute(&device, &queue, &dt_buffer, &flags, &aabbs, &velocities, &masses, &processed);
             encoder.copy_buffer_to_buffer(
                 processed.buffer(),
                 0,

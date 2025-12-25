@@ -9,7 +9,7 @@ use winit::dpi::PhysicalSize;
 use crate::{
     gpu_buffer::GpuBuffer,
     shaders::{
-        common::{Color, Flags, Position, Shape, Size},
+        common::{AABB, Color, Flags, Shape},
         shape,
     },
 };
@@ -26,8 +26,7 @@ impl ShapeRenderer {
         swapchain_format: TextureFormat,
         pipeline_cache: &PipelineCache,
         flags: GpuBuffer<Flags>,
-        positions: GpuBuffer<Position>,
-        sizes: GpuBuffer<Size>,
+        aabbs: GpuBuffer<AABB>,
         colors: GpuBuffer<Color>,
         shapes: GpuBuffer<Shape>,
     ) -> Self {
@@ -64,10 +63,9 @@ impl ShapeRenderer {
             shape::WgpuBindGroup0Entries::new(shape::WgpuBindGroup0EntriesParams {
                 view_size: view_size_buffer.buffer().as_entire_buffer_binding(),
                 flags: flags.buffer().as_entire_buffer_binding(),
-                position: positions.buffer().as_entire_buffer_binding(),
-                size: sizes.buffer().as_entire_buffer_binding(),
-                color: colors.buffer().as_entire_buffer_binding(),
-                shape: shapes.buffer().as_entire_buffer_binding(),
+                aabbs: aabbs.buffer().as_entire_buffer_binding(),
+                colors: colors.buffer().as_entire_buffer_binding(),
+                shapes: shapes.buffer().as_entire_buffer_binding(),
             }),
         );
 

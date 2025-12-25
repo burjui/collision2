@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.2
 // Changes made to this file will not be saved.
-// SourceHash: 75a73eef78185b1cbc6dbda02d5b65a685c0336b84752c4335cb06ad0a0d0d09
+// SourceHash: 03d6a6be8cbb26c6dccb9037024fc0b29a5ff86d69a1c853b07a7d8f70768acd
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -55,14 +55,6 @@ pub mod layout_asserts {
         assert!(std::mem::offset_of!(common::Flags, inner) == 0);
         assert!(std::mem::size_of::<common::Flags>() == 4);
     };
-    const COMMON_POSITION_ASSERTS: () = {
-        assert!(std::mem::offset_of!(common::Position, inner) == 0);
-        assert!(std::mem::size_of::<common::Position>() == 8);
-    };
-    const COMMON_SIZE_ASSERTS: () = {
-        assert!(std::mem::offset_of!(common::Size, inner) == 0);
-        assert!(std::mem::size_of::<common::Size>() == 8);
-    };
     const COMMON_COLOR_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::Color, inner) == 0);
         assert!(std::mem::size_of::<common::Color>() == 16);
@@ -70,6 +62,11 @@ pub mod layout_asserts {
     const COMMON_SHAPE_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::Shape, inner) == 0);
         assert!(std::mem::size_of::<common::Shape>() == 4);
+    };
+    const COMMON_A_A_B_B_ASSERTS: () = {
+        assert!(std::mem::offset_of!(common::AABB, min) == 0);
+        assert!(std::mem::offset_of!(common::AABB, max) == 8);
+        assert!(std::mem::size_of::<common::AABB>() == 16);
     };
     const COMMON_VELOCITY_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::Velocity, inner) == 0);
@@ -95,28 +92,6 @@ pub mod common {
             Self { inner }
         }
     }
-    #[repr(C, align(8))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct Position {
-        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
-        pub inner: [f32; 2],
-    }
-    impl Position {
-        pub const fn new(inner: [f32; 2]) -> Self {
-            Self { inner }
-        }
-    }
-    #[repr(C, align(8))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct Size {
-        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
-        pub inner: [f32; 2],
-    }
-    impl Size {
-        pub const fn new(inner: [f32; 2]) -> Self {
-            Self { inner }
-        }
-    }
     #[repr(C, align(16))]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct Color {
@@ -137,6 +112,19 @@ pub mod common {
     impl Shape {
         pub const fn new(inner: u32) -> Self {
             Self { inner }
+        }
+    }
+    #[repr(C, align(8))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct AABB {
+        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
+        pub min: [f32; 2],
+        #[doc = "offset: 8, size: 8, type: `vec2<f32>`"]
+        pub max: [f32; 2],
+    }
+    impl AABB {
+        pub const fn new(min: [f32; 2], max: [f32; 2]) -> Self {
+            Self { min, max }
         }
     }
     #[repr(C, align(8))]
@@ -195,20 +183,17 @@ struct Flags {
     inner: u32,
 }
 
-struct Position {
-    inner: vec2<f32>,
-}
-
-struct Size {
-    inner: vec2<f32>,
-}
-
 struct Color {
     inner: vec4<f32>,
 }
 
 struct Shape {
     inner: u32,
+}
+
+struct AABB {
+    min: vec2<f32>,
+    max: vec2<f32>,
 }
 
 const FLAG_SHOW: u32 = 1u;
@@ -220,14 +205,12 @@ pub mod bytemuck_impls {
     use super::{_root, _root::*};
     unsafe impl bytemuck::Zeroable for common::Flags {}
     unsafe impl bytemuck::Pod for common::Flags {}
-    unsafe impl bytemuck::Zeroable for common::Position {}
-    unsafe impl bytemuck::Pod for common::Position {}
-    unsafe impl bytemuck::Zeroable for common::Size {}
-    unsafe impl bytemuck::Pod for common::Size {}
     unsafe impl bytemuck::Zeroable for common::Color {}
     unsafe impl bytemuck::Pod for common::Color {}
     unsafe impl bytemuck::Zeroable for common::Shape {}
     unsafe impl bytemuck::Pod for common::Shape {}
+    unsafe impl bytemuck::Zeroable for common::AABB {}
+    unsafe impl bytemuck::Pod for common::AABB {}
     unsafe impl bytemuck::Zeroable for common::Velocity {}
     unsafe impl bytemuck::Pod for common::Velocity {}
     unsafe impl bytemuck::Zeroable for common::Mass {}
@@ -297,19 +280,17 @@ pub mod shape {
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub view_size: wgpu::BufferBinding<'a>,
         pub flags: wgpu::BufferBinding<'a>,
-        pub position: wgpu::BufferBinding<'a>,
-        pub size: wgpu::BufferBinding<'a>,
-        pub color: wgpu::BufferBinding<'a>,
-        pub shape: wgpu::BufferBinding<'a>,
+        pub aabbs: wgpu::BufferBinding<'a>,
+        pub colors: wgpu::BufferBinding<'a>,
+        pub shapes: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub view_size: wgpu::BindGroupEntry<'a>,
         pub flags: wgpu::BindGroupEntry<'a>,
-        pub position: wgpu::BindGroupEntry<'a>,
-        pub size: wgpu::BindGroupEntry<'a>,
-        pub color: wgpu::BindGroupEntry<'a>,
-        pub shape: wgpu::BindGroupEntry<'a>,
+        pub aabbs: wgpu::BindGroupEntry<'a>,
+        pub colors: wgpu::BindGroupEntry<'a>,
+        pub shapes: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -322,33 +303,22 @@ pub mod shape {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.flags),
                 },
-                position: wgpu::BindGroupEntry {
+                aabbs: wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.position),
+                    resource: wgpu::BindingResource::Buffer(params.aabbs),
                 },
-                size: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.size),
-                },
-                color: wgpu::BindGroupEntry {
+                colors: wgpu::BindGroupEntry {
                     binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.color),
+                    resource: wgpu::BindingResource::Buffer(params.colors),
                 },
-                shape: wgpu::BindGroupEntry {
+                shapes: wgpu::BindGroupEntry {
                     binding: 5,
-                    resource: wgpu::BindingResource::Buffer(params.shape),
+                    resource: wgpu::BindingResource::Buffer(params.shapes),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
-            [
-                self.view_size,
-                self.flags,
-                self.position,
-                self.size,
-                self.color,
-                self.shape,
-            ]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
+            [self.view_size, self.flags, self.aabbs, self.colors, self.shapes]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -382,7 +352,7 @@ pub mod shape {
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"position\""]
+                #[doc = " @binding(2): \"aabbs\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
@@ -393,18 +363,7 @@ pub mod shape {
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"size\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(4): \"color\""]
+                #[doc = " @binding(4): \"colors\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 4,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
@@ -415,7 +374,7 @@ pub mod shape {
                     },
                     count: None,
                 },
-                #[doc = " @binding(5): \"shape\""]
+                #[doc = " @binding(5): \"shapes\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 5,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
@@ -486,20 +445,17 @@ struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
     inner: u32,
 }
 
-struct PositionX_naga_oil_mod_XMNXW23LPNYX {
-    inner: vec2<f32>,
-}
-
-struct SizeX_naga_oil_mod_XMNXW23LPNYX {
-    inner: vec2<f32>,
-}
-
 struct ColorX_naga_oil_mod_XMNXW23LPNYX {
     inner: vec4<f32>,
 }
 
 struct ShapeX_naga_oil_mod_XMNXW23LPNYX {
     inner: u32,
+}
+
+struct AABBX_naga_oil_mod_XMNXW23LPNYX {
+    min: vec2<f32>,
+    max: vec2<f32>,
 }
 
 struct VertexOutput {
@@ -524,13 +480,11 @@ var<uniform> view_size: vec2<f32>;
 @group(0) @binding(1) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(2) 
-var<storage> position: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(3) 
-var<storage> size: array<SizeX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(4) 
-var<storage> color_1: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> colors: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(5) 
-var<storage> shape: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> shapes: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
 
 @vertex 
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
@@ -541,24 +495,25 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
         let _e10 = out;
         return _e10;
     }
-    let _e14 = size[i].inner;
-    let _e16 = view_size;
-    let scale = (_e14 / _e16);
+    let aabb = aabbs[i];
+    let size = (aabb.max - aabb.min);
+    let _e18 = view_size;
+    let scale = (size / _e18);
     out.scaling_factor = clamp(min(scale.x, scale.y), 0f, 1f);
-    let _e28 = position[i].inner;
-    let _e30 = view_size;
-    let translation = ((((_e28 / _e30) * vec2<f32>(2f, -2f)) + vec2<f32>(-1f, 1f)) / scale);
+    let center = ((aabb.min + aabb.max) / vec2(2f));
+    let _e34 = view_size;
+    let translation = ((((center / _e34) * vec2<f32>(2f, -2f)) + vec2<f32>(-1f, 1f)) / scale);
     let translation_matrix = transpose(mat4x4<f32>(vec4<f32>(1f, 0f, 0f, translation.x), vec4<f32>(0f, 1f, 0f, translation.y), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(0f, 0f, 0f, 1f)));
     let scale_matrix = mat4x4<f32>(vec4<f32>(scale.x, 0f, 0f, 0f), vec4<f32>(0f, scale.y, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(0f, 0f, 0f, 1f));
     let vertex = VERTICES[vertex_index];
     out.clip_position = ((scale_matrix * translation_matrix) * vec4<f32>(vertex, 0f, 1f));
     out.quad_position = vertex;
-    let _e98 = color_1[i].inner;
-    out.color = _e98;
-    let _e103 = shape[i].inner;
-    out.shape = _e103;
-    let _e104 = out;
-    return _e104;
+    let _e102 = colors[i].inner;
+    out.color = _e102;
+    let _e107 = shapes[i].inner;
+    out.shape = _e107;
+    let _e108 = out;
+    return _e108;
 }
 
 @fragment 
@@ -597,19 +552,19 @@ pub mod integration {
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub dt: wgpu::BufferBinding<'a>,
-        pub mass: wgpu::BufferBinding<'a>,
+        pub masses: wgpu::BufferBinding<'a>,
         pub flags: wgpu::BufferBinding<'a>,
-        pub position: wgpu::BufferBinding<'a>,
-        pub velocity: wgpu::BufferBinding<'a>,
+        pub aabbs: wgpu::BufferBinding<'a>,
+        pub velocities: wgpu::BufferBinding<'a>,
         pub processed: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub dt: wgpu::BindGroupEntry<'a>,
-        pub mass: wgpu::BindGroupEntry<'a>,
+        pub masses: wgpu::BindGroupEntry<'a>,
         pub flags: wgpu::BindGroupEntry<'a>,
-        pub position: wgpu::BindGroupEntry<'a>,
-        pub velocity: wgpu::BindGroupEntry<'a>,
+        pub aabbs: wgpu::BindGroupEntry<'a>,
+        pub velocities: wgpu::BindGroupEntry<'a>,
         pub processed: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
@@ -619,21 +574,21 @@ pub mod integration {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.dt),
                 },
-                mass: wgpu::BindGroupEntry {
+                masses: wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.mass),
+                    resource: wgpu::BindingResource::Buffer(params.masses),
                 },
                 flags: wgpu::BindGroupEntry {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.flags),
                 },
-                position: wgpu::BindGroupEntry {
+                aabbs: wgpu::BindGroupEntry {
                     binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.position),
+                    resource: wgpu::BindingResource::Buffer(params.aabbs),
                 },
-                velocity: wgpu::BindGroupEntry {
+                velocities: wgpu::BindGroupEntry {
                     binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.velocity),
+                    resource: wgpu::BindingResource::Buffer(params.velocities),
                 },
                 processed: wgpu::BindGroupEntry {
                     binding: 5,
@@ -644,10 +599,10 @@ pub mod integration {
         pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
             [
                 self.dt,
-                self.mass,
+                self.masses,
                 self.flags,
-                self.position,
-                self.velocity,
+                self.aabbs,
+                self.velocities,
                 self.processed,
             ]
         }
@@ -672,7 +627,7 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"mass\""]
+                #[doc = " @binding(1): \"masses\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -694,7 +649,7 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"position\""]
+                #[doc = " @binding(3): \"aabbs\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -705,7 +660,7 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(4): \"velocity\""]
+                #[doc = " @binding(4): \"velocities\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -795,8 +750,9 @@ struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
     inner: u32,
 }
 
-struct PositionX_naga_oil_mod_XMNXW23LPNYX {
-    inner: vec2<f32>,
+struct AABBX_naga_oil_mod_XMNXW23LPNYX {
+    min: vec2<f32>,
+    max: vec2<f32>,
 }
 
 const FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
@@ -806,55 +762,62 @@ const WORKGROUP_SIZE: u32 = 64u;
 @group(0) @binding(0) 
 var<uniform> dt: f32;
 @group(0) @binding(1) 
-var<storage> mass: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(2) 
 var<storage, read_write> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(3) 
-var<storage, read_write> position: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(4) 
-var<storage, read_write> velocity: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(5) 
 var<storage, read_write> processed: atomic<u32>;
 
 @compute @workgroup_size(64, 1, 1) 
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    var f: u32;
     var v: vec2<f32>;
     var x: vec2<f32>;
 
-    let index = (gid.x + ((gid.y * 65535u) * WORKGROUP_SIZE));
-    if (index >= arrayLength((&mass))) {
+    let i = (gid.x + ((gid.y * 65535u) * WORKGROUP_SIZE));
+    if (i >= arrayLength((&masses))) {
         return;
     }
     let _e13 = atomicAdd((&processed), 1u);
-    let _e17 = flags[index].inner;
-    if ((_e17 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+    let _e17 = flags[i].inner;
+    f = _e17;
+    let _e19 = f;
+    if ((_e19 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         return;
     }
-    let _e28 = position[index].inner;
-    let to_blackhole = (vec2<f32>(800f, 400f) - _e28);
+    let aabb = aabbs[i];
+    let _e33 = velocities[i].inner;
+    v = _e33;
+    x = ((aabb.min + aabb.max) / vec2(2f));
+    let size = (aabb.max - aabb.min);
+    let _e45 = x;
+    let to_blackhole = (vec2<f32>(800f, 400f) - _e45);
     let direction = normalize(to_blackhole);
-    let distance = length(to_blackhole);
-    let _e35 = velocity[index].inner;
-    v = _e35;
-    let _e40 = position[index].inner;
-    x = _e40;
+    let distance = (length(to_blackhole) - (max(size.x, size.y) / 2f));
     let a = ((direction * 10000000f) / vec2((distance * distance)));
-    let _e47 = v;
-    let _e49 = dt;
-    v = (_e47 + (_e49 * a));
-    let _e53 = dt;
-    let _e54 = v;
-    let _e56 = x;
-    x = (_e56 + (_e53 * _e54));
+    let _e60 = v;
+    let _e62 = dt;
+    v = (_e60 + (_e62 * a));
+    let _e66 = dt;
+    let _e67 = v;
+    let _e69 = x;
+    x = (_e69 + (_e66 * _e67));
     if (distance < 100f) {
-        let _e64 = flags[index].inner;
-        flags[index].inner = (_e64 & 4294967292u);
+        let _e74 = f;
+        f = (_e74 & 4294967292u);
         v = vec2<f32>();
     }
-    let _e70 = v;
-    velocity[index].inner = _e70;
-    let _e74 = x;
-    position[index].inner = _e74;
+    let _e80 = f;
+    flags[i].inner = _e80;
+    let _e84 = v;
+    velocities[i].inner = _e84;
+    let _e87 = x;
+    let _e92 = x;
+    aabbs[i] = AABBX_naga_oil_mod_XMNXW23LPNYX((_e87 - (size / vec2(2f))), (_e92 + (size / vec2(2f))));
     return;
 }
 "#;

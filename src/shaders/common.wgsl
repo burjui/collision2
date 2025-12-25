@@ -15,18 +15,15 @@ struct Flags {
     inner: u32
 }
 
-struct Position {
-    inner: vec2f,
-}
-
-struct Size {
-    inner: vec2f
-}
-
 struct Color {
     inner: vec4f
 }
 
 struct Shape {
     inner: u32
+}
+
+struct AABB {
+    min: vec2f,
+    max: vec2f
 }

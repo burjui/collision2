@@ -95,7 +95,7 @@ impl<T> GpuBuffer<T> {
         wait_group.wait();
 
         let view = self.buffer.get_mapped_range(0..dst_size);
-        dst.copy_from_slice(bytemuck::cast_slice(&*view));
+        dst.copy_from_slice(bytemuck::cast_slice(&view));
         drop(view);
         self.buffer.unmap();
     }
