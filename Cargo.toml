@@ -17,4 +17,4 @@ rand = "0.9.2"
 crossbeam = "0.8.4"
 
 [build-dependencies]
-wgsl_bindgen = { git = "https://github.com/burjui/wgsl-bindgen", branch = "atomic" }
+wgsl_bindgen = { git = "https://github.com/burjui/wgsl-bindgen", branch = "atomics" }

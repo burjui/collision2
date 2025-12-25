@@ -2934,7 +2934,7 @@ dependencies = [
 [[package]]
 name = "wgsl_bindgen"
 version = "0.21.2"
-source = "git+https://github.com/burjui/wgsl-bindgen?branch=atomic#36d4f2e0d4ecb73ceea92bab5d49fff7cbf10143"
+source = "git+https://github.com/burjui/wgsl-bindgen?branch=atomics#e0c6cb9ce59af7c116ce9410a27b7d0f0ca07d3b"
 dependencies = [
  "blake3",
  "case",
