@@ -1,4 +1,4 @@
-#import common::{FLAG_SHOW, Flags, AABB, Color, Shape}
+#import common::{UNIT_QUAD_VERTICES, FLAG_DRAW_OBJECT, Camera, Flags, AABB, Color, Shape}
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,
@@ -7,27 +7,14 @@ struct VertexOutput {
     @location(2) shape: u32
 };
 
-struct FragmentOutput {
-    @location(0) color: vec4f
-}
-
 const SHAPE_RECT: u32 = 0;
 const SHAPE_CIRCLE: u32 = 1;
 
-@group(0) @binding(0) var<uniform> camera: mat4x4f;
+@group(0) @binding(0) var<uniform> camera: Camera;
 @group(0) @binding(1) var<storage, read> flags: array<Flags>;
 @group(0) @binding(2) var<storage, read> aabbs: array<AABB>;
 @group(0) @binding(4) var<storage, read> colors: array<Color>;
 @group(0) @binding(5) var<storage, read> shapes: array<Shape>;
-
-const UNIT_QUAD_VERTICES = array<vec2f, 6>(
-    vec2f(0.5, 0.5),
-    vec2f(-0.5, 0.5),
-    vec2f(-0.5, -0.5),
-    vec2f(-0.5, -0.5),
-    vec2f(0.5, -0.5),
-    vec2f(0.5, 0.5),
-);
 
 @vertex
 fn vs_main(
@@ -35,7 +22,7 @@ fn vs_main(
     @builtin(instance_index) i: u32,
 ) -> VertexOutput {
     var out = VertexOutput();
-    if (flags[i].inner & FLAG_SHOW) == 0 {
+    if (flags[i].inner & FLAG_DRAW_OBJECT) == 0 {
         return out;
     }
 
@@ -49,12 +36,16 @@ fn vs_main(
         center.x, center.y, 0, 1,
     );
     let vertex = UNIT_QUAD_VERTICES[vertex_index];
-    out.clip_position = camera * model * vec4f(vertex, 0, 1);
+    out.clip_position = camera.inner * model * vec4f(vertex, 0, 1);
     out.quad_position = vertex;
     out.color = colors[i].inner;
     out.shape = shapes[i].inner;
 
     return out;
+}
+
+struct FragmentOutput {
+    @location(0) color: vec4f
 }
 
 @fragment

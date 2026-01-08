@@ -9,7 +9,7 @@ use crate::{
     aabb::AabbExt,
     objects::{ObjectPrototype, Objects},
     shaders::{
-        common::{AABB, FLAG_PHYSICAL, FLAG_SHOW},
+        common::{AABB, FLAG_DRAW_AABB, FLAG_DRAW_OBJECT, FLAG_PHYSICAL},
         shape::{SHAPE_CIRCLE, SHAPE_RECT},
     },
 };
@@ -20,7 +20,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     println!("World size: {}x{}", world_size.x, world_size.y);
 
     let circles = {
-        const RADIUS: f32 = 20.0;
+        const RADIUS: f32 = 200.0;
         const POSITION_RAND_FACTOR: f32 = 0.0;
         const VELOCITY_RAND_MAX: f32 = 0.0;
         const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
@@ -34,7 +34,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
                 + Vector2::new(RADIUS * (i * 2.0 + 1.0), RADIUS * (j * 2.0 + 1.0))
                 + Vector2::new(random_range(range.clone()), random_range(range));
             ObjectPrototype {
-                flags: FLAG_SHOW | FLAG_PHYSICAL,
+                flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_PHYSICAL,
                 position: position.into(),
                 velocity: [random_range(VELOCITY_RAND_RANGE_X), random_range(VELOCITY_RAND_RANGE_Y)],
                 mass: 1.0,
@@ -52,7 +52,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
 
     let border_thickness = world_aabb.size().y / 400.0;
     let top = ObjectPrototype {
-        flags: FLAG_SHOW,
+        flags: FLAG_DRAW_OBJECT,
         position: [0.0, world_aabb.max().y - border_thickness / 2.0],
         velocity: [0.0, 0.0],
         mass: f32::INFINITY,
@@ -61,7 +61,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         shape: SHAPE_RECT,
     };
     let bottom = ObjectPrototype {
-        flags: FLAG_SHOW,
+        flags: FLAG_DRAW_OBJECT,
         position: [0.0, world_aabb.min().y + border_thickness / 2.0],
         velocity: [0.0, 0.0],
         mass: f32::INFINITY,
@@ -70,7 +70,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         shape: SHAPE_RECT,
     };
     let left = ObjectPrototype {
-        flags: FLAG_SHOW,
+        flags: FLAG_DRAW_OBJECT,
         velocity: [0.0, 0.0],
         position: [world_aabb.min().x + border_thickness / 2.0, 0.0],
         mass: f32::INFINITY,
@@ -79,7 +79,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         shape: SHAPE_RECT,
     };
     let right = ObjectPrototype {
-        flags: FLAG_SHOW,
+        flags: FLAG_DRAW_OBJECT,
         position: [world_aabb.max().x - border_thickness / 2.0, 0.0],
         velocity: [0.0, 0.0],
         mass: f32::INFINITY,
@@ -90,7 +90,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
 
     objects.extend(circles);
     // objects.push(ObjectPrototype {
-    //     flags: FLAG_SHOW | FLAG_PHYSICAL,
+    //     flags: FLAG_DRAW_OBJECT | FLAG_PHYSICAL,
     //     position: [world_aabb.max().x, 0.0],
     //     velocity: [0.0, 0.0],
     //     mass: 0.0,
@@ -99,7 +99,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     //     shape: SHAPE_CIRCLE,
     // });
     // objects.push(ObjectPrototype {
-    //     flags: FLAG_SHOW,
+    //     flags: FLAG_DRAW_OBJECT,
     //     position: [0.0, 0.0],
     //     velocity: [0.0, 0.0],
     //     mass: 1.0,

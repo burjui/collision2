@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod aabb;
+pub mod aabb_renderer;
 pub mod bvh;
 pub mod gpu_buffer;
 pub mod integration;
@@ -29,8 +30,14 @@ use winit::{
 };
 
 use crate::{
-    aabb::AabbExt as _, gpu_buffer::GpuBuffer, integration::GpuIntegrator, objects::Objects, scene::create_scene,
-    shaders::common::AABB, shape_renderer::ShapeRenderer,
+    aabb::AabbExt as _,
+    aabb_renderer::AabbRenderer,
+    gpu_buffer::GpuBuffer,
+    integration::GpuIntegrator,
+    objects::Objects,
+    scene::create_scene,
+    shaders::common::{AABB, Camera},
+    shape_renderer::ShapeRenderer,
 };
 
 fn main() {
@@ -61,9 +68,11 @@ enum AppEvent {
 
 struct AppState<'a> {
     shape_renderer: ShapeRenderer,
+    aabb_renderer: AabbRenderer,
     exit_notification_sender: Sender<()>,
     world_aabb: AABB,
     object_count: usize,
+    camera_buffer: GpuBuffer<Camera>,
 
     surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
@@ -108,10 +117,21 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 fallback: true,
             })
         };
+        let camera_buffer =
+            GpuBuffer::<Camera>::new(1, "view size buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
+        let aabb_renderer = AabbRenderer::new(
+            &device,
+            swapchain_format,
+            &pipeline_cache,
+            camera_buffer.clone(),
+            buffers.flags.clone(),
+            buffers.aabbs.clone(),
+        );
         let shape_renderer = ShapeRenderer::new(
             &device,
             swapchain_format,
             &pipeline_cache,
+            camera_buffer.clone(),
             buffers.flags.clone(),
             buffers.aabbs.clone(),
             buffers.colors,
@@ -132,9 +152,11 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
         self.state = Some(AppState {
             shape_renderer,
+            aabb_renderer,
             exit_notification_sender,
             world_aabb,
             object_count,
+            camera_buffer,
 
             surface_config,
             queue,
@@ -158,17 +180,24 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             WindowEvent::RedrawRequested => {
                 if let Some(state) = &mut self.state {
                     let start = Instant::now();
+
+                    let view_size = state.window.inner_size();
+                    let world_height = state.world_aabb.max().y - state.world_aabb.min().y;
+                    let camera = ortho_camera(view_size.cast(), world_height);
+                    state.camera_buffer.write(&state.queue, &[Camera::new(camera)]);
+
                     let frame = render_scene(
                         &mut state.shape_renderer,
+                        &mut state.aabb_renderer,
                         0..state.object_count,
                         &state.device,
                         &state.queue,
                         &state.surface,
-                        state.window.inner_size(),
-                        state.world_aabb.max().y - state.world_aabb.min().y,
                     );
+
                     state.window.pre_present_notify();
                     frame.present();
+
                     println!("Rendered {} shapes in {} ms", state.object_count, start.elapsed().as_millis());
                 }
             }
@@ -247,12 +276,11 @@ fn init_wgpu(
 
 fn render_scene(
     shape_renderer: &mut ShapeRenderer,
+    aabb_renderer: &mut AabbRenderer,
     range: Range<usize>,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     surface: &wgpu::Surface,
-    view_size: PhysicalSize<u32>,
-    world_height: f32,
 ) -> wgpu::SurfaceTexture {
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
     let frame = surface.get_current_texture().expect("Failed to acquire next swap chain texture");
@@ -273,8 +301,8 @@ fn render_scene(
         occlusion_query_set: None,
     });
 
-    shape_renderer.prepare(queue, ortho_camera(view_size.cast(), world_height));
-    shape_renderer.render(&mut render_pass, range);
+    shape_renderer.render(&mut render_pass, range.clone());
+    aabb_renderer.render(&mut render_pass, range);
     drop(render_pass);
 
     let submission_index = queue.submit(Some(encoder.finish()));

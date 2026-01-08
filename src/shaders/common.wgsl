@@ -1,7 +1,21 @@
 #define_import_path common
 
-const FLAG_SHOW: u32 = 1 << 0;
-const FLAG_PHYSICAL: u32 = 1 << 1;
+const UNIT_QUAD_VERTICES = array<vec2f, 6>(
+    vec2f(0.5, 0.5),
+    vec2f(-0.5, 0.5),
+    vec2f(-0.5, -0.5),
+    vec2f(-0.5, -0.5),
+    vec2f(0.5, -0.5),
+    vec2f(0.5, 0.5),
+);
+
+const FLAG_DRAW_OBJECT: u32 = 1 << 0;
+const FLAG_DRAW_AABB: u32 = 1 << 1;
+const FLAG_PHYSICAL: u32 = 1 << 2;
+
+struct Camera {
+    inner: mat4x4f
+}
 
 struct Velocity {
     inner: vec2f

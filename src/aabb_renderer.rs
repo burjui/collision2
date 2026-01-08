@@ -8,17 +8,17 @@ use wgpu::{
 use crate::{
     gpu_buffer::GpuBuffer,
     shaders::{
-        common::{AABB, Camera, Color, Flags, Shape},
-        shape,
+        aabb_frame,
+        common::{AABB, Camera, Flags},
     },
 };
 
-pub struct ShapeRenderer {
+pub struct AabbRenderer {
     render_pipeline: RenderPipeline,
-    bind_group: shape::WgpuBindGroup0,
+    bind_group: aabb_frame::WgpuBindGroup0,
 }
 
-impl ShapeRenderer {
+impl AabbRenderer {
     pub fn new(
         device: &Device,
         swapchain_format: TextureFormat,
@@ -26,21 +26,19 @@ impl ShapeRenderer {
         camera_buffer: GpuBuffer<Camera>,
         flags: GpuBuffer<Flags>,
         aabbs: GpuBuffer<AABB>,
-        colors: GpuBuffer<Color>,
-        shapes: GpuBuffer<Shape>,
     ) -> Self {
-        let pipeline_layout = shape::create_pipeline_layout(device);
-        let shader = shape::create_shader_module_embed_source(device);
+        let pipeline_layout = aabb_frame::create_pipeline_layout(device);
+        let shader = aabb_frame::create_shader_module_embed_source(device);
 
-        let vertex_entry = shape::vs_main_entry();
-        let vertex_state = shape::vertex_state(&shader, &vertex_entry);
+        let vertex_entry = aabb_frame::vs_main_entry();
+        let vertex_state = aabb_frame::vertex_state(&shader, &vertex_entry);
 
         let color_target_state = ColorTargetState {
             blend: Some(BlendState::ALPHA_BLENDING),
             ..ColorTargetState::from(swapchain_format)
         };
-        let fragment_entry = shape::fs_main_entry([Some(color_target_state)]);
-        let fragment_state = shape::fragment_state(&shader, &fragment_entry);
+        let fragment_entry = aabb_frame::fs_main_entry([Some(color_target_state)]);
+        let fragment_state = aabb_frame::fragment_state(&shader, &fragment_entry);
 
         let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: None,
@@ -54,14 +52,12 @@ impl ShapeRenderer {
             cache: Some(pipeline_cache),
         });
 
-        let bind_group = shape::WgpuBindGroup0::from_bindings(
+        let bind_group = aabb_frame::WgpuBindGroup0::from_bindings(
             device,
-            shape::WgpuBindGroup0Entries::new(shape::WgpuBindGroup0EntriesParams {
+            aabb_frame::WgpuBindGroup0Entries::new(aabb_frame::WgpuBindGroup0EntriesParams {
                 camera: camera_buffer.buffer().as_entire_buffer_binding(),
                 flags: flags.buffer().as_entire_buffer_binding(),
                 aabbs: aabbs.buffer().as_entire_buffer_binding(),
-                colors: colors.buffer().as_entire_buffer_binding(),
-                shapes: shapes.buffer().as_entire_buffer_binding(),
             }),
         );
 

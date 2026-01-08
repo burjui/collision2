@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 00b5f0877ce8bf09c32bac4ee7709a32ebf33e7c1e204622c5bf14e75fb6e774
+// SourceHash: f7434cf3b169c3845f8cf34d8861bc94424c8abb5f362d8397864c1fb0f12b1d
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -57,6 +57,10 @@ mod _root {
 pub mod layout_asserts {
     use super::{_root, _root::*};
     const WGSL_BASE_TYPE_ASSERTS: () = {};
+    const COMMON_CAMERA_ASSERTS: () = {
+        assert!(std::mem::offset_of!(common::Camera, inner) == 0);
+        assert!(std::mem::size_of::<common::Camera>() == 64);
+    };
     const COMMON_FLAGS_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::Flags, inner) == 0);
         assert!(std::mem::size_of::<common::Flags>() == 4);
@@ -92,10 +96,22 @@ pub mod layout_asserts {
 }
 pub mod common {
     use super::{_root, _root::*};
-    pub const FLAG_SHOW: u32 = 1u32;
-    pub const FLAG_PHYSICAL: u32 = 2u32;
+    pub const FLAG_DRAW_OBJECT: u32 = 1u32;
+    pub const FLAG_DRAW_AABB: u32 = 2u32;
+    pub const FLAG_PHYSICAL: u32 = 4u32;
     pub const BVH_NODE_KIND_LEAF: u32 = 0u32;
     pub const BVH_NODE_KIND_TREE: u32 = 0u32;
+    #[repr(C, align(16))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct Camera {
+        #[doc = "offset: 0, size: 64, type: `mat4x4<f32>`"]
+        pub inner: [[f32; 4]; 4],
+    }
+    impl Camera {
+        pub const fn new(inner: [[f32; 4]; 4]) -> Self {
+            Self { inner }
+        }
+    }
     #[repr(C, align(4))]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct Flags {
@@ -234,6 +250,10 @@ pub mod common {
         })
     }
     pub const SHADER_STRING: &str = r#"
+struct Camera {
+    inner: mat4x4<f32>,
+}
+
 struct Velocity {
     inner: vec2<f32>,
 }
@@ -266,8 +286,10 @@ struct BvhNode {
     right: u32,
 }
 
-const FLAG_SHOW: u32 = 1u;
-const FLAG_PHYSICAL: u32 = 2u;
+const UNIT_QUAD_VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
+const FLAG_DRAW_OBJECT: u32 = 1u;
+const FLAG_DRAW_AABB: u32 = 2u;
+const FLAG_PHYSICAL: u32 = 4u;
 const BVH_NODE_KIND_LEAF: u32 = 0u;
 const BVH_NODE_KIND_TREE: u32 = 0u;
 
@@ -279,6 +301,8 @@ fn invocation_index(gid: vec3<u32>, workgroup_size: u32) -> u32 {
 }
 pub mod bytemuck_impls {
     use super::{_root, _root::*};
+    unsafe impl bytemuck::Zeroable for common::Camera {}
+    unsafe impl bytemuck::Pod for common::Camera {}
     unsafe impl bytemuck::Zeroable for common::Flags {}
     unsafe impl bytemuck::Pod for common::Flags {}
     unsafe impl bytemuck::Zeroable for common::Color {}
@@ -415,7 +439,7 @@ pub mod shape {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<[[f32; 4]; 4]>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::Camera>() as _),
                     },
                     count: None,
                 },
@@ -519,6 +543,10 @@ pub mod shape {
         })
     }
     pub const SHADER_STRING: &str = r#"
+struct CameraX_naga_oil_mod_XMNXW23LPNYX {
+    inner: mat4x4<f32>,
+}
+
 struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
     inner: u32,
 }
@@ -547,13 +575,13 @@ struct FragmentOutput {
     @location(0) color: vec4<f32>,
 }
 
-const FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
+const UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
+const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
-const UNIT_QUAD_VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
 
 @group(0) @binding(0) 
-var<uniform> camera: mat4x4<f32>;
+var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(1) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(2) 
@@ -568,7 +596,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     var out: VertexOutput = VertexOutput();
 
     let _e5 = flags[i].inner;
-    if ((_e5 & FLAG_SHOWX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+    if ((_e5 & FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         let _e11 = out;
         return _e11;
     }
@@ -576,16 +604,16 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     let scale = (aabb.max - aabb.min);
     let center = ((aabb.min + aabb.max) / vec2(2f));
     let model = mat4x4<f32>(vec4<f32>(scale.x, 0f, 0f, 0f), vec4<f32>(0f, scale.y, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
-    let vertex = UNIT_QUAD_VERTICES[vertex_index];
-    let _e50 = camera;
-    out.clip_position = ((_e50 * model) * vec4<f32>(vertex, 0f, 1f));
+    let vertex = UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX[vertex_index];
+    let _e51 = camera.inner;
+    out.clip_position = ((_e51 * model) * vec4<f32>(vertex, 0f, 1f));
     out.quad_position = vertex;
-    let _e61 = colors[i].inner;
-    out.color = _e61;
-    let _e66 = shapes[i].inner;
-    out.shape = _e66;
-    let _e67 = out;
-    return _e67;
+    let _e62 = colors[i].inner;
+    out.color = _e62;
+    let _e67 = shapes[i].inner;
+    out.shape = _e67;
+    let _e68 = out;
+    return _e68;
 }
 
 @fragment 
@@ -606,17 +634,182 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 }
 pub mod aabb_frame {
     use super::{_root, _root::*};
+    pub const ENTRY_VS_MAIN: &str = "vs_main";
+    pub const ENTRY_FS_MAIN: &str = "fs_main";
+    #[derive(Debug)]
+    pub struct VertexEntry<const N: usize> {
+        pub entry_point: &'static str,
+        pub buffers: [wgpu::VertexBufferLayout<'static>; N],
+        pub constants: Vec<(&'static str, f64)>,
+    }
+    pub fn vertex_state<'a, const N: usize>(
+        module: &'a wgpu::ShaderModule,
+        entry: &'a VertexEntry<N>,
+    ) -> wgpu::VertexState<'a> {
+        wgpu::VertexState {
+            module,
+            entry_point: Some(entry.entry_point),
+            buffers: &entry.buffers,
+            compilation_options: wgpu::PipelineCompilationOptions {
+                constants: &entry.constants,
+                ..Default::default()
+            },
+        }
+    }
+    pub fn vs_main_entry() -> VertexEntry<0> {
+        VertexEntry {
+            entry_point: ENTRY_VS_MAIN,
+            buffers: [],
+            constants: Default::default(),
+        }
+    }
+    #[derive(Debug)]
+    pub struct FragmentEntry<const N: usize> {
+        pub entry_point: &'static str,
+        pub targets: [Option<wgpu::ColorTargetState>; N],
+        pub constants: Vec<(&'static str, f64)>,
+    }
+    pub fn fragment_state<'a, const N: usize>(
+        module: &'a wgpu::ShaderModule,
+        entry: &'a FragmentEntry<N>,
+    ) -> wgpu::FragmentState<'a> {
+        wgpu::FragmentState {
+            module,
+            entry_point: Some(entry.entry_point),
+            targets: &entry.targets,
+            compilation_options: wgpu::PipelineCompilationOptions {
+                constants: &entry.constants,
+                ..Default::default()
+            },
+        }
+    }
+    pub fn fs_main_entry(targets: [Option<wgpu::ColorTargetState>; 1]) -> FragmentEntry<1> {
+        FragmentEntry {
+            entry_point: ENTRY_FS_MAIN,
+            targets,
+            constants: Default::default(),
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup0EntriesParams<'a> {
+        pub camera: wgpu::BufferBinding<'a>,
+        pub flags: wgpu::BufferBinding<'a>,
+        pub aabbs: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup0Entries<'a> {
+        pub camera: wgpu::BindGroupEntry<'a>,
+        pub flags: wgpu::BindGroupEntry<'a>,
+        pub aabbs: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup0Entries<'a> {
+        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
+            Self {
+                camera: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.camera),
+                },
+                flags: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.flags),
+                },
+                aabbs: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.aabbs),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
+            [self.camera, self.flags, self.aabbs]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup0(wgpu::BindGroup);
+    impl WgpuBindGroup0 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("AabbFrame::BindGroup0::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"camera\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::Camera>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"aabbs\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("AabbFrame::BindGroup0"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(0, &self.0, &[]);
+        }
+    }
+    #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
+    #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
+    #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
+    #[doc = "   - Bind group 1: More frequent updates"]
+    #[doc = "   - Bind group 2: More frequent updates"]
+    #[doc = "   - Bind group 3: Most frequent updates (e.g. per draw resources)"]
+    #[derive(Debug, Copy, Clone)]
+    pub struct WgpuBindGroups<'a> {
+        pub bind_group0: &'a WgpuBindGroup0,
+    }
+    impl<'a> WgpuBindGroups<'a> {
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            self.bind_group0.set(pass);
+        }
+    }
     #[derive(Debug)]
     pub struct WgpuPipelineLayout;
     impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 0]) -> [wgpu::BindGroupLayout; 0] {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
             entries
         }
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("AabbFrame::PipelineLayout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&WgpuBindGroup0::get_bind_group_layout(device)],
             push_constant_ranges: &[],
         })
     }
@@ -628,6 +821,73 @@ pub mod aabb_frame {
         })
     }
     pub const SHADER_STRING: &str = r#"
+struct CameraX_naga_oil_mod_XMNXW23LPNYX {
+    inner: mat4x4<f32>,
+}
+
+struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
+    inner: u32,
+}
+
+struct AABBX_naga_oil_mod_XMNXW23LPNYX {
+    min: vec2<f32>,
+    max: vec2<f32>,
+}
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) @interpolate(flat) flags: u32,
+    @location(1) scale: f32,
+    @location(2) quad_position: vec2<f32>,
+}
+
+struct FragmentOutput {
+    @location(0) color: vec4<f32>,
+}
+
+const UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
+const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
+
+@group(0) @binding(0) 
+var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
+@group(0) @binding(1) 
+var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(2) 
+var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
+
+@vertex 
+fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
+    var out: VertexOutput = VertexOutput();
+
+    let flags_1 = flags[i].inner;
+    if ((flags_1 & FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+        let _e11 = out;
+        return _e11;
+    }
+    let aabb = aabbs[i];
+    let scale = (aabb.max - aabb.min);
+    let center = ((aabb.min + aabb.max) / vec2(2f));
+    let model = mat4x4<f32>(vec4<f32>(scale.x, 0f, 0f, 0f), vec4<f32>(0f, scale.y, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
+    let vertex = UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX[vertex_index];
+    let _e51 = camera.inner;
+    out.clip_position = ((_e51 * model) * vec4<f32>(vertex, 0f, 1f));
+    out.flags = flags_1;
+    out.scale = max(scale.x, scale.y);
+    out.quad_position = vertex;
+    let _e63 = out;
+    return _e63;
+}
+
+@fragment 
+fn fs_main(in: VertexOutput) -> FragmentOutput {
+    if ((in.flags & FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+        discard;
+    }
+    let edge = (0.5f - (2f / in.scale));
+    let draw_conditions = (step(vec2<f32>(edge, edge), in.quad_position) + step(in.quad_position, vec2<f32>(-(edge), -(edge))));
+    let alpha = min(1f, (draw_conditions.x + draw_conditions.y));
+    return FragmentOutput(vec4<f32>(0.5f, 0.5f, 0.5f, alpha));
+}
 "#;
 }
 pub mod bvh_init {
@@ -1034,7 +1294,7 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
     max: vec2<f32>,
 }
 
-const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
+const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 
