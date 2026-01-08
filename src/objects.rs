@@ -1,3 +1,4 @@
+use color::{AlphaColor, Srgb};
 use nalgebra::Vector2;
 use wgpu::BufferUsages;
 
@@ -12,7 +13,7 @@ pub struct ObjectPrototype {
     pub velocity: [f32; 2],
     pub mass: f32,
     pub size: [f32; 2],
-    pub color: [f32; 4],
+    pub color: AlphaColor<Srgb>,
     pub shape: u32,
 }
 
@@ -34,7 +35,7 @@ impl Objects {
         self.aabbs.push(AABB::new((position - size / 2.0).into(), (position + size / 2.0).into()));
         self.velocities.push(Velocity::new(prototype.velocity));
         self.masses.push(Mass::new(prototype.mass));
-        self.colors.push(Color::new(prototype.color));
+        self.colors.push(Color::new(prototype.color.components));
         self.shapes.push(Shape::new(prototype.shape));
     }
 

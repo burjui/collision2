@@ -1,79 +1,112 @@
+use std::ops::{Range, RangeInclusive};
+
+use color::{AlphaColor, palette::css};
 use itertools::Itertools as _;
 use nalgebra::Vector2;
-use rand::random;
-use winit::dpi::PhysicalSize;
+use rand::random_range;
 
 use crate::{
+    aabb::AabbExt,
     objects::{ObjectPrototype, Objects},
     shaders::{
-        common::{FLAG_PHYSICAL, FLAG_SHOW},
+        common::{AABB, FLAG_PHYSICAL, FLAG_SHOW},
         shape::{SHAPE_CIRCLE, SHAPE_RECT},
     },
 };
 
-pub fn create_scene(window_size: PhysicalSize<u32>, objects: &mut Objects) {
-    let window_size = Vector2::new(window_size.width as f32, window_size.height as f32);
+pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
+    let world_size = world_aabb.size();
+
+    println!("World size: {}x{}", world_size.x, world_size.y);
+
     let circles = {
-        const RADIUS: f32 = 0.5;
-        // const VELOCITY_MAX: f32 = 0.01;
-        let shape_count: Vector2<usize> = (window_size / (RADIUS * 2.0)).try_cast().unwrap();
+        const RADIUS: f32 = 20.0;
+        const POSITION_RAND_FACTOR: f32 = 0.0;
+        const VELOCITY_RAND_MAX: f32 = 0.0;
+        const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
+        const VELOCITY_RAND_RANGE_Y: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
+        const COLOR_RAND_RANGE: Range<f32> = 0.0..1.0;
+        let shape_count: Vector2<usize> = (world_size / (RADIUS * 2.0)).try_cast().unwrap();
         (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(i, j)| {
             let (i, j) = (i as f32, j as f32);
-            let position = [RADIUS * (i * 2.0 + 1.0), RADIUS * (j * 2.0 + 1.0)];
+            let range = -RADIUS * POSITION_RAND_FACTOR..=RADIUS * POSITION_RAND_FACTOR;
+            let position = world_aabb.min()
+                + Vector2::new(RADIUS * (i * 2.0 + 1.0), RADIUS * (j * 2.0 + 1.0))
+                + Vector2::new(random_range(range.clone()), random_range(range));
             ObjectPrototype {
                 flags: FLAG_SHOW | FLAG_PHYSICAL,
-                position,
-                velocity: [
-                    // random_range(-VELOCITY_MAX..VELOCITY_MAX),
-                    // random_range(-VELOCITY_MAX..VELOCITY_MAX),
-                    0.0, 0.0,
-                ],
+                position: position.into(),
+                velocity: [random_range(VELOCITY_RAND_RANGE_X), random_range(VELOCITY_RAND_RANGE_Y)],
                 mass: 1.0,
                 size: [RADIUS * 2.0, RADIUS * 2.0],
-                color: [random(), random(), random(), 1.0],
+                color: AlphaColor::new([
+                    random_range(COLOR_RAND_RANGE.clone()),
+                    random_range(COLOR_RAND_RANGE.clone()),
+                    random_range(COLOR_RAND_RANGE),
+                    1.0,
+                ]),
                 shape: SHAPE_CIRCLE,
             }
         })
     };
 
-    const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
+    let border_thickness = world_aabb.size().y / 400.0;
     let top = ObjectPrototype {
         flags: FLAG_SHOW,
-        position: [window_size.x / 2.0, 0.5],
+        position: [0.0, world_aabb.max().y - border_thickness / 2.0],
         velocity: [0.0, 0.0],
         mass: f32::INFINITY,
-        size: [window_size.x, 1.0],
-        color: RED,
+        size: [world_size.x, border_thickness],
+        color: css::RED,
         shape: SHAPE_RECT,
     };
     let bottom = ObjectPrototype {
         flags: FLAG_SHOW,
-        position: [window_size.x / 2.0, window_size.y - 0.5],
+        position: [0.0, world_aabb.min().y + border_thickness / 2.0],
         velocity: [0.0, 0.0],
         mass: f32::INFINITY,
-        size: [window_size.x, 1.0],
-        color: RED,
+        size: [world_size.x, border_thickness],
+        color: css::RED,
         shape: SHAPE_RECT,
     };
     let left = ObjectPrototype {
         flags: FLAG_SHOW,
         velocity: [0.0, 0.0],
-        position: [0.5, window_size.y / 2.0],
+        position: [world_aabb.min().x + border_thickness / 2.0, 0.0],
         mass: f32::INFINITY,
-        size: [1.0, window_size.y],
-        color: RED,
+        size: [border_thickness, world_size.y],
+        color: css::RED,
         shape: SHAPE_RECT,
     };
     let right = ObjectPrototype {
         flags: FLAG_SHOW,
-        position: [window_size.x - 0.5, window_size.y / 2.0],
+        position: [world_aabb.max().x - border_thickness / 2.0, 0.0],
         velocity: [0.0, 0.0],
         mass: f32::INFINITY,
-        size: [1.0, window_size.y],
-        color: RED,
+        size: [border_thickness, world_size.y],
+        color: css::RED,
         shape: SHAPE_RECT,
     };
+
     objects.extend(circles);
+    // objects.push(ObjectPrototype {
+    //     flags: FLAG_SHOW | FLAG_PHYSICAL,
+    //     position: [world_aabb.max().x, 0.0],
+    //     velocity: [0.0, 0.0],
+    //     mass: 0.0,
+    //     size: [world_size.x / 2.0, world_size.y / 2.0],
+    //     color: css::MAGENTA,
+    //     shape: SHAPE_CIRCLE,
+    // });
+    // objects.push(ObjectPrototype {
+    //     flags: FLAG_SHOW,
+    //     position: [0.0, 0.0],
+    //     velocity: [0.0, 0.0],
+    //     mass: 1.0,
+    //     size: [world_size.x / 2.0, world_size.y / 2.0],
+    //     color: css::GREEN,
+    //     shape: SHAPE_RECT,
+    // });
     objects.push(top);
     objects.push(bottom);
     objects.push(left);

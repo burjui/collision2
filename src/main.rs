@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
+pub mod aabb;
+pub mod bvh;
 pub mod gpu_buffer;
 pub mod integration;
 pub mod objects;
@@ -27,8 +29,8 @@ use winit::{
 };
 
 use crate::{
-    gpu_buffer::GpuBuffer, integration::GpuIntegrator, objects::Objects, scene::create_scene,
-    shape_renderer::ShapeRenderer,
+    aabb::AabbExt as _, gpu_buffer::GpuBuffer, integration::GpuIntegrator, objects::Objects, scene::create_scene,
+    shaders::common::AABB, shape_renderer::ShapeRenderer,
 };
 
 fn main() {
@@ -60,6 +62,7 @@ enum AppEvent {
 struct AppState<'a> {
     shape_renderer: ShapeRenderer,
     exit_notification_sender: Sender<()>,
+    world_aabb: AABB,
     object_count: usize,
 
     surface_config: wgpu::SurfaceConfiguration,
@@ -73,7 +76,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let mut window_attributes = WindowAttributes::default();
         window_attributes.inner_size = Some(PhysicalSize::new(1600, 800).into());
-        window_attributes.resizable = false;
+        window_attributes.resizable = true;
         let window = Arc::new(event_loop.create_window(window_attributes).expect("Failed to create window"));
         let wgpu = wgpu::Instance::new(&wgpu::InstanceDescriptor::from_env_or_default());
         let surface = wgpu.create_surface(window.clone()).unwrap();
@@ -85,8 +88,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         };
         surface.configure(&device, &surface_config);
 
+        let world_aabb = AABB {
+            min: [-1000.0, -1000.0],
+            max: [1000.0, 1000.0],
+        };
+
         let mut objects = Objects::default();
-        create_scene(window_size, &mut objects);
+        create_scene(&mut objects, world_aabb);
         let object_count = objects.len();
         let buffers = objects.to_buffers(&device, &queue);
 
@@ -125,6 +133,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         self.state = Some(AppState {
             shape_renderer,
             exit_notification_sender,
+            world_aabb,
             object_count,
 
             surface_config,
@@ -156,6 +165,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &state.queue,
                         &state.surface,
                         state.window.inner_size(),
+                        state.world_aabb.max().y - state.world_aabb.min().y,
                     );
                     state.window.pre_present_notify();
                     frame.present();
@@ -242,6 +252,7 @@ fn render_scene(
     queue: &wgpu::Queue,
     surface: &wgpu::Surface,
     view_size: PhysicalSize<u32>,
+    world_height: f32,
 ) -> wgpu::SurfaceTexture {
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
     let frame = surface.get_current_texture().expect("Failed to acquire next swap chain texture");
@@ -262,13 +273,32 @@ fn render_scene(
         occlusion_query_set: None,
     });
 
-    shape_renderer.prepare(queue, view_size);
+    shape_renderer.prepare(queue, ortho_camera(view_size.cast(), world_height));
     shape_renderer.render(&mut render_pass, range);
     drop(render_pass);
 
     let submission_index = queue.submit(Some(encoder.finish()));
     device.wait_for_submission(submission_index).unwrap();
     frame
+}
+
+fn ortho_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {
+    let aspect = view_size.width / view_size.height;
+    let world_width = world_height * aspect;
+    let l = -world_width * 0.5;
+    let r = world_width * 0.5;
+    let b = -world_height * 0.5;
+    let t = world_height * 0.5;
+    let sx = 2.0 / (r - l);
+    let sy = 2.0 / (t - b);
+    let tx = -(r + l) / (r - l);
+    let ty = -(t + b) / (t - b);
+    [
+        [sx, 0.0, 0.0, 0.0],
+        [0.0, sy, 0.0, 0.0],
+        [0.0, 0.0, -1.0, 0.0],
+        [tx, ty, 0.0, 1.0],
+    ]
 }
 
 fn spawn_simulation_thread(
@@ -285,7 +315,7 @@ fn spawn_simulation_thread(
         let mut last_redraw = Instant::now();
         let integrator = GpuIntegrator::new(&device);
         let dt_buffer = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt_buffer.write(&queue, &[0.001]);
+        dt_buffer.write(&queue, &[0.0001]);
         let processed = GpuBuffer::new(
             1,
             "processed buffer",
@@ -313,6 +343,7 @@ fn spawn_simulation_thread(
             processed.write(&queue, &[0]);
             queue.submit([]);
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+            let start = Instant::now();
             integrator.compute(&device, &queue, &dt_buffer, &flags, &aabbs, &velocities, &masses, &processed);
             encoder.copy_buffer_to_buffer(
                 processed.buffer(),
@@ -327,7 +358,8 @@ fn spawn_simulation_thread(
             let processed_value = &mut [0u32];
             processed_mapped.read(&device, processed_value);
             assert_eq!(processed_value[0], u32::try_from(flags.len()).unwrap());
-            println!("integated {} objects", processed_value[0]);
+
+            println!("Integrated {} objects in {} ms", processed_value[0], start.elapsed().as_millis());
         }
     });
 }

@@ -1,4 +1,4 @@
-#import common::{FLAG_SHOW, FLAG_PHYSICAL, AABB, Mass, Velocity, Position, Flags}
+#import common::{FLAG_SHOW, FLAG_PHYSICAL, AABB, Mass, Velocity, Position, Flags, invocation_index}
 
 @group(0) @binding(0) var<uniform> dt: f32;
 @group(0) @binding(1) var<storage, read> masses: array<Mass>;
@@ -9,12 +9,11 @@
 
 const WORKGROUP_SIZE: u32 = 64;
 
-@compute
-@workgroup_size(WORKGROUP_SIZE)
+@compute @workgroup_size(WORKGROUP_SIZE)
 fn cs_main(
     @builtin(global_invocation_id) gid: vec3<u32>,
 ) {
-    let i = gid.x + gid.y * 65535 * WORKGROUP_SIZE;
+    let i = invocation_index(gid, WORKGROUP_SIZE);
     if i >= arrayLength(&masses) {
         return;
     }
@@ -35,15 +34,15 @@ fn cs_main(
     let to_blackhole = blackhole_position - x;
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole) - max(size.x, size.y) / 2;
-    let bh_gravity = direction * 10000000 / (distance * distance);
-    let a = bh_gravity;
+    let bh_gravity = direction * 1000000 / (distance * distance);
+    let a = vec2f();// + bh_gravity;
     v = v + dt * a;
     x += dt * v;
 
-    if distance < 100 {
-        f &= ~(FLAG_PHYSICAL | FLAG_SHOW);
-        v = vec2f();
-    }
+    // if distance < 100 {
+    //     f &= ~(FLAG_PHYSICAL | FLAG_SHOW);
+    //     v = vec2f();
+    // }
 
     flags[i].inner = f;
     velocities[i].inner = v;

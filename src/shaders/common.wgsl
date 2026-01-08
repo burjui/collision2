@@ -27,3 +27,17 @@ struct AABB {
     min: vec2f,
     max: vec2f
 }
+
+const BVH_NODE_KIND_LEAF: u32 = 0;
+const BVH_NODE_KIND_TREE: u32 = 0;
+
+struct BvhNode {
+    kind: u32,
+    aabb: AABB,
+    left: u32,
+    right: u32
+}
+
+fn invocation_index(gid: vec3<u32>, workgroup_size: u32) -> u32 {
+    return gid.x + gid.y * 65535 * workgroup_size;
+}

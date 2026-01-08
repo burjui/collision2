@@ -359,6 +359,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "color"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a18ef4657441fb193b65f34dc39b3781f0dfec23d3bd94d0eeb4e88cde421edb"
+
+[[package]]
 name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2919,6 +2925,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytemuck",
+ "color",
  "crossbeam",
  "env_logger",
  "itertools",
@@ -2933,8 +2940,9 @@ dependencies = [
 
 [[package]]
 name = "wgsl_bindgen"
-version = "0.21.2"
-source = "git+https://github.com/burjui/wgsl-bindgen?branch=atomics#e0c6cb9ce59af7c116ce9410a27b7d0f0ca07d3b"
+version = "0.21.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26c7540c1c0d25c8fb7f967184181f1e8355a173333f0cdee3850c1ee9c7fd90"
 dependencies = [
  "blake3",
  "case",

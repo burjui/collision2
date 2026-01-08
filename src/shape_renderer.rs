@@ -4,7 +4,6 @@ use wgpu::{
     BlendState, BufferUsages, ColorTargetState, Device, MultisampleState, PipelineCache, PrimitiveState, Queue,
     RenderPass, RenderPipeline, RenderPipelineDescriptor, TextureFormat,
 };
-use winit::dpi::PhysicalSize;
 
 use crate::{
     gpu_buffer::GpuBuffer,
@@ -16,7 +15,7 @@ use crate::{
 
 pub struct ShapeRenderer {
     render_pipeline: RenderPipeline,
-    view_size_buffer: GpuBuffer<[f32; 2]>,
+    camera_buffer: GpuBuffer<[[f32; 4]; 4]>,
     bind_group: shape::WgpuBindGroup0,
 }
 
@@ -55,13 +54,13 @@ impl ShapeRenderer {
             cache: Some(pipeline_cache),
         });
 
-        let view_size_buffer =
+        let camera_buffer =
             GpuBuffer::new(1, "view size buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, device);
 
         let bind_group = shape::WgpuBindGroup0::from_bindings(
             device,
             shape::WgpuBindGroup0Entries::new(shape::WgpuBindGroup0EntriesParams {
-                view_size: view_size_buffer.buffer().as_entire_buffer_binding(),
+                camera: camera_buffer.buffer().as_entire_buffer_binding(),
                 flags: flags.buffer().as_entire_buffer_binding(),
                 aabbs: aabbs.buffer().as_entire_buffer_binding(),
                 colors: colors.buffer().as_entire_buffer_binding(),
@@ -71,13 +70,13 @@ impl ShapeRenderer {
 
         Self {
             render_pipeline,
-            view_size_buffer,
+            camera_buffer,
             bind_group,
         }
     }
 
-    pub fn prepare(&mut self, queue: &Queue, viewport_size: PhysicalSize<u32>) {
-        self.view_size_buffer.write(queue, &[viewport_size.into()]);
+    pub fn prepare(&mut self, queue: &Queue, camera: [[f32; 4]; 4]) {
+        self.camera_buffer.write(queue, &[camera]);
     }
 
     pub fn render(&self, render_pass: &mut RenderPass<'_>, instances: Range<usize>) {
