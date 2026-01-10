@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: f7434cf3b169c3845f8cf34d8861bc94424c8abb5f362d8397864c1fb0f12b1d
+// SourceHash: 4638401626c5abf343216728d6f0c8bc85f4c96030ae86da7d0620343f6d5be0
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -591,6 +591,10 @@ var<storage> colors: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(5) 
 var<storage> shapes: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
 
+fn sdf_cirle(p: vec2<f32>) -> f32 {
+    return (length(p) - 0.5f);
+}
+
 @vertex 
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput = VertexOutput();
@@ -621,14 +625,14 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     var color: vec4<f32>;
 
     color = in.color;
-    let d = (0.5f - length(in.quad_position));
-    let _e7 = fwidth(d);
-    let w = (_e7 / 2f);
+    let _e4 = sdf_cirle(in.quad_position);
+    let _e5 = fwidth(_e4);
+    let w = (_e5 / 2f);
     if (in.shape == SHAPE_CIRCLE) {
-        color.w = smoothstep(-(w), w, d);
+        color.w = smoothstep(w, -(w), _e4);
     }
-    let _e16 = color;
-    return FragmentOutput(_e16);
+    let _e14 = color;
+    return FragmentOutput(_e14);
 }
 "#;
 }
@@ -1095,7 +1099,6 @@ pub mod integration {
         pub flags: wgpu::BufferBinding<'a>,
         pub aabbs: wgpu::BufferBinding<'a>,
         pub velocities: wgpu::BufferBinding<'a>,
-        pub processed: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
@@ -1104,7 +1107,6 @@ pub mod integration {
         pub flags: wgpu::BindGroupEntry<'a>,
         pub aabbs: wgpu::BindGroupEntry<'a>,
         pub velocities: wgpu::BindGroupEntry<'a>,
-        pub processed: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -1129,21 +1131,10 @@ pub mod integration {
                     binding: 4,
                     resource: wgpu::BindingResource::Buffer(params.velocities),
                 },
-                processed: wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: wgpu::BindingResource::Buffer(params.processed),
-                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
-            [
-                self.dt,
-                self.masses,
-                self.flags,
-                self.aabbs,
-                self.velocities,
-                self.processed,
-            ]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
+            [self.dt, self.masses, self.flags, self.aabbs, self.velocities]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -1207,17 +1198,6 @@ pub mod integration {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
                         min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(5): \"processed\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -1307,8 +1287,6 @@ var<storage, read_write> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(4) 
 var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(5) 
-var<storage, read_write> processed: atomic<u32>;
 
 fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return (gid_1.x + ((gid_1.y * 65535u) * workgroup_size));
@@ -1324,37 +1302,36 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (_e2 >= arrayLength((&masses))) {
         return;
     }
-    let _e8 = atomicAdd((&processed), 1u);
-    let _e12 = flags[_e2].inner;
-    f = _e12;
-    let _e14 = f;
-    if ((_e14 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+    let _e9 = flags[_e2].inner;
+    f = _e9;
+    let _e11 = f;
+    if ((_e11 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         return;
     }
     let aabb = aabbs[_e2];
-    let _e28 = velocities[_e2].inner;
-    v = _e28;
+    let _e25 = velocities[_e2].inner;
+    v = _e25;
     x = ((aabb.min + aabb.max) / vec2(2f));
     let size = (aabb.max - aabb.min);
-    let _e40 = x;
-    let to_blackhole = (vec2<f32>(800f, 400f) - _e40);
+    let _e37 = x;
+    let to_blackhole = (vec2<f32>(800f, 400f) - _e37);
     let direction = normalize(to_blackhole);
     let distance = (length(to_blackhole) - (max(size.x, size.y) / 2f));
     let bh_gravity = ((direction * 1000000f) / vec2((distance * distance)));
-    let _e55 = v;
-    let _e58 = dt;
-    v = (_e55 + (_e58 * vec2<f32>()));
-    let _e62 = dt;
-    let _e63 = v;
-    let _e65 = x;
-    x = (_e65 + (_e62 * _e63));
-    let _e70 = f;
-    flags[_e2].inner = _e70;
-    let _e74 = v;
-    velocities[_e2].inner = _e74;
-    let _e77 = x;
-    let _e82 = x;
-    aabbs[_e2] = AABBX_naga_oil_mod_XMNXW23LPNYX((_e77 - (size / vec2(2f))), (_e82 + (size / vec2(2f))));
+    let _e52 = v;
+    let _e55 = dt;
+    v = (_e52 + (_e55 * vec2<f32>()));
+    let _e59 = dt;
+    let _e60 = v;
+    let _e62 = x;
+    x = (_e62 + (_e59 * _e60));
+    let _e67 = f;
+    flags[_e2].inner = _e67;
+    let _e71 = v;
+    velocities[_e2].inner = _e71;
+    let _e74 = x;
+    let _e79 = x;
+    aabbs[_e2] = AABBX_naga_oil_mod_XMNXW23LPNYX((_e74 - (size / vec2(2f))), (_e79 + (size / vec2(2f))));
     return;
 }
 "#;

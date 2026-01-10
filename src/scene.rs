@@ -20,18 +20,20 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     println!("World size: {}x{}", world_size.x, world_size.y);
 
     let circles = {
-        const RADIUS: f32 = 200.0;
+        const RADIUS: f32 = 0.5;
+        const MARGIN: f32 = 0.0;
         const POSITION_RAND_FACTOR: f32 = 0.0;
         const VELOCITY_RAND_MAX: f32 = 0.0;
         const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
         const VELOCITY_RAND_RANGE_Y: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
         const COLOR_RAND_RANGE: Range<f32> = 0.0..1.0;
-        let shape_count: Vector2<usize> = (world_size / (RADIUS * 2.0)).try_cast().unwrap();
+        const EFFECTIVE_RADIUS: f32 = RADIUS + MARGIN;
+        let shape_count: Vector2<usize> = (world_size / (EFFECTIVE_RADIUS * 2.0)).try_cast().unwrap();
         (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(i, j)| {
             let (i, j) = (i as f32, j as f32);
             let range = -RADIUS * POSITION_RAND_FACTOR..=RADIUS * POSITION_RAND_FACTOR;
             let position = world_aabb.min()
-                + Vector2::new(RADIUS * (i * 2.0 + 1.0), RADIUS * (j * 2.0 + 1.0))
+                + Vector2::new(EFFECTIVE_RADIUS * (i * 2.0 + 1.0), EFFECTIVE_RADIUS * (j * 2.0 + 1.0))
                 + Vector2::new(random_range(range.clone()), random_range(range));
             ObjectPrototype {
                 flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_PHYSICAL,

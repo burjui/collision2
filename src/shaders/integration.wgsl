@@ -5,7 +5,6 @@
 @group(0) @binding(2) var<storage, read_write> flags: array<Flags>;
 @group(0) @binding(3) var<storage, read_write> aabbs: array<AABB>;
 @group(0) @binding(4) var<storage, read_write> velocities: array<Velocity>;
-@group(0) @binding(5) var<storage, read_write> processed: atomic<u32>;
 
 const WORKGROUP_SIZE: u32 = 64;
 
@@ -17,8 +16,6 @@ fn cs_main(
     if i >= arrayLength(&masses) {
         return;
     }
-
-    atomicAdd(&processed, 1);
 
     var f = flags[i].inner;
     if (f & FLAG_PHYSICAL) == 0 {

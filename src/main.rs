@@ -9,17 +9,18 @@ pub mod objects;
 pub mod scene;
 pub mod shaders;
 pub mod shape_renderer;
+#[allow(unused)]
+pub mod util;
 
+use crossbeam::channel::Sender;
+use pollster::block_on;
 use std::{
     ops::Range,
     sync::Arc,
     thread,
     time::{Duration, Instant},
 };
-
-use crossbeam::channel::Sender;
-use pollster::block_on;
-use wgpu::{BufferUsages, PollError, PollStatus, PollType, PresentMode, SubmissionIndex};
+use wgpu::{BufferUsages, PresentMode, SubmissionIndex, TextureView};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -38,6 +39,7 @@ use crate::{
     scene::create_scene,
     shaders::common::{AABB, Camera},
     shape_renderer::ShapeRenderer,
+    util::DeviceUtil,
 };
 
 fn main() {
@@ -48,14 +50,16 @@ fn main() {
 }
 
 struct App<'a> {
-    state: Option<AppState<'a>>,
+    render_parameters: RenderParameters,
+    gpu_state: Option<GpuState<'a>>,
     event_loop_proxy: EventLoopProxy<AppEvent>,
 }
 
 impl App<'_> {
     fn new(event_loop_proxy: EventLoopProxy<AppEvent>) -> Self {
         Self {
-            state: None,
+            render_parameters: RenderParameters::default(),
+            gpu_state: None,
             event_loop_proxy,
         }
     }
@@ -66,7 +70,12 @@ enum AppEvent {
     RedrawRequested,
 }
 
-struct AppState<'a> {
+#[derive(Default)]
+struct RenderParameters {
+    draw_aabbs: bool,
+}
+
+struct GpuState<'a> {
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
     exit_notification_sender: Sender<()>,
@@ -150,7 +159,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             exit_notification_receiver.clone(),
         );
 
-        self.state = Some(AppState {
+        self.gpu_state = Some(GpuState {
             shape_renderer,
             aabb_renderer,
             exit_notification_sender,
@@ -169,36 +178,38 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) => {
-                if let Some(state) = &mut self.state {
+                if let Some(state) = &mut self.gpu_state {
                     state.surface_config.width = size.width;
                     state.surface_config.height = size.height;
                     state.surface.configure(&state.device, &state.surface_config);
-                    state.window.request_redraw();
                 }
             }
 
             WindowEvent::RedrawRequested => {
-                if let Some(state) = &mut self.state {
-                    let start = Instant::now();
-
+                if let Some(state) = &mut self.gpu_state {
                     let view_size = state.window.inner_size();
                     let world_height = state.world_aabb.max().y - state.world_aabb.min().y;
                     let camera = ortho_camera(view_size.cast(), world_height);
                     state.camera_buffer.write(&state.queue, &[Camera::new(camera)]);
 
-                    let frame = render_scene(
+                    let surface_texture =
+                        state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
+                    let surface_texture_view =
+                        surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
+                    render_scene(
+                        surface_texture_view,
+                        &self.render_parameters,
                         &mut state.shape_renderer,
                         &mut state.aabb_renderer,
                         0..state.object_count,
                         &state.device,
                         &state.queue,
-                        &state.surface,
                     );
 
                     state.window.pre_present_notify();
-                    frame.present();
+                    surface_texture.present();
 
-                    println!("Rendered {} shapes in {} ms", state.object_count, start.elapsed().as_millis());
+                    // TODO: use query sets for duration measurement
                 }
             }
 
@@ -211,9 +222,21 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     },
                 ..
             } => {
-                if let Some(state) = &self.state {
+                if let Some(state) = &self.gpu_state {
                     state.window.request_redraw();
                 }
+            }
+
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(KeyCode::KeyA),
+                        state: ElementState::Pressed,
+                        ..
+                    },
+                ..
+            } => {
+                self.render_parameters.draw_aabbs = !self.render_parameters.draw_aabbs;
             }
 
             WindowEvent::CloseRequested
@@ -234,7 +257,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
         match event {
             AppEvent::RedrawRequested => {
-                if let Some(state) = &self.state {
+                if let Some(state) = &self.gpu_state {
                     state.window.request_redraw();
                 }
             }
@@ -242,7 +265,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(state) = &self.state {
+        if let Some(state) = &self.gpu_state {
             let _ = state.exit_notification_sender.try_send(());
         }
     }
@@ -275,20 +298,19 @@ fn init_wgpu(
 }
 
 fn render_scene(
+    surface_texture_view: TextureView,
+    render_parameters: &RenderParameters,
     shape_renderer: &mut ShapeRenderer,
     aabb_renderer: &mut AabbRenderer,
     range: Range<usize>,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    surface: &wgpu::Surface,
-) -> wgpu::SurfaceTexture {
+) -> SubmissionIndex {
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-    let frame = surface.get_current_texture().expect("Failed to acquire next swap chain texture");
-    let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: &view,
+            view: &surface_texture_view,
             depth_slice: None,
             resolve_target: None,
             ops: wgpu::Operations {
@@ -302,12 +324,12 @@ fn render_scene(
     });
 
     shape_renderer.render(&mut render_pass, range.clone());
-    aabb_renderer.render(&mut render_pass, range);
+    if render_parameters.draw_aabbs {
+        aabb_renderer.render(&mut render_pass, range);
+    }
     drop(render_pass);
 
-    let submission_index = queue.submit(Some(encoder.finish()));
-    device.wait_for_submission(submission_index).unwrap();
-    frame
+    queue.submit(Some(encoder.finish()))
 }
 
 fn ortho_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {
@@ -344,18 +366,6 @@ fn spawn_simulation_thread(
         let integrator = GpuIntegrator::new(&device);
         let dt_buffer = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         dt_buffer.write(&queue, &[0.0001]);
-        let processed = GpuBuffer::new(
-            1,
-            "processed buffer",
-            BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
-            &device,
-        );
-        let processed_mapped = GpuBuffer::<u32>::new(
-            1,
-            "processed mapped buffer",
-            BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-            &device,
-        );
 
         loop {
             if exit_notification_receiver.try_recv().is_ok() {
@@ -368,39 +378,10 @@ fn spawn_simulation_thread(
                 event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
             }
 
-            processed.write(&queue, &[0]);
-            queue.submit([]);
-            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-            let start = Instant::now();
-            integrator.compute(&device, &queue, &dt_buffer, &flags, &aabbs, &velocities, &masses, &processed);
-            encoder.copy_buffer_to_buffer(
-                processed.buffer(),
-                0,
-                processed_mapped.buffer(),
-                0,
-                processed_mapped.buffer().size(),
-            );
-            let submission_index = queue.submit(Some(encoder.finish()));
+            let submission_index =
+                integrator.compute(&device, &queue, &dt_buffer, &flags, &aabbs, &velocities, &masses);
             device.wait_for_submission(submission_index).unwrap();
-
-            let processed_value = &mut [0u32];
-            processed_mapped.read(&device, processed_value);
-            assert_eq!(processed_value[0], u32::try_from(flags.len()).unwrap());
-
-            println!("Integrated {} objects in {} ms", processed_value[0], start.elapsed().as_millis());
+            // TODO: use query sets for duration measurement
         }
     });
-}
-
-trait DeviceUtis {
-    fn wait_for_submission(&self, submission_index: SubmissionIndex) -> Result<PollStatus, PollError>;
-}
-
-impl DeviceUtis for wgpu::Device {
-    fn wait_for_submission(&self, submission_index: SubmissionIndex) -> Result<PollStatus, PollError> {
-        self.poll(PollType::Wait {
-            submission_index: Some(submission_index),
-            timeout: None,
-        })
-    }
 }

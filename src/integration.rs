@@ -31,7 +31,6 @@ impl GpuIntegrator {
         aabbs: &GpuBuffer<AABB>,
         velocities: &GpuBuffer<Velocity>,
         masses: &GpuBuffer<Mass>,
-        processed: &GpuBuffer<u32>,
     ) -> SubmissionIndex {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
@@ -41,11 +40,9 @@ impl GpuIntegrator {
                 aabbs: aabbs.buffer().as_entire_buffer_binding(),
                 velocities: velocities.buffer().as_entire_buffer_binding(),
                 masses: masses.buffer().as_entire_buffer_binding(),
-                processed: processed.buffer().as_entire_buffer_binding(),
             }),
         );
 
-        processed.write(queue, &[0]);
         let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
         let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
         compute_pass.set_pipeline(&self.pipeline);

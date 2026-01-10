@@ -51,11 +51,14 @@ struct FragmentOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     var color = in.color;
-    let d = 0.5 - length(in.quad_position);
-    let w = fwidth(d) / 2;
-    // NOTE: fwidth has to be calculated before divergence
+    let d = sdf_cirle(in.quad_position);
+    let w = fwidth(d) / 2; // fwidth has to be calculated before any branching
     if in.shape == SHAPE_CIRCLE {
-        color.a = smoothstep(-w, w, d);
+        color.a = smoothstep(w, -w, d);
     }
     return FragmentOutput(color);
+}
+
+fn sdf_cirle(p: vec2f) -> f32 {
+    return length(p) - 0.5;
 }

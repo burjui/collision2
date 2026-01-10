@@ -1,3 +1,5 @@
+// Needs to be a separate shader to render all BVH AABBs
+
 #import common::{UNIT_QUAD_VERTICES, FLAG_DRAW_AABB, Camera, Flags, AABB}
 
 @group(0) @binding(0) var<uniform> camera: Camera;
@@ -49,7 +51,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         discard;
     }
 
-    let edge = 0.5 - 2 / in.scale;
+    let edge = 0.5 - 2 / in.scale; // TODO:
     let draw_conditions = step(vec2f(edge, edge), in.quad_position) + step(in.quad_position, vec2f(-edge, -edge));
     let alpha = min(1.0, draw_conditions.x + draw_conditions.y);
     return FragmentOutput(vec4f(0.5, 0.5, 0.5, alpha));
