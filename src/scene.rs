@@ -91,24 +91,6 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     };
 
     objects.extend(circles);
-    // objects.push(ObjectPrototype {
-    //     flags: FLAG_DRAW_OBJECT | FLAG_PHYSICAL,
-    //     position: [world_aabb.max().x, 0.0],
-    //     velocity: [0.0, 0.0],
-    //     mass: 0.0,
-    //     size: [world_size.x / 2.0, world_size.y / 2.0],
-    //     color: css::MAGENTA,
-    //     shape: SHAPE_CIRCLE,
-    // });
-    // objects.push(ObjectPrototype {
-    //     flags: FLAG_DRAW_OBJECT,
-    //     position: [0.0, 0.0],
-    //     velocity: [0.0, 0.0],
-    //     mass: 1.0,
-    //     size: [world_size.x / 2.0, world_size.y / 2.0],
-    //     color: css::GREEN,
-    //     shape: SHAPE_RECT,
-    // });
     objects.push(top);
     objects.push(bottom);
     objects.push(left);
