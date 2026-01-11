@@ -1,4 +1,4 @@
-use wgpu::{CommandEncoder, ComputePassDescriptor, ComputePipeline, Device};
+use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
     gpu_buffer::GpuBuffer,
@@ -44,12 +44,10 @@ impl GpuIntegrator {
         }
     }
 
-    pub fn compute(&self, encoder: &mut CommandEncoder) {
-        let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
+    pub fn compute(&self, compute_pass: &mut ComputePass) {
         compute_pass.set_pipeline(&self.pipeline);
-        self.bind_group.set(&mut compute_pass);
+        self.bind_group.set(compute_pass);
         let total_workgroups = u32::try_from(self.object_count).unwrap().div_ceil(WORKGROUP_SIZE);
         compute_pass.dispatch_workgroups(total_workgroups.min(65535), total_workgroups.div_ceil(65535), 1);
-        drop(compute_pass);
     }
 }

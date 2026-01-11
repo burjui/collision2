@@ -20,7 +20,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use wgpu::{BufferUsages, CommandEncoderDescriptor, PresentMode, SubmissionIndex, TextureView};
+use wgpu::{BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PresentMode, SubmissionIndex, TextureView};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -380,7 +380,9 @@ fn spawn_simulation_thread(
             }
 
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
-            integrator.compute(&mut encoder);
+            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
+            integrator.compute(&mut compute_pass);
+            drop(compute_pass);
             let submission_index = queue.submit(Some(encoder.finish()));
             device.wait_for_submission(submission_index).unwrap();
             // TODO: use query sets for duration measurement
