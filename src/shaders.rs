@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: a1289b65928f0507eb702c8e92756d8c2830147bfac1db56f3ee0a5d2a7582ce
+// SourceHash: 3580363daa88e3017cb561ab57f56f4f0cc1a31ea02a3361181863f6da0e0ffc
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1275,8 +1275,8 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 struct IntegratedParameters {
-    position: vec2<f32>,
-    velocity: vec2<f32>,
+    x: vec2<f32>,
+    v: vec2<f32>,
 }
 
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
@@ -1307,30 +1307,43 @@ fn blackhole_gravity(position: vec2<f32>) -> vec2<f32> {
     return bh_gravity;
 }
 
-fn f_1(state: vec4<f32>) -> vec4<f32> {
-    let _e2 = blackhole_gravity(state.xy);
-    return vec4<f32>(state.zw, _e2);
+fn leapfrog_step(params_1: IntegratedParameters, w: f32) -> IntegratedParameters {
+    var new_x: vec2<f32>;
+
+    let _e2 = dt;
+    let half_step = ((w * _e2) * 0.5f);
+    new_x = (params_1.x + (params_1.v * half_step));
+    let _e12 = new_x;
+    let _e13 = blackhole_gravity(_e12);
+    let _e16 = dt;
+    let v = (params_1.v + (_e13 * (w * _e16)));
+    let _e20 = new_x;
+    new_x = (_e20 + (v * half_step));
+    let _e23 = new_x;
+    return IntegratedParameters(_e23, v);
 }
 
-fn rk4_integrate(position_1: vec2<f32>, velocity: vec2<f32>) -> IntegratedParameters {
-    let state_1 = vec4<f32>(position_1, velocity);
-    let _e3 = f_1(state_1);
-    let _e5 = dt;
-    let _e10 = f_1((state_1 + ((0.5f * _e5) * _e3)));
-    let _e12 = dt;
-    let _e17 = f_1((state_1 + ((0.5f * _e12) * _e10)));
-    let _e19 = dt;
-    let _e22 = f_1((state_1 + (_e19 * _e17)));
-    let _e24 = dt;
-    let new_state = (state_1 + ((_e24 / 6f) * (((_e3 + (2f * _e10)) + (2f * _e17)) + _e22)));
-    return IntegratedParameters(new_state.xy, new_state.zw);
+fn integrate_yoshida(params_2: IntegratedParameters) -> IntegratedParameters {
+    var p: IntegratedParameters;
+
+    p = params_2;
+    let _e2 = p;
+    let _e4 = leapfrog_step(_e2, 1.3512071f);
+    p = _e4;
+    let _e5 = p;
+    let _e7 = leapfrog_step(_e5, -1.7024144f);
+    p = _e7;
+    let _e8 = p;
+    let _e10 = leapfrog_step(_e8, 1.3512071f);
+    p = _e10;
+    let _e11 = p;
+    return _e11;
 }
 
 @compute @workgroup_size(64, 1, 1) 
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var f: u32;
-    var v: vec2<f32>;
-    var x: vec2<f32>;
+    var params: IntegratedParameters;
 
     let _e2 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, WORKGROUP_SIZE);
     if (_e2 >= arrayLength((&masses))) {
@@ -1343,30 +1356,27 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
     let aabb = aabbs[_e2];
-    let _e22 = velocities[_e2].inner;
-    v = _e22;
-    x = ((aabb.min + aabb.max) / vec2(2f));
+    let start_x = ((aabb.min + aabb.max) / vec2(2f));
+    let _e28 = velocities[_e2].inner;
+    params = IntegratedParameters(start_x, _e28);
+    let _e31 = params;
+    let _e32 = integrate_yoshida(_e31);
+    params = _e32;
     let size = (aabb.max - aabb.min);
-    let _e35 = x;
-    let to_blackhole_1 = (BLACKHOLE_POSITION - _e35);
-    let distance_1 = (length(to_blackhole_1) - (max(size.x, size.y) / 2f));
-    let _e44 = x;
-    let _e45 = v;
-    let _e46 = rk4_integrate(_e44, _e45);
-    x = _e46.position;
-    v = _e46.velocity;
+    let _e38 = params.x;
+    let distance_1 = (length((BLACKHOLE_POSITION - _e38)) - (max(size.x, size.y) / 2f));
     if (distance_1 < 100f) {
-        let _e52 = f;
-        f = (_e52 & 4294967290u);
-        v = vec2<f32>();
+        let _e50 = f;
+        f = (_e50 & 4294967290u);
+        params.v = vec2<f32>();
     }
-    let _e58 = f;
-    flags[_e2].inner = _e58;
-    let _e62 = v;
+    let _e57 = f;
+    flags[_e2].inner = _e57;
+    let _e62 = params.v;
     velocities[_e2].inner = _e62;
-    let _e65 = x;
-    let _e70 = x;
-    aabbs[_e2] = AABBX_naga_oil_mod_XMNXW23LPNYX((_e65 - (size / vec2(2f))), (_e70 + (size / vec2(2f))));
+    let _e64 = params.x;
+    let offset = (_e64 - start_x);
+    aabbs[_e2] = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb.min + offset), (aabb.max + offset));
     return;
 }
 "#;
