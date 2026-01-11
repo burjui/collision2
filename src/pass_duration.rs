@@ -4,6 +4,7 @@ use wgpu::{BufferUsages, CommandEncoder, Device, QuerySet, QueryType};
 
 use crate::gpu_buffer::GpuBuffer;
 
+#[must_use]
 pub struct PassDurationMeasurer {
     device: Device,
     query_set: QuerySet,
@@ -47,6 +48,7 @@ impl PassDurationMeasurer {
     }
 }
 
+#[must_use]
 pub struct PassDurationMeasurementStart {
     device: Device,
     query_set: QuerySet,
@@ -66,6 +68,7 @@ impl PassDurationMeasurementStart {
     }
 }
 
+#[must_use]
 pub struct PassDurationMeasurementResult {
     device: Device,
     query_readback_buffer: GpuBuffer<u64>,
