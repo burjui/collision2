@@ -20,7 +20,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use wgpu::{BufferUsages, PresentMode, SubmissionIndex, TextureView};
+use wgpu::{BufferUsages, CommandEncoderDescriptor, PresentMode, SubmissionIndex, TextureView};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -363,9 +363,10 @@ fn spawn_simulation_thread(
 ) {
     thread::spawn(move || {
         let mut last_redraw = Instant::now();
-        let integrator = GpuIntegrator::new(&device);
-        let dt_buffer = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt_buffer.write(&queue, &[0.0001]);
+        let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
+        dt.write(&queue, &[0.0001]);
+
+        let integrator = GpuIntegrator::new(&device, dt, flags, aabbs, velocities, masses);
 
         loop {
             if exit_notification_receiver.try_recv().is_ok() {
@@ -378,8 +379,9 @@ fn spawn_simulation_thread(
                 event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
             }
 
-            let submission_index =
-                integrator.compute(&device, &queue, &dt_buffer, &flags, &aabbs, &velocities, &masses);
+            let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
+            integrator.compute(&mut encoder);
+            let submission_index = queue.submit(Some(encoder.finish()));
             device.wait_for_submission(submission_index).unwrap();
             // TODO: use query sets for duration measurement
         }
