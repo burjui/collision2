@@ -6,6 +6,7 @@ pub mod bvh;
 pub mod gpu_buffer;
 pub mod integration;
 pub mod objects;
+pub mod pass_duration;
 pub mod scene;
 pub mod shaders;
 pub mod shape_renderer;
@@ -20,7 +21,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use wgpu::{BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PresentMode, QueryType, TextureView};
+use wgpu::{BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PresentMode, TextureView};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -36,6 +37,7 @@ use crate::{
     gpu_buffer::GpuBuffer,
     integration::GpuIntegrator,
     objects::Objects,
+    pass_duration::PassDurationMeasurer,
     scene::create_scene,
     shaders::common::{AABB, Camera},
     shape_renderer::ShapeRenderer,
@@ -308,26 +310,9 @@ fn render_scene(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
 ) {
-    let query_set = device.create_query_set(&wgpu::QuerySetDescriptor {
-        label: Some("render duration query set"),
-        ty: QueryType::Timestamp,
-        count: 2,
-    });
-    let query_buffer = GpuBuffer::<u64>::new(
-        2,
-        "render duration query buffer",
-        BufferUsages::QUERY_RESOLVE | BufferUsages::COPY_SRC,
-        device,
-    );
-    let query_readback_buffer = GpuBuffer::<u64>::new(
-        2,
-        "render duration query readback buffer",
-        BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-        device,
-    );
-
+    let pass_duration_measurer = PassDurationMeasurer::new(device);
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-    encoder.write_timestamp(&query_set, 0);
+    let measurement_start = pass_duration_measurer.start(&mut encoder);
 
     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: None,
@@ -350,14 +335,10 @@ fn render_scene(
     }
     drop(render_pass);
 
-    encoder.write_timestamp(&query_set, 1);
-    encoder.resolve_query_set(&query_set, 0..2, query_buffer.buffer(), 0);
-    encoder.copy_buffer_to_buffer(query_buffer.buffer(), 0, query_readback_buffer.buffer(), 0, None);
+    let measurement_result = measurement_start.finish(&mut encoder);
     queue.submit(Some(encoder.finish()));
 
-    let mut timestamps = [0u64; 2];
-    query_readback_buffer.read(device, &mut timestamps);
-    let duration = Duration::from_nanos(timestamps[1] - timestamps[0]);
+    let duration = measurement_result.duration();
     println!("Rendered {} objects in {:?}", range.len(), duration);
 }
 
@@ -397,23 +378,7 @@ fn spawn_simulation_thread(
 
         let object_count = flags.len();
         let integrator = GpuIntegrator::new(&device, dt, flags, aabbs, velocities, masses);
-        let query_set = device.create_query_set(&wgpu::QuerySetDescriptor {
-            label: Some("integrator duration query set"),
-            ty: QueryType::Timestamp,
-            count: 2,
-        });
-        let query_buffer = GpuBuffer::<u64>::new(
-            2,
-            "integrator duration query buffer",
-            BufferUsages::QUERY_RESOLVE | BufferUsages::COPY_SRC,
-            &device,
-        );
-        let query_readback_buffer = GpuBuffer::<u64>::new(
-            2,
-            "integrator duration query readback buffer",
-            BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-            &device,
-        );
+        let pass_duration_measurer = PassDurationMeasurer::new(&device);
 
         loop {
             if exit_notification_receiver.try_recv().is_ok() {
@@ -427,19 +392,15 @@ fn spawn_simulation_thread(
             }
 
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
-            encoder.write_timestamp(&query_set, 0);
+            let measurement_start = pass_duration_measurer.start(&mut encoder);
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
-            encoder.write_timestamp(&query_set, 1);
-            encoder.resolve_query_set(&query_set, 0..2, query_buffer.buffer(), 0);
-            encoder.copy_buffer_to_buffer(query_buffer.buffer(), 0, query_readback_buffer.buffer(), 0, None);
+            let measurement_result = measurement_start.finish(&mut encoder);
             let submission_index = queue.submit(Some(encoder.finish()));
             device.wait_for_submission(submission_index).unwrap();
 
-            let mut timestamps = [0u64; 2];
-            query_readback_buffer.read(&device, &mut timestamps);
-            let duration = Duration::from_nanos(timestamps[1] - timestamps[0]);
+            let duration = measurement_result.duration();
             println!("Integrated {} objects in {:?}", object_count, duration);
         }
     });
