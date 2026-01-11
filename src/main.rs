@@ -20,7 +20,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use wgpu::{BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PresentMode, SubmissionIndex, TextureView};
+use wgpu::{BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PresentMode, QueryType, TextureView};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -284,7 +284,9 @@ fn init_wgpu(
 
     let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
         label: None,
-        required_features: wgpu::Features::PIPELINE_CACHE,
+        required_features: wgpu::Features::PIPELINE_CACHE
+            | wgpu::Features::TIMESTAMP_QUERY
+            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS,
         required_limits: wgpu::Limits::defaults().using_resolution(adapter.limits()),
         experimental_features: wgpu::ExperimentalFeatures::disabled(),
         memory_hints: wgpu::MemoryHints::Performance,
@@ -305,8 +307,28 @@ fn render_scene(
     range: Range<usize>,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-) -> SubmissionIndex {
+) {
+    let query_set = device.create_query_set(&wgpu::QuerySetDescriptor {
+        label: Some("render duration query set"),
+        ty: QueryType::Timestamp,
+        count: 2,
+    });
+    let query_buffer = GpuBuffer::<u64>::new(
+        2,
+        "render duration query buffer",
+        BufferUsages::QUERY_RESOLVE | BufferUsages::COPY_SRC,
+        device,
+    );
+    let query_readback_buffer = GpuBuffer::<u64>::new(
+        2,
+        "render duration query readback buffer",
+        BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+        device,
+    );
+
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+    encoder.write_timestamp(&query_set, 0);
+
     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -322,14 +344,21 @@ fn render_scene(
         timestamp_writes: None,
         occlusion_query_set: None,
     });
-
     shape_renderer.render(&mut render_pass, range.clone());
     if render_parameters.draw_aabbs {
-        aabb_renderer.render(&mut render_pass, range);
+        aabb_renderer.render(&mut render_pass, range.clone());
     }
     drop(render_pass);
 
-    queue.submit(Some(encoder.finish()))
+    encoder.write_timestamp(&query_set, 1);
+    encoder.resolve_query_set(&query_set, 0..2, query_buffer.buffer(), 0);
+    encoder.copy_buffer_to_buffer(query_buffer.buffer(), 0, query_readback_buffer.buffer(), 0, None);
+    queue.submit(Some(encoder.finish()));
+
+    let mut timestamps = [0u64; 2];
+    query_readback_buffer.read(device, &mut timestamps);
+    let duration = Duration::from_nanos(timestamps[1] - timestamps[0]);
+    println!("Rendered {} objects in {:?}", range.len(), duration);
 }
 
 fn ortho_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {
@@ -366,7 +395,25 @@ fn spawn_simulation_thread(
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         dt.write(&queue, &[0.0001]);
 
+        let object_count = flags.len();
         let integrator = GpuIntegrator::new(&device, dt, flags, aabbs, velocities, masses);
+        let query_set = device.create_query_set(&wgpu::QuerySetDescriptor {
+            label: Some("integrator duration query set"),
+            ty: QueryType::Timestamp,
+            count: 2,
+        });
+        let query_buffer = GpuBuffer::<u64>::new(
+            2,
+            "integrator duration query buffer",
+            BufferUsages::QUERY_RESOLVE | BufferUsages::COPY_SRC,
+            &device,
+        );
+        let query_readback_buffer = GpuBuffer::<u64>::new(
+            2,
+            "integrator duration query readback buffer",
+            BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+            &device,
+        );
 
         loop {
             if exit_notification_receiver.try_recv().is_ok() {
@@ -380,12 +427,20 @@ fn spawn_simulation_thread(
             }
 
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
+            encoder.write_timestamp(&query_set, 0);
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
+            encoder.write_timestamp(&query_set, 1);
+            encoder.resolve_query_set(&query_set, 0..2, query_buffer.buffer(), 0);
+            encoder.copy_buffer_to_buffer(query_buffer.buffer(), 0, query_readback_buffer.buffer(), 0, None);
             let submission_index = queue.submit(Some(encoder.finish()));
             device.wait_for_submission(submission_index).unwrap();
-            // TODO: use query sets for duration measurement
+
+            let mut timestamps = [0u64; 2];
+            query_readback_buffer.read(&device, &mut timestamps);
+            let duration = Duration::from_nanos(timestamps[1] - timestamps[0]);
+            println!("Integrated {} objects in {:?}", object_count, duration);
         }
     });
 }
