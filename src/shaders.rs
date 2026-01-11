@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 3580363daa88e3017cb561ab57f56f4f0cc1a31ea02a3361181863f6da0e0ffc
+// SourceHash: 8ea9cdd3b1eebeb77f6225226f15270e45e3c937b9e62012825c04def987bf89
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1307,19 +1307,24 @@ fn blackhole_gravity(position: vec2<f32>) -> vec2<f32> {
     return bh_gravity;
 }
 
+fn forces(position_1: vec2<f32>) -> vec2<f32> {
+    let _e1 = blackhole_gravity(position_1);
+    return _e1;
+}
+
 fn leapfrog_step(params_1: IntegratedParameters, w: f32) -> IntegratedParameters {
-    var new_x: vec2<f32>;
+    var x: vec2<f32>;
 
     let _e2 = dt;
     let half_step = ((w * _e2) * 0.5f);
-    new_x = (params_1.x + (params_1.v * half_step));
-    let _e12 = new_x;
-    let _e13 = blackhole_gravity(_e12);
+    x = (params_1.x + (params_1.v * half_step));
+    let _e12 = x;
+    let _e13 = forces(_e12);
     let _e16 = dt;
     let v = (params_1.v + (_e13 * (w * _e16)));
-    let _e20 = new_x;
-    new_x = (_e20 + (v * half_step));
-    let _e23 = new_x;
+    let _e20 = x;
+    x = (_e20 + (v * half_step));
+    let _e23 = x;
     return IntegratedParameters(_e23, v);
 }
 

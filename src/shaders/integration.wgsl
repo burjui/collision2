@@ -43,6 +43,19 @@ fn cs_main(
     aabbs[i] = AABB(aabb.min + offset, aabb.max + offset);
 }
 
+fn forces(position: vec2f) -> vec2f {
+    return blackhole_gravity(position);
+}
+
+fn blackhole_gravity(position: vec2f) -> vec2f {
+    let to_blackhole = BLACKHOLE_POSITION - position;
+    let direction = normalize(to_blackhole);
+    let distance = length(to_blackhole);
+    let bh_gravity = direction * BLACKHOLE_MASS / (distance * distance);
+    return bh_gravity;
+}
+
+
 struct IntegratedParameters {
     x: vec2f,
     v: vec2f
@@ -62,19 +75,11 @@ fn integrate_yoshida(params: IntegratedParameters) -> IntegratedParameters {
 fn leapfrog_step(params: IntegratedParameters, w: f32) -> IntegratedParameters {
     let half_step = w * dt * 0.5;
     // Drift (position half-step)
-    var new_x = params.x + params.v * half_step;
+    var x = params.x + params.v * half_step;
     // Kick (full velocity step)
-    let a = blackhole_gravity(new_x);
+    let a = forces(x);
     let v = params.v + a * (w * dt);
     // Drift (position half-step)
-    new_x = new_x + v * half_step;
-    return IntegratedParameters(new_x, v);
-}
-
-fn blackhole_gravity(position: vec2f) -> vec2f {
-    let to_blackhole = BLACKHOLE_POSITION - position;
-    let direction = normalize(to_blackhole);
-    let distance = length(to_blackhole);
-    let bh_gravity = direction * BLACKHOLE_MASS / (distance * distance);
-    return bh_gravity;
+    x = x + v * half_step;
+    return IntegratedParameters(x, v);
 }
