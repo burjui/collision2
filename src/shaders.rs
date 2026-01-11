@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 4638401626c5abf343216728d6f0c8bc85f4c96030ae86da7d0620343f6d5be0
+// SourceHash: a1289b65928f0507eb702c8e92756d8c2830147bfac1db56f3ee0a5d2a7582ce
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1274,8 +1274,15 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
     max: vec2<f32>,
 }
 
+struct IntegratedParameters {
+    position: vec2<f32>,
+    velocity: vec2<f32>,
+}
+
+const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
+const BLACKHOLE_POSITION: vec2<f32> = vec2<f32>();
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
@@ -1290,6 +1297,33 @@ var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 
 fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return (gid_1.x + ((gid_1.y * 65535u) * workgroup_size));
+}
+
+fn blackhole_gravity(position: vec2<f32>) -> vec2<f32> {
+    let to_blackhole = (BLACKHOLE_POSITION - position);
+    let direction = normalize(to_blackhole);
+    let distance = length(to_blackhole);
+    let bh_gravity = ((direction * 1000000f) / vec2((distance * distance)));
+    return bh_gravity;
+}
+
+fn f_1(state: vec4<f32>) -> vec4<f32> {
+    let _e2 = blackhole_gravity(state.xy);
+    return vec4<f32>(state.zw, _e2);
+}
+
+fn rk4_integrate(position_1: vec2<f32>, velocity: vec2<f32>) -> IntegratedParameters {
+    let state_1 = vec4<f32>(position_1, velocity);
+    let _e3 = f_1(state_1);
+    let _e5 = dt;
+    let _e10 = f_1((state_1 + ((0.5f * _e5) * _e3)));
+    let _e12 = dt;
+    let _e17 = f_1((state_1 + ((0.5f * _e12) * _e10)));
+    let _e19 = dt;
+    let _e22 = f_1((state_1 + (_e19 * _e17)));
+    let _e24 = dt;
+    let new_state = (state_1 + ((_e24 / 6f) * (((_e3 + (2f * _e10)) + (2f * _e17)) + _e22)));
+    return IntegratedParameters(new_state.xy, new_state.zw);
 }
 
 @compute @workgroup_size(64, 1, 1) 
@@ -1309,29 +1343,30 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
     let aabb = aabbs[_e2];
-    let _e25 = velocities[_e2].inner;
-    v = _e25;
+    let _e22 = velocities[_e2].inner;
+    v = _e22;
     x = ((aabb.min + aabb.max) / vec2(2f));
     let size = (aabb.max - aabb.min);
-    let _e37 = x;
-    let to_blackhole = (vec2<f32>(800f, 400f) - _e37);
-    let direction = normalize(to_blackhole);
-    let distance = (length(to_blackhole) - (max(size.x, size.y) / 2f));
-    let bh_gravity = ((direction * 1000000f) / vec2((distance * distance)));
-    let _e52 = v;
-    let _e55 = dt;
-    v = (_e52 + (_e55 * vec2<f32>()));
-    let _e59 = dt;
-    let _e60 = v;
-    let _e62 = x;
-    x = (_e62 + (_e59 * _e60));
-    let _e67 = f;
-    flags[_e2].inner = _e67;
-    let _e71 = v;
-    velocities[_e2].inner = _e71;
-    let _e74 = x;
-    let _e79 = x;
-    aabbs[_e2] = AABBX_naga_oil_mod_XMNXW23LPNYX((_e74 - (size / vec2(2f))), (_e79 + (size / vec2(2f))));
+    let _e35 = x;
+    let to_blackhole_1 = (BLACKHOLE_POSITION - _e35);
+    let distance_1 = (length(to_blackhole_1) - (max(size.x, size.y) / 2f));
+    let _e44 = x;
+    let _e45 = v;
+    let _e46 = rk4_integrate(_e44, _e45);
+    x = _e46.position;
+    v = _e46.velocity;
+    if (distance_1 < 100f) {
+        let _e52 = f;
+        f = (_e52 & 4294967290u);
+        v = vec2<f32>();
+    }
+    let _e58 = f;
+    flags[_e2].inner = _e58;
+    let _e62 = v;
+    velocities[_e2].inner = _e62;
+    let _e65 = x;
+    let _e70 = x;
+    aabbs[_e2] = AABBX_naga_oil_mod_XMNXW23LPNYX((_e65 - (size / vec2(2f))), (_e70 + (size / vec2(2f))));
     return;
 }
 "#;

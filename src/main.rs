@@ -374,7 +374,7 @@ fn spawn_simulation_thread(
     thread::spawn(move || {
         let mut last_redraw = Instant::now();
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt.write(&queue, &[0.0001]);
+        dt.write(&queue, &[0.1]);
 
         let object_count = flags.len();
         let integrator = GpuIntegrator::new(&device, dt, flags, aabbs, velocities, masses);
