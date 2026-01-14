@@ -351,13 +351,11 @@ fn ortho_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4
     let t = world_height * 0.5;
     let sx = 2.0 / (r - l);
     let sy = 2.0 / (t - b);
-    let tx = -(r + l) / (r - l);
-    let ty = -(t + b) / (t - b);
     [
         [sx, 0.0, 0.0, 0.0],
         [0.0, sy, 0.0, 0.0],
         [0.0, 0.0, -1.0, 0.0],
-        [tx, ty, 0.0, 1.0],
+        [0.0, 0.0, 0.0, 1.0],
     ]
 }
 
