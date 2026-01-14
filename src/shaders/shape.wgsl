@@ -1,5 +1,7 @@
 #import common::{UNIT_QUAD_VERTICES, FLAG_DRAW_OBJECT, Camera, Flags, AABB, Color, Shape}
 
+// TODO: point-based instancing
+
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,
     @location(0) quad_position: vec2f,
