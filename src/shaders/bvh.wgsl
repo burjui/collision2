@@ -6,6 +6,8 @@
 
 const WORKGROUP_SIZE: u32 = 64;
 
+// TODO: encode all the passes at once
+
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     // let i = invocation_index(gid, WORKGROUP_SIZE);

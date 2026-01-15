@@ -21,7 +21,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use wgpu::{BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PresentMode, TextureView};
+use wgpu::{BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCacheDescriptor, PresentMode, RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, TextureFormat, TextureView, TextureViewDescriptor};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -30,7 +30,7 @@ use winit::{
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
     window::{Window, WindowAttributes, WindowId},
 };
-
+use shaders::common::{Flags, Mass, Velocity};
 use crate::{
     aabb::AabbExt as _,
     aabb_renderer::AabbRenderer,
@@ -122,7 +122,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         println!("Object count: {}", object_count);
 
         let pipeline_cache = unsafe {
-            device.create_pipeline_cache(&wgpu::PipelineCacheDescriptor {
+            device.create_pipeline_cache(&PipelineCacheDescriptor {
                 label: None,
                 data: None,
                 fallback: true,
@@ -177,6 +177,16 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         });
     }
 
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
+        match event {
+            AppEvent::RedrawRequested => {
+                if let Some(state) = &self.gpu_state {
+                    state.window.request_redraw();
+                }
+            }
+        }
+    }
+
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) => {
@@ -191,13 +201,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 if let Some(state) = &mut self.gpu_state {
                     let view_size = state.window.inner_size();
                     let world_height = state.world_aabb.max().y - state.world_aabb.min().y;
-                    let camera = ortho_camera(view_size.cast(), world_height);
+                    let camera = orthographic_camera(view_size.cast(), world_height);
                     state.camera_buffer.write(&state.queue, &[Camera::new(camera)]);
 
                     let surface_texture =
                         state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
                     let surface_texture_view =
-                        surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
+                        surface_texture.texture.create_view(&TextureViewDescriptor::default());
                     render_scene(
                         surface_texture_view,
                         &self.render_parameters,
@@ -256,16 +266,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         }
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
-        match event {
-            AppEvent::RedrawRequested => {
-                if let Some(state) = &self.gpu_state {
-                    state.window.request_redraw();
-                }
-            }
-        }
-    }
-
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(state) = &self.gpu_state {
             let _ = state.exit_notification_sender.try_send(());
@@ -276,8 +276,8 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 fn init_wgpu(
     wgpu: &wgpu::Instance,
     surface: &wgpu::Surface<'_>,
-) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue, wgpu::TextureFormat) {
-    let adapter = block_on(wgpu.request_adapter(&wgpu::RequestAdapterOptions {
+) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue, TextureFormat) {
+    let adapter = block_on(wgpu.request_adapter(&RequestAdapterOptions {
         power_preference: wgpu::PowerPreference::from_env().unwrap_or(wgpu::PowerPreference::None),
         force_fallback_adapter: false,
         compatible_surface: Some(surface),
@@ -311,12 +311,12 @@ fn render_scene(
     queue: &wgpu::Queue,
 ) {
     let pass_duration_measurer = PassDurationMeasurer::new(device);
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
     let measurement_start = pass_duration_measurer.start(&mut encoder);
 
-    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+    let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+        color_attachments: &[Some(RenderPassColorAttachment {
             view: &surface_texture_view,
             depth_slice: None,
             resolve_target: None,
@@ -342,7 +342,7 @@ fn render_scene(
     println!("Rendered {} objects in {:?}", range.len(), duration);
 }
 
-fn ortho_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {
+fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {
     let aspect = view_size.width / view_size.height;
     let world_width = world_height * aspect;
     let l = -world_width * 0.5;
@@ -360,10 +360,10 @@ fn ortho_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4
 }
 
 fn spawn_simulation_thread(
-    flags: GpuBuffer<shaders::common::Flags>,
-    aabbs: GpuBuffer<shaders::common::AABB>,
-    velocities: GpuBuffer<shaders::common::Velocity>,
-    masses: GpuBuffer<shaders::common::Mass>,
+    flags: GpuBuffer<Flags>,
+    aabbs: GpuBuffer<AABB>,
+    velocities: GpuBuffer<Velocity>,
+    masses: GpuBuffer<Mass>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     event_loop_proxy: EventLoopProxy<AppEvent>,
