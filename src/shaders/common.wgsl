@@ -42,14 +42,11 @@ struct AABB {
     max: vec2f
 }
 
-const BVH_NODE_KIND_LEAF: u32 = 0;
-const BVH_NODE_KIND_TREE: u32 = 0;
+const BVH_NODE_TREE_FLAG: u32 = 1 << 31;
 
+/// High bit set -> tree(index, index + 1)
 struct BvhNode {
-    kind: u32,
-    aabb: AABB,
-    left: u32,
-    right: u32
+    index: u32,
 }
 
 fn invocation_index(gid: vec3<u32>, workgroup_size: u32) -> u32 {

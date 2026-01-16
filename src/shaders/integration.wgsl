@@ -9,7 +9,7 @@
 const WORKGROUP_SIZE: u32 = 64;
 
 const BLACKHOLE_POSITION = vec2f();
-const BLACKHOLE_MASS = 1000000.0;
+const BLACKHOLE_MASS = 0.0;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn cs_main(
@@ -32,10 +32,10 @@ fn cs_main(
 
     let size = aabb.max - aabb.min;
     let distance = length(BLACKHOLE_POSITION - params.x) - max(size.x, size.y) / 2;
-    if distance < 100 {
-        f &= ~(FLAG_PHYSICAL | FLAG_DRAW_OBJECT);
-        params.v = vec2f();
-    }
+    // if distance < 100 {
+    //     f &= ~(FLAG_PHYSICAL | FLAG_DRAW_OBJECT);
+    //     params.v = vec2f();
+    // }
 
     flags[i].inner = f;
     velocities[i].inner = params.v;

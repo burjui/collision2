@@ -68,6 +68,7 @@ impl AabbRenderer {
     }
 
     pub fn render(&self, render_pass: &mut RenderPass<'_>, instances: Range<usize>) {
+        println!("Rendering {} AABBs", instances.len());
         render_pass.set_pipeline(&self.render_pipeline);
         self.bind_group.set(render_pass);
         let start = u32::try_from(instances.start).unwrap();

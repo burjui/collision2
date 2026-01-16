@@ -1,10 +1,11 @@
 use color::{AlphaColor, Srgb};
+use itertools::Itertools;
 use nalgebra::Vector2;
 use wgpu::BufferUsages;
 
 use crate::{
     gpu_buffer::GpuBuffer,
-    shaders::common::{AABB, Color, Flags, Mass, Shape, Velocity},
+    shaders::common::{AABB, BvhNode, Color, Flags, Mass, Shape, Velocity},
 };
 
 pub struct ObjectPrototype {
@@ -66,21 +67,32 @@ impl Objects {
 
     pub fn to_buffers(self, device: &wgpu::Device, queue: &wgpu::Queue) -> ObjectBuffers {
         let access_mode = BufferUsages::COPY_DST;
+
+        // These are twice the size to hold the BVH AABBs and nodes
+        let aabbs = GpuBuffer::new(self.len() * 2, "aabb buffer", BufferUsages::STORAGE | access_mode, device);
+        let bvh_nodes = GpuBuffer::new(self.len() * 2, "bvh node buffer", BufferUsages::STORAGE | access_mode, device);
+
         let flags = GpuBuffer::new(self.len(), "flags buffer", BufferUsages::STORAGE | access_mode, device);
-        let aabbs = GpuBuffer::new(self.len(), "aabb buffer", BufferUsages::STORAGE | access_mode, device);
         let velocities = GpuBuffer::new(self.len(), "velocity buffer", BufferUsages::STORAGE | access_mode, device);
         let masses = GpuBuffer::new(self.len(), "mass buffer", BufferUsages::STORAGE | access_mode, device);
         let colors = GpuBuffer::new(self.len(), "color buffer", BufferUsages::STORAGE | access_mode, device);
         let shapes = GpuBuffer::new(self.len(), "shape buffer", BufferUsages::STORAGE | access_mode, device);
-        flags.write(queue, &self.flags);
+
         aabbs.write(queue, &self.aabbs);
+
+        let bvh_leaves = (0..u32::try_from(self.len()).unwrap()).map(BvhNode::new).collect_vec();
+        bvh_nodes.write(queue, &bvh_leaves);
+
+        flags.write(queue, &self.flags);
         velocities.write(queue, &self.velocities);
         masses.write(queue, &self.masses);
         colors.write(queue, &self.colors);
         shapes.write(queue, &self.shapes);
+
         ObjectBuffers {
             flags,
             aabbs,
+            bvh_nodes,
             velocities,
             masses,
             colors,
@@ -92,6 +104,7 @@ impl Objects {
 pub struct ObjectBuffers {
     pub flags: GpuBuffer<Flags>,
     pub aabbs: GpuBuffer<AABB>,
+    pub bvh_nodes: GpuBuffer<BvhNode>,
     pub velocities: GpuBuffer<Velocity>,
     pub masses: GpuBuffer<Mass>,
     pub colors: GpuBuffer<Color>,

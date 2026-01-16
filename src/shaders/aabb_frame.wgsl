@@ -13,16 +13,23 @@ struct VertexOutput {
     @location(2) quad_position: vec2f,
 }
 
+// TODO fix performance drop after about 10 seconds of running
+
 @vertex
 fn vs_main(
     @builtin(vertex_index) vertex_index: u32,
     @builtin(instance_index) i: u32,
 ) -> VertexOutput {
     var out = VertexOutput();
-    let flags = flags[i].inner;
-    if (flags & FLAG_DRAW_AABB) == 0 {
-        return out;
+
+    var flags_: u32 = FLAG_DRAW_AABB;
+    if i < arrayLength(&flags) {
+        flags_ = flags[i].inner;
+        if (flags_ & FLAG_DRAW_AABB) == 0 {
+            return out;
+        }
     }
+
     let aabb = aabbs[i];
     let scale = (aabb.max - aabb.min);
     let center = ((aabb.min + aabb.max) / vec2(2f));
@@ -34,7 +41,7 @@ fn vs_main(
     );
     let vertex = UNIT_QUAD_VERTICES[vertex_index];
     out.clip_position = camera.inner * model * vec4f(vertex, 0, 1);
-    out.flags = flags;
+    out.flags = flags_;
     out.scale = max(scale.x, scale.y);
     out.quad_position = vertex;
 
@@ -51,7 +58,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         discard;
     }
 
-    let edge = 0.5 - 2 / in.scale; // TODO:
+    let edge = 0.5 - 2.5 / in.scale;
     let draw_conditions = step(vec2f(edge, edge), in.quad_position) + step(in.quad_position, vec2f(-edge, -edge));
     let alpha = min(1.0, draw_conditions.x + draw_conditions.y);
     return FragmentOutput(vec4f(0.5, 0.5, 0.5, alpha));

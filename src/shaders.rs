@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 568a46e4e48536f1a362875a3f749812fe2c8a3b7f1dad83ecd4d45e1ffe21b7
+// SourceHash: 44411e92768adf47b67b5f0c5788499e329cc5f4ab763079f82016df64ceb612
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -79,11 +79,14 @@ pub mod layout_asserts {
         assert!(std::mem::size_of::<common::AABB>() == 16);
     };
     const COMMON_BVH_NODE_ASSERTS: () = {
-        assert!(std::mem::offset_of!(common::BvhNode, kind) == 0);
-        assert!(std::mem::offset_of!(common::BvhNode, aabb) == 8);
-        assert!(std::mem::offset_of!(common::BvhNode, left) == 24);
-        assert!(std::mem::offset_of!(common::BvhNode, right) == 28);
-        assert!(std::mem::size_of::<common::BvhNode>() == 32);
+        assert!(std::mem::offset_of!(common::BvhNode, index) == 0);
+        assert!(std::mem::size_of::<common::BvhNode>() == 4);
+    };
+    const BVH_COMBINE_NODE_PASS_ASSERTS: () = {
+        assert!(std::mem::offset_of!(bvh::CombineNodePass, src_start) == 0);
+        assert!(std::mem::offset_of!(bvh::CombineNodePass, dst_start) == 4);
+        assert!(std::mem::offset_of!(bvh::CombineNodePass, parent_count) == 8);
+        assert!(std::mem::size_of::<bvh::CombineNodePass>() == 12);
     };
     const COMMON_VELOCITY_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::Velocity, inner) == 0);
@@ -99,8 +102,7 @@ pub mod common {
     pub const FLAG_DRAW_OBJECT: u32 = 1u32;
     pub const FLAG_DRAW_AABB: u32 = 2u32;
     pub const FLAG_PHYSICAL: u32 = 4u32;
-    pub const BVH_NODE_KIND_LEAF: u32 = 0u32;
-    pub const BVH_NODE_KIND_TREE: u32 = 0u32;
+    pub const BVH_NODE_TREE_FLAG: u32 = 2147483648u32;
     #[repr(C, align(16))]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct Camera {
@@ -158,52 +160,15 @@ pub mod common {
             Self { min, max }
         }
     }
-    #[repr(C, align(8))]
+    #[repr(C, align(4))]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct BvhNode {
         #[doc = "offset: 0, size: 4, type: `u32`"]
-        pub kind: u32,
-        pub _pad_kind: [u8; 0x4],
-        #[doc = "offset: 8, size: 16, type: `common::AABB`"]
-        pub aabb: _root::common::AABB,
-        #[doc = "offset: 24, size: 4, type: `u32`"]
-        pub left: u32,
-        #[doc = "offset: 28, size: 4, type: `u32`"]
-        pub right: u32,
+        pub index: u32,
     }
     impl BvhNode {
-        pub const fn new(kind: u32, aabb: _root::common::AABB, left: u32, right: u32) -> Self {
-            Self {
-                kind,
-                _pad_kind: [0; 0x4],
-                aabb,
-                left,
-                right,
-            }
-        }
-    }
-    #[repr(C)]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct BvhNodeInit {
-        pub kind: u32,
-        pub aabb: _root::common::AABB,
-        pub left: u32,
-        pub right: u32,
-    }
-    impl BvhNodeInit {
-        pub fn build(&self) -> BvhNode {
-            BvhNode {
-                kind: self.kind,
-                _pad_kind: [0; 0x4],
-                aabb: self.aabb,
-                left: self.left,
-                right: self.right,
-            }
-        }
-    }
-    impl From<BvhNodeInit> for BvhNode {
-        fn from(data: BvhNodeInit) -> Self {
-            data.build()
+        pub const fn new(index: u32) -> Self {
+            Self { index }
         }
     }
     #[repr(C, align(8))]
@@ -280,18 +245,14 @@ struct AABB {
 }
 
 struct BvhNode {
-    kind: u32,
-    aabb: AABB,
-    left: u32,
-    right: u32,
+    index: u32,
 }
 
 const UNIT_QUAD_VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
 const FLAG_DRAW_OBJECT: u32 = 1u;
 const FLAG_DRAW_AABB: u32 = 2u;
 const FLAG_PHYSICAL: u32 = 4u;
-const BVH_NODE_KIND_LEAF: u32 = 0u;
-const BVH_NODE_KIND_TREE: u32 = 0u;
+const BVH_NODE_TREE_FLAG: u32 = 2147483648u;
 
 fn invocation_index(gid: vec3<u32>, workgroup_size: u32) -> u32 {
     return (gid.x + ((gid.y * 65535u) * workgroup_size));
@@ -313,6 +274,8 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for common::AABB {}
     unsafe impl bytemuck::Zeroable for common::BvhNode {}
     unsafe impl bytemuck::Pod for common::BvhNode {}
+    unsafe impl bytemuck::Zeroable for bvh::CombineNodePass {}
+    unsafe impl bytemuck::Pod for bvh::CombineNodePass {}
     unsafe impl bytemuck::Zeroable for common::Velocity {}
     unsafe impl bytemuck::Pod for common::Velocity {}
     unsafe impl bytemuck::Zeroable for common::Mass {}
@@ -855,31 +818,37 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(1) 
-var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> flags_1: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(2) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
 @vertex 
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput = VertexOutput();
+    var flags: u32 = FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX;
 
-    let flags_1 = flags[i].inner;
-    if ((flags_1 & FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
-        let _e11 = out;
-        return _e11;
+    if (i < arrayLength((&flags_1))) {
+        let _e9 = flags_1[i].inner;
+        flags = _e9;
+        let _e11 = flags;
+        if ((_e11 & FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+            let _e17 = out;
+            return _e17;
+        }
     }
     let aabb = aabbs[i];
     let scale = (aabb.max - aabb.min);
     let center = ((aabb.min + aabb.max) / vec2(2f));
     let model = mat4x4<f32>(vec4<f32>(scale.x, 0f, 0f, 0f), vec4<f32>(0f, scale.y, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
     let vertex = UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX[vertex_index];
-    let _e51 = camera.inner;
-    out.clip_position = ((_e51 * model) * vec4<f32>(vertex, 0f, 1f));
-    out.flags = flags_1;
+    let _e57 = camera.inner;
+    out.clip_position = ((_e57 * model) * vec4<f32>(vertex, 0f, 1f));
+    let _e64 = flags;
+    out.flags = _e64;
     out.scale = max(scale.x, scale.y);
     out.quad_position = vertex;
-    let _e63 = out;
-    return _e63;
+    let _e70 = out;
+    return _e70;
 }
 
 @fragment 
@@ -887,7 +856,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     if ((in.flags & FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         discard;
     }
-    let edge = (0.5f - (2f / in.scale));
+    let edge = (0.5f - (2.5f / in.scale));
     let draw_conditions = (step(vec2<f32>(edge, edge), in.quad_position) + step(in.quad_position, vec2<f32>(-(edge), -(edge))));
     let alpha = min(1f, (draw_conditions.x + draw_conditions.y));
     return FragmentOutput(vec4<f32>(0.5f, 0.5f, 0.5f, alpha));
@@ -896,34 +865,51 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 }
 pub mod bvh {
     use super::{_root, _root::*};
+    #[repr(C, align(4))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct CombineNodePass {
+        #[doc = "offset: 0, size: 4, type: `u32`"]
+        pub src_start: u32,
+        #[doc = "offset: 4, size: 4, type: `u32`"]
+        pub dst_start: u32,
+        #[doc = "offset: 8, size: 4, type: `u32`"]
+        pub parent_count: u32,
+    }
+    impl CombineNodePass {
+        pub const fn new(src_start: u32, dst_start: u32, parent_count: u32) -> Self {
+            Self {
+                src_start,
+                dst_start,
+                parent_count,
+            }
+        }
+    }
     pub const WORKGROUP_SIZE: u32 = 64u32;
     pub mod compute {
         use super::{_root, _root::*};
-        pub const CS_MAIN_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
-        pub fn create_cs_main_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
+        pub const COMBINE_NODES_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
+        pub fn create_combine_nodes_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
             let module = super::create_shader_module_embed_source(device);
             let layout = super::create_pipeline_layout(device);
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Compute Pipeline cs_main"),
+                label: Some("Compute Pipeline combine_nodes"),
                 layout: Some(&layout),
                 module: &module,
-                entry_point: Some("cs_main"),
+                entry_point: Some("combine_nodes"),
                 compilation_options: Default::default(),
                 cache: None,
             })
         }
     }
-    pub const ENTRY_CS_MAIN: &str = "cs_main";
+    pub const ENTRY_COMBINE_NODES: &str = "combine_nodes";
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub aabbs: wgpu::BufferBinding<'a>,
-        pub layers: wgpu::BufferBinding<'a>,
         pub nodes: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub aabbs: wgpu::BindGroupEntry<'a>,
-        pub layers: wgpu::BindGroupEntry<'a>,
         pub nodes: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
@@ -933,18 +919,14 @@ pub mod bvh {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.aabbs),
                 },
-                layers: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.layers),
-                },
                 nodes: wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.nodes),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
-            [self.aabbs, self.layers, self.nodes]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
+            [self.aabbs, self.nodes]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -961,26 +943,15 @@ pub mod bvh {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"layers\""]
+                #[doc = " @binding(1): \"nodes\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(2): \"nodes\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -1034,7 +1005,10 @@ pub mod bvh {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Bvh::PipelineLayout"),
             bind_group_layouts: &[&WgpuBindGroup0::get_bind_group_layout(device)],
-            push_constant_ranges: &[],
+            push_constant_ranges: &[wgpu::PushConstantRange {
+                stages: wgpu::ShaderStages::COMPUTE,
+                range: 0..12,
+            }],
         })
     }
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
@@ -1051,23 +1025,45 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 struct BvhNodeX_naga_oil_mod_XMNXW23LPNYX {
-    kind: u32,
-    aabb: AABBX_naga_oil_mod_XMNXW23LPNYX,
-    left: u32,
-    right: u32,
+    index: u32,
 }
 
+struct CombineNodePass {
+    src_start: u32,
+    dst_start: u32,
+    parent_count: u32,
+}
+
+const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
 
+var<push_constant> params: CombineNodePass;
 @group(0) @binding(0) 
-var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(1) 
-var<storage> layers: array<vec2<u32>>;
-@group(0) @binding(2) 
 var<storage, read_write> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
 
+fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, workgroup_size: u32) -> u32 {
+    return (gid_1.x + ((gid_1.y * 65535u) * workgroup_size));
+}
+
 @compute @workgroup_size(64, 1, 1) 
-fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
+fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let _e2 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, WORKGROUP_SIZE);
+    let _e5 = params.parent_count;
+    if (_e2 >= _e5) {
+        return;
+    }
+    let _e9 = params.src_start;
+    let src = (_e9 + (_e2 * 2u));
+    let _e15 = params.dst_start;
+    let dst = (_e15 + _e2);
+    nodes[dst] = BvhNodeX_naga_oil_mod_XMNXW23LPNYX((src | BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX));
+    let left_aabb = aabbs[src];
+    let right_aabb = aabbs[(src + 1u)];
+    let aabb_min = min(left_aabb.min, right_aabb.min);
+    let aabb_max = max(left_aabb.max, right_aabb.max);
+    aabbs[dst] = AABBX_naga_oil_mod_XMNXW23LPNYX(aabb_min, aabb_max);
     return;
 }
 "#;
@@ -1279,7 +1275,6 @@ struct IntegratedParameters {
     v: vec2<f32>,
 }
 
-const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
 const BLACKHOLE_POSITION: vec2<f32> = vec2<f32>();
@@ -1303,7 +1298,7 @@ fn blackhole_gravity(position: vec2<f32>) -> vec2<f32> {
     let to_blackhole = (BLACKHOLE_POSITION - position);
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    let bh_gravity = ((direction * 1000000f) / vec2((distance * distance)));
+    let bh_gravity = ((direction * 0f) / vec2((distance * distance)));
     return bh_gravity;
 }
 
@@ -1370,17 +1365,12 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let size = (aabb.max - aabb.min);
     let _e38 = params.x;
     let distance_1 = (length((BLACKHOLE_POSITION - _e38)) - (max(size.x, size.y) / 2f));
-    if (distance_1 < 100f) {
-        let _e50 = f;
-        f = (_e50 & 4294967290u);
-        params.v = vec2<f32>();
-    }
-    let _e57 = f;
-    flags[_e2].inner = _e57;
-    let _e62 = params.v;
-    velocities[_e2].inner = _e62;
-    let _e64 = params.x;
-    let offset = (_e64 - start_x);
+    let _e50 = f;
+    flags[_e2].inner = _e50;
+    let _e55 = params.v;
+    velocities[_e2].inner = _e55;
+    let _e57 = params.x;
+    let offset = (_e57 - start_x);
     aabbs[_e2] = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb.min + offset), (aabb.max + offset));
     return;
 }
