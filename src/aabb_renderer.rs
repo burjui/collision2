@@ -45,7 +45,11 @@ impl AabbRenderer {
             layout: Some(&pipeline_layout),
             vertex: vertex_state,
             fragment: Some(fragment_state),
-            primitive: PrimitiveState::default(),
+            primitive: PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineStrip,
+                polygon_mode: wgpu::PolygonMode::Line,
+                ..PrimitiveState::default()
+            },
             depth_stencil: None,
             multisample: MultisampleState::default(),
             multiview: None,

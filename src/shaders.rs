@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 44411e92768adf47b67b5f0c5788499e329cc5f4ab763079f82016df64ceb612
+// SourceHash: 3101930552d73ff4b6f7c1735152ac867796a06e2d8a82c3d6efdcdb16e0b951
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -812,8 +812,8 @@ struct FragmentOutput {
     @location(0) color: vec4<f32>,
 }
 
-const UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
 const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
+const UNIT_QUAD_VERTICES: array<vec2<f32>, 5> = array<vec2<f32>, 5>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
 
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
@@ -840,7 +840,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     let scale = (aabb.max - aabb.min);
     let center = ((aabb.min + aabb.max) / vec2(2f));
     let model = mat4x4<f32>(vec4<f32>(scale.x, 0f, 0f, 0f), vec4<f32>(0f, scale.y, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
-    let vertex = UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX[vertex_index];
+    let vertex = UNIT_QUAD_VERTICES[vertex_index];
     let _e57 = camera.inner;
     out.clip_position = ((_e57 * model) * vec4<f32>(vertex, 0f, 1f));
     let _e64 = flags;
@@ -856,10 +856,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     if ((in.flags & FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         discard;
     }
-    let edge = (0.5f - (2.5f / in.scale));
-    let draw_conditions = (step(vec2<f32>(edge, edge), in.quad_position) + step(in.quad_position, vec2<f32>(-(edge), -(edge))));
-    let alpha = min(1f, (draw_conditions.x + draw_conditions.y));
-    return FragmentOutput(vec4<f32>(0.5f, 0.5f, 0.5f, alpha));
+    return FragmentOutput(vec4<f32>(0.5f, 0.5f, 0.5f, 1f));
 }
 "#;
 }

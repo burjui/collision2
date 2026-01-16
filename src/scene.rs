@@ -20,10 +20,10 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     println!("World size: {}x{}", world_size.x, world_size.y);
 
     let circles = {
-        const RADIUS: f32 = 2.0;
-        const MARGIN: f32 = 0.0;
+        const RADIUS: f32 = 200.0;
+        const MARGIN: f32 = -9.0;
         const POSITION_RAND_FACTOR: f32 = 1.0;
-        const VELOCITY_RAND_MAX: f32 = 100.0;
+        const VELOCITY_RAND_MAX: f32 = 1000.0;
         const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
         const VELOCITY_RAND_RANGE_Y: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
         const COLOR_RAND_RANGE: Range<f32> = 0.0..1.0;

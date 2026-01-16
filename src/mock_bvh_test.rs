@@ -2,7 +2,7 @@
 
 use std::array::from_fn;
 
-use crate::{bvh::calculate_passes, shaders::bvh::CombineNodePass};
+use crate::{bvh_builder::calculate_passes, shaders::bvh::CombineNodePass};
 
 #[test]
 fn mock_bvh() {

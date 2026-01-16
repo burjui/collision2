@@ -2,7 +2,7 @@
 
 pub mod aabb;
 pub mod aabb_renderer;
-pub mod bvh;
+pub mod bvh_builder;
 pub mod gpu_buffer;
 pub mod integration;
 #[cfg(test)]
@@ -18,7 +18,7 @@ pub mod util;
 use crate::{
     aabb::AabbExt as _,
     aabb_renderer::AabbRenderer,
-    bvh::BvhBuilder,
+    bvh_builder::BvhBuilder,
     gpu_buffer::GpuBuffer,
     integration::GpuIntegrator,
     objects::Objects,
@@ -45,8 +45,8 @@ use std::{
 };
 use wgpu::{
     BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCacheDescriptor, PresentMode,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, TextureFormat, TextureView,
-    TextureViewDescriptor,
+    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, SubmissionIndex, TextureFormat,
+    TextureView, TextureViewDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
@@ -85,9 +85,18 @@ enum AppEvent {
     RedrawRequested,
 }
 
-#[derive(Default)]
 struct RenderParameters {
+    enabled: bool,
     draw_aabbs: bool,
+}
+
+impl Default for RenderParameters {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            draw_aabbs: false,
+        }
+    }
 }
 
 struct GpuState<'a> {
@@ -226,7 +235,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
                     let surface_texture_view = surface_texture.texture.create_view(&TextureViewDescriptor::default());
                     let node_count = usize::try_from(state.node_count_atomic.load(Ordering::Relaxed)).unwrap();
-                    render_scene(
+                    let submission_index = render_scene(
                         surface_texture_view,
                         &self.render_parameters,
                         &mut state.shape_renderer,
@@ -236,6 +245,8 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &state.device,
                         &state.queue,
                     );
+
+                    let _ = state.device.wait_for_submission(submission_index);
 
                     state.window.pre_present_notify();
                     surface_texture.present();
@@ -252,11 +263,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         ..
                     },
                 ..
-            } => {
-                if let Some(state) = &self.gpu_state {
-                    state.window.request_redraw();
-                }
-            }
+            } => self.render_parameters.enabled = !self.render_parameters.enabled,
 
             WindowEvent::KeyboardInput {
                 event:
@@ -310,7 +317,8 @@ fn init_wgpu(
         required_features: wgpu::Features::PIPELINE_CACHE
             | wgpu::Features::TIMESTAMP_QUERY
             | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS
-            | wgpu::Features::PUSH_CONSTANTS,
+            | wgpu::Features::PUSH_CONSTANTS
+            | wgpu::Features::POLYGON_MODE_LINE,
         required_limits,
         experimental_features: wgpu::ExperimentalFeatures::disabled(),
         memory_hints: wgpu::MemoryHints::Performance,
@@ -332,7 +340,7 @@ fn render_scene(
     node_count: usize,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-) {
+) -> SubmissionIndex {
     let pass_duration_measurer = PassDurationMeasurer::new(device);
     let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
     let measurement_start = pass_duration_measurer.start(&mut encoder);
@@ -352,17 +360,21 @@ fn render_scene(
         timestamp_writes: None,
         occlusion_query_set: None,
     });
-    shape_renderer.render(&mut render_pass, range.clone());
+    if render_parameters.enabled {
+        shape_renderer.render(&mut render_pass, range.clone());
+    }
     if render_parameters.draw_aabbs {
         aabb_renderer.render(&mut render_pass, 0..node_count);
     }
     drop(render_pass);
 
     let measurement_result = measurement_start.finish(&mut encoder);
-    queue.submit([encoder.finish()]);
+    let submission_index = queue.submit([encoder.finish()]);
 
     let duration = measurement_result.duration();
     println!("Rendered {} objects in {:?}", range.len(), duration);
+
+    submission_index
 }
 
 fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {

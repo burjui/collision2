@@ -1,6 +1,6 @@
 // Needs to be a separate shader to render all BVH AABBs
 
-#import common::{UNIT_QUAD_VERTICES, FLAG_DRAW_AABB, Camera, Flags, AABB}
+#import common::{ FLAG_DRAW_AABB, Camera, Flags, AABB }
 
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(0) @binding(1) var<storage, read> flags: array<Flags>;
@@ -13,7 +13,13 @@ struct VertexOutput {
     @location(2) quad_position: vec2f,
 }
 
-// TODO fix performance drop after about 10 seconds of running
+const UNIT_QUAD_VERTICES = array<vec2f, 5>(
+    vec2f(0.5, 0.5),
+    vec2f(-0.5, 0.5),
+    vec2f(-0.5, -0.5),
+    vec2f(0.5, -0.5),
+    vec2f(0.5, 0.5),
+);
 
 @vertex
 fn vs_main(
@@ -58,8 +64,5 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         discard;
     }
 
-    let edge = 0.5 - 2.5 / in.scale;
-    let draw_conditions = step(vec2f(edge, edge), in.quad_position) + step(in.quad_position, vec2f(-edge, -edge));
-    let alpha = min(1.0, draw_conditions.x + draw_conditions.y);
-    return FragmentOutput(vec4f(0.5, 0.5, 0.5, alpha));
+    return FragmentOutput(vec4f(0.5, 0.5, 0.5, 1.0));
 }
