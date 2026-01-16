@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: c885796014da4cbf1c6ffd010a3c7b59fd6b1eaf66b20580ae26825ea433442e
+// SourceHash: c802b18142efba3292bc673e333096c126eb6df65232d8ee1112e4394b21c880
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -856,7 +856,8 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     if ((in.flags & FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         discard;
     }
-    return FragmentOutput(vec4<f32>(0.5f, 0.5f, 0.5f, 1f));
+    let intensity = (1f - (0.9f * min(1f, (length(in.scale) / 2000f))));
+    return FragmentOutput(vec4<f32>(intensity, intensity, intensity, intensity));
 }
 "#;
 }

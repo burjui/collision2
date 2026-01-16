@@ -50,7 +50,7 @@ impl BvhBuilder {
     }
 
     pub fn node_count(&self) -> u32 {
-        self.passes.last().unwrap().dst_start
+        self.passes.last().unwrap().dst_start + 1
     }
 }
 
