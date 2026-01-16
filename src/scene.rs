@@ -19,15 +19,16 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     println!("World size: {}x{}", world_size.x, world_size.y);
 
     let circles = {
-        const RADIUS: f32 = 10.0;
-        const MARGIN: f32 = -7.0;
+        const RADIUS: f32 = 2.0;
+        const MARGIN: f32 = -0.5;
         const POSITION_RAND_FACTOR: f32 = 1.0;
-        const VELOCITY_RAND_MAX: f32 = 1000.0;
-        const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
-        const VELOCITY_RAND_RANGE_Y: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
-        const COLOR_RAND_RANGE: Range<f32> = 0.0..1.0;
+        const VELOCITY_RAND_MAX: f32 = 400.0;
+        const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
+        const VELOCITY_RAND_RANGE_Y: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX / 2.0;
+        const _COLOR_RAND_RANGE: Range<f32> = 0.8..1.0;
         const EFFECTIVE_RADIUS: f32 = RADIUS + MARGIN;
-        let shape_count: Vector2<usize> = (world_size / (EFFECTIVE_RADIUS * 2.0)).try_cast().unwrap();
+        let shape_count_f32 = world_size / (EFFECTIVE_RADIUS * 2.0);
+        let shape_count: Vector2<usize> = shape_count_f32.try_cast().unwrap();
         (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(i, j)| {
             let (i, j) = (i as f32, j as f32);
             let range = -RADIUS * POSITION_RAND_FACTOR..=RADIUS * POSITION_RAND_FACTOR;
@@ -41,9 +42,9 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
                 mass: 1.0,
                 size: [RADIUS * 2.0, RADIUS * 2.0],
                 color: AlphaColor::new([
-                    random_range(COLOR_RAND_RANGE.clone()),
-                    random_range(COLOR_RAND_RANGE.clone()),
-                    random_range(COLOR_RAND_RANGE),
+                    0.2 + 0.8 * i / (shape_count_f32.x - 1.0),
+                    0.7 * i / (shape_count_f32.x - 1.0),
+                    0.0,
                     1.0,
                 ]),
                 shape: SHAPE_CIRCLE,

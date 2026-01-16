@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 0e98ec106f9b132e02395f79b4cd2aeb2bfe2a3235bfa12449a4a57399763751
+// SourceHash: c885796014da4cbf1c6ffd010a3c7b59fd6b1eaf66b20580ae26825ea433442e
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1318,6 +1318,7 @@ struct IntegratedParameters {
     v: vec2<f32>,
 }
 
+const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
 const BLACKHOLE_POSITION: vec2<f32> = vec2<f32>();
@@ -1345,7 +1346,7 @@ fn blackhole_gravity(position: vec2<f32>) -> vec2<f32> {
     let to_blackhole = (BLACKHOLE_POSITION - position);
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    let bh_gravity = ((direction * 0f) / vec2((distance * distance)));
+    let bh_gravity = ((direction * 800000000f) / vec2((distance * distance)));
     return bh_gravity;
 }
 
@@ -1412,12 +1413,17 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let size = (aabb.max - aabb.min);
     let _e38 = params.x;
     let distance_1 = (length((BLACKHOLE_POSITION - _e38)) - (max(size.x, size.y) / 2f));
-    let _e50 = f;
-    flags[_e2].inner = _e50;
-    let _e55 = params.v;
-    velocities[_e2].inner = _e55;
-    let _e57 = params.x;
-    let offset = (_e57 - start_x);
+    if (distance_1 < 100f) {
+        let _e50 = f;
+        f = (_e50 & 4294967290u);
+        params.v = vec2<f32>();
+    }
+    let _e57 = f;
+    flags[_e2].inner = _e57;
+    let _e62 = params.v;
+    velocities[_e2].inner = _e62;
+    let _e64 = params.x;
+    let offset = (_e64 - start_x);
     aabbs[_e2] = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb.min + offset), (aabb.max + offset));
     return;
 }

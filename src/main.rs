@@ -390,6 +390,7 @@ fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32
     let r = world_width * 0.5;
     let b = -world_height * 0.5;
     let t = world_height * 0.5;
+    // TODO: implement zoom
     let sx = 2.0 / (r - l);
     let sy = 2.0 / (t - b);
     [
@@ -416,7 +417,7 @@ fn spawn_simulation_thread(
     thread::spawn(move || {
         let mut last_redraw = Instant::now();
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt.write(&queue, &[0.0001]);
+        dt.write(&queue, &[0.001]);
 
         let object_count = flags.len();
         let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), bvh_nodes.clone(), object_count);
