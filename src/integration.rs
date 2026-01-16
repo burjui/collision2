@@ -3,7 +3,7 @@ use wgpu::{ComputePass, ComputePipeline, Device};
 use crate::{
     gpu_buffer::GpuBuffer,
     shaders::{
-        common::{AABB, Flags, Mass, Velocity},
+        common::{AABB, BvhNode, Flags, Mass, Velocity},
         integration::{
             WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
             compute::create_cs_main_pipeline_embed_source,
@@ -22,9 +22,11 @@ impl GpuIntegrator {
         device: &Device,
         dt: GpuBuffer<f32>,
         flags: GpuBuffer<Flags>,
-        aabbs: GpuBuffer<AABB>,
-        velocities: GpuBuffer<Velocity>,
         masses: GpuBuffer<Mass>,
+        velocities: GpuBuffer<Velocity>,
+        aabbs: GpuBuffer<AABB>,
+        nodes: GpuBuffer<BvhNode>,
+        force_acc: GpuBuffer<[f32; 2]>,
     ) -> Self {
         let pipeline = create_cs_main_pipeline_embed_source(device);
         let bind_group = WgpuBindGroup0::from_bindings(
@@ -32,9 +34,11 @@ impl GpuIntegrator {
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 dt: dt.buffer().as_entire_buffer_binding(),
                 flags: flags.buffer().as_entire_buffer_binding(),
-                aabbs: aabbs.buffer().as_entire_buffer_binding(),
-                velocities: velocities.buffer().as_entire_buffer_binding(),
                 masses: masses.buffer().as_entire_buffer_binding(),
+                velocities: velocities.buffer().as_entire_buffer_binding(),
+                aabbs: aabbs.buffer().as_entire_buffer_binding(),
+                nodes: nodes.buffer().as_entire_buffer_binding(),
+                force_acc: force_acc.buffer().as_entire_buffer_binding(),
             }),
         );
         Self {

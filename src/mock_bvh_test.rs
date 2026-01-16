@@ -2,7 +2,13 @@
 
 use std::array::from_fn;
 
-use crate::{bvh_builder::calculate_passes, shaders::bvh::CombineNodePass};
+use crate::{
+    bvh_builder::calculate_passes,
+    shaders::{
+        bvh::CombineNodePass,
+        common::{BVH_NODE_TREE_FLAG, BvhNode},
+    },
+};
 
 #[test]
 fn mock_bvh() {
@@ -14,7 +20,7 @@ fn mock_bvh() {
     // node indices    0 1 2 3 4 5 6 7     8     9     10    11    12
 
     let mut aabbs: [usize; N * 2] = from_fn(|i| i * usize::from(i < N)); // tree nodes set to zero
-    let mut nodes = [Node::Object(0); N * 2];
+    let mut nodes = [BvhNode::new_leaf(0); N * 2];
 
     let mut passes = Vec::new();
     calculate_passes(N, &mut passes);
@@ -40,7 +46,7 @@ fn mock_bvh() {
     );
 
     for i in 0..N {
-        nodes[i] = Node::Object(i);
+        nodes[i] = BvhNode::new_leaf(i.try_into().unwrap());
     }
 
     for &CombineNodePass {
@@ -50,9 +56,9 @@ fn mock_bvh() {
     } in &passes
     {
         for i in 0..parent_count {
-            let src = usize::try_from(src_start + i * 2).unwrap();
+            let src = src_start + i * 2;
             let dst = usize::try_from(dst_start + i).unwrap();
-            nodes[dst] = Node::Tree((src, src + 1));
+            nodes[dst] = BvhNode::new_tree(src);
             aabbs[dst] = dst; // combine AABBs on GPU
         }
     }
@@ -62,30 +68,37 @@ fn mock_bvh() {
         &nodes[0..=node_count],
         &[
             // Leaves
-            Node::Object(0),
-            Node::Object(1),
-            Node::Object(2),
-            Node::Object(3),
-            Node::Object(4),
-            Node::Object(5),
-            Node::Object(6),
+            BvhNode::new_leaf(0),
+            BvhNode::new_leaf(1),
+            BvhNode::new_leaf(2),
+            BvhNode::new_leaf(3),
+            BvhNode::new_leaf(4),
+            BvhNode::new_leaf(5),
+            BvhNode::new_leaf(6),
             // Level 0
-            Node::Tree((0, 1)),
-            Node::Tree((2, 3)),
-            Node::Tree((4, 5)),
+            BvhNode::new_tree(0),
+            BvhNode::new_tree(2),
+            BvhNode::new_tree(4),
             // Level 1
-            Node::Tree((6, 7)),
-            Node::Tree((8, 9)),
+            BvhNode::new_tree(6),
+            BvhNode::new_tree(8),
             // Root
-            Node::Tree((10, 11)),
+            BvhNode::new_tree(10),
         ]
     );
     assert_eq!(aabbs.as_slice(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0]);
 }
 
-// TODO: remove this and use BvhNode with the high bit trick
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Node {
-    Object(usize),
-    Tree((usize, usize)),
+impl BvhNode {
+    #[must_use]
+    pub const fn new_leaf(index: u32) -> Self {
+        Self { index }
+    }
+
+    #[must_use]
+    pub const fn new_tree(left: u32) -> Self {
+        Self {
+            index: left | BVH_NODE_TREE_FLAG,
+        }
+    }
 }

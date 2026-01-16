@@ -1,5 +1,7 @@
 #import common::{ AABB, BvhNode, invocation_index, BVH_NODE_TREE_FLAG }
 
+// TODO: mini-BVHs on a grid
+
 struct CombineNodePass {
     src_start: u32,
     dst_start: u32,

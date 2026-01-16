@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 3101930552d73ff4b6f7c1735152ac867796a06e2d8a82c3d6efdcdb16e0b951
+// SourceHash: 0e98ec106f9b132e02395f79b4cd2aeb2bfe2a3235bfa12449a4a57399763751
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1088,18 +1088,22 @@ pub mod integration {
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub dt: wgpu::BufferBinding<'a>,
-        pub masses: wgpu::BufferBinding<'a>,
         pub flags: wgpu::BufferBinding<'a>,
-        pub aabbs: wgpu::BufferBinding<'a>,
+        pub masses: wgpu::BufferBinding<'a>,
         pub velocities: wgpu::BufferBinding<'a>,
+        pub aabbs: wgpu::BufferBinding<'a>,
+        pub nodes: wgpu::BufferBinding<'a>,
+        pub force_acc: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub dt: wgpu::BindGroupEntry<'a>,
-        pub masses: wgpu::BindGroupEntry<'a>,
         pub flags: wgpu::BindGroupEntry<'a>,
-        pub aabbs: wgpu::BindGroupEntry<'a>,
+        pub masses: wgpu::BindGroupEntry<'a>,
         pub velocities: wgpu::BindGroupEntry<'a>,
+        pub aabbs: wgpu::BindGroupEntry<'a>,
+        pub nodes: wgpu::BindGroupEntry<'a>,
+        pub force_acc: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -1108,26 +1112,42 @@ pub mod integration {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.dt),
                 },
-                masses: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.masses),
-                },
                 flags: wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.flags),
                 },
-                aabbs: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.aabbs),
+                masses: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.masses),
                 },
                 velocities: wgpu::BindGroupEntry {
-                    binding: 4,
+                    binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.velocities),
+                },
+                aabbs: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.aabbs),
+                },
+                nodes: wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Buffer(params.nodes),
+                },
+                force_acc: wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Buffer(params.force_acc),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
-            [self.dt, self.masses, self.flags, self.aabbs, self.velocities]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 7] {
+            [
+                self.dt,
+                self.flags,
+                self.masses,
+                self.velocities,
+                self.aabbs,
+                self.nodes,
+                self.force_acc,
+            ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -1150,20 +1170,9 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"masses\""]
+                #[doc = " @binding(1): \"flags\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(2): \"flags\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -1172,7 +1181,18 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"aabbs\""]
+                #[doc = " @binding(2): \"masses\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"velocities\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -1183,9 +1203,31 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(4): \"velocities\""]
+                #[doc = " @binding(4): \"aabbs\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(5): \"nodes\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(6): \"force_acc\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -1267,6 +1309,10 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
     max: vec2<f32>,
 }
 
+struct BvhNodeX_naga_oil_mod_XMNXW23LPNYX {
+    index: u32,
+}
+
 struct IntegratedParameters {
     x: vec2<f32>,
     v: vec2<f32>,
@@ -1279,13 +1325,17 @@ const BLACKHOLE_POSITION: vec2<f32> = vec2<f32>();
 @group(0) @binding(0) 
 var<uniform> dt: f32;
 @group(0) @binding(1) 
-var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(2) 
 var<storage, read_write> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(2) 
+var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(3) 
-var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(4) 
 var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(4) 
+var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(5) 
+var<storage> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(6) 
+var<storage, read_write> force_acc: array<vec2<f32>>;
 
 fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return (gid_1.x + ((gid_1.y * 65535u) * workgroup_size));

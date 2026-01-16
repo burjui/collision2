@@ -1,10 +1,12 @@
-#import common::{FLAG_DRAW_OBJECT, FLAG_PHYSICAL, AABB, Mass, Velocity, Position, Flags, invocation_index}
+#import common::{FLAG_DRAW_OBJECT, FLAG_PHYSICAL, AABB, Mass, Velocity, Position, Flags, BvhNode, invocation_index}
 
 @group(0) @binding(0) var<uniform> dt: f32;
-@group(0) @binding(1) var<storage, read> masses: array<Mass>;
-@group(0) @binding(2) var<storage, read_write> flags: array<Flags>;
-@group(0) @binding(3) var<storage, read_write> aabbs: array<AABB>;
-@group(0) @binding(4) var<storage, read_write> velocities: array<Velocity>;
+@group(0) @binding(1) var<storage, read_write> flags: array<Flags>;
+@group(0) @binding(2) var<storage, read> masses: array<Mass>;
+@group(0) @binding(3) var<storage, read_write> velocities: array<Velocity>;
+@group(0) @binding(4) var<storage, read_write> aabbs: array<AABB>;
+@group(0) @binding(5) var<storage, read> nodes: array<BvhNode>;
+@group(0) @binding(6) var<storage, read_write> force_acc: array<vec2f>;
 
 const WORKGROUP_SIZE: u32 = 64;
 

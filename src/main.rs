@@ -16,7 +16,6 @@ pub mod shape_renderer;
 pub mod util;
 
 use crate::{
-    aabb::AabbExt as _,
     aabb_renderer::AabbRenderer,
     bvh_builder::BvhBuilder,
     gpu_buffer::GpuBuffer,
@@ -152,7 +151,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             })
         };
         let camera_buffer =
-            GpuBuffer::<Camera>::new(1, "view size buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
+            GpuBuffer::<Camera>::new(1, "camera buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         let aabb_renderer = AabbRenderer::new(
             &device,
             swapchain_format,
@@ -173,13 +172,20 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         );
         let (exit_notification_sender, exit_notification_receiver) = crossbeam::channel::bounded(1);
         let node_count_atomic = Arc::new(AtomicU32::new(u32::try_from(object_count).unwrap()));
+        let force_acc = GpuBuffer::new(
+            object_count,
+            "force accumulator buffer",
+            BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            &device,
+        );
 
         spawn_simulation_thread(
+            buffers.flags,
+            buffers.masses,
+            buffers.velocities,
             buffers.aabbs,
             buffers.bvh_nodes,
-            buffers.flags,
-            buffers.velocities,
-            buffers.masses,
+            force_acc,
             device.clone(),
             queue.clone(),
             self.event_loop_proxy.clone(),
@@ -395,11 +401,12 @@ fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32
 }
 
 fn spawn_simulation_thread(
+    flags: GpuBuffer<Flags>,
+    masses: GpuBuffer<Mass>,
+    velocities: GpuBuffer<Velocity>,
     aabbs: GpuBuffer<AABB>,
     bvh_nodes: GpuBuffer<BvhNode>,
-    flags: GpuBuffer<Flags>,
-    velocities: GpuBuffer<Velocity>,
-    masses: GpuBuffer<Mass>,
+    foce_acc: GpuBuffer<[f32; 2]>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     event_loop_proxy: EventLoopProxy<AppEvent>,
@@ -412,8 +419,8 @@ fn spawn_simulation_thread(
         dt.write(&queue, &[0.0001]);
 
         let object_count = flags.len();
-        let integrator = GpuIntegrator::new(&device, dt, flags, aabbs.clone(), velocities, masses);
-        let mut bvh_builder = BvhBuilder::new(&device, aabbs, bvh_nodes.clone(), object_count);
+        let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), bvh_nodes.clone(), object_count);
+        let integrator = GpuIntegrator::new(&device, dt, flags, masses, velocities, aabbs, bvh_nodes, foce_acc);
         let integration_duration_measurer = PassDurationMeasurer::new(&device);
         let bvh_duration_measurer = PassDurationMeasurer::new(&device);
 
