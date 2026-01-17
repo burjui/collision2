@@ -64,6 +64,6 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         discard;
     }
 
-    let intensity = 1.0 - 0.9 * min(1.0, length(in.scale) / 2000);
+    let intensity = min(1.0, length(in.scale) / 2000);
     return FragmentOutput(vec4f(intensity, intensity, intensity, intensity));
 }

@@ -20,11 +20,11 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
 
     let circles = {
         const RADIUS: f32 = 2.0;
-        const MARGIN: f32 = -0.7;
+        const MARGIN: f32 = -1.0;
         const POSITION_RAND_FACTOR: f32 = 1.0;
-        const VELOCITY_RAND_MAX: f32 = 300.0;
-        const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = -VELOCITY_RAND_MAX / 3.0..=VELOCITY_RAND_MAX;
-        const VELOCITY_RAND_RANGE_Y: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
+        const VELOCITY_RAND_MAX: f32 = 800.0;
+        const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
+        const VELOCITY_RAND_RANGE_Y: RangeInclusive<f32> = -VELOCITY_RAND_MAX / 3.0..=-VELOCITY_RAND_MAX / 3.0;
         const _COLOR_RAND_RANGE: Range<f32> = 0.8..1.0;
         const EFFECTIVE_RADIUS: f32 = RADIUS + MARGIN;
         let shape_count_f32 = world_size / (EFFECTIVE_RADIUS * 2.0);
@@ -51,8 +51,17 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
             }
         })
     };
+    objects.extend(circles);
 
-    let border_thickness = world_aabb.size().y / 400.0;
+    let _borders = world_borders(world_aabb);
+    // for border in _borders {
+    //     objects.push(border);
+    // }
+}
+
+fn world_borders(world_aabb: AABB) -> Vec<ObjectPrototype> {
+    let world_size = world_aabb.size();
+    let border_thickness = world_size.y / 400.0;
     let top = ObjectPrototype {
         flags: FLAG_DRAW_OBJECT,
         position: [0.0, world_aabb.max().y - border_thickness / 2.0],
@@ -89,10 +98,5 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         color: css::RED,
         shape: SHAPE_RECT,
     };
-
-    objects.extend(circles);
-    objects.push(top);
-    objects.push(bottom);
-    objects.push(left);
-    objects.push(right);
+    vec![top, bottom, left, right]
 }

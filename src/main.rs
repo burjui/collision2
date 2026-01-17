@@ -296,7 +296,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 delta: MouseScrollDelta::LineDelta(_, dy),
                 ..
             } => {
-                self.render_parameters.zoom *= 1.0 + dy * 0.1;
+                self.render_parameters.zoom *= 1.0 + dy * 0.2;
             }
 
             _ => (),
@@ -377,6 +377,7 @@ fn render_scene(
     if render_parameters.draw_aabbs {
         aabb_renderer.render(&mut render_pass, 0..node_count);
     }
+    // TODO: EDF
     drop(render_pass);
 
     let measurement_result = measurement_start.finish(&mut encoder);

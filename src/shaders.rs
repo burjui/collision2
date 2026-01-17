@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 8163b11484783c03d9d3b80d2a914c670d188d5f8d005ee74e5701b8b6c151fd
+// SourceHash: b6b2832f176690ca2af2c3c6a1af7c36495ecb8119234385d5f3d098f1290417
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -856,7 +856,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     if ((in.flags & FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         discard;
     }
-    let intensity = (1f - (0.9f * min(1f, (length(in.scale) / 2000f))));
+    let intensity = min(1f, (length(in.scale) / 2000f));
     return FragmentOutput(vec4<f32>(intensity, intensity, intensity, intensity));
 }
 "#;
@@ -1071,7 +1071,7 @@ pub mod integration {
     pub const WORKGROUP_SIZE: u32 = 64u32;
     pub const BLACKHOLE_COUNT: u32 = 5u32;
     pub const BLACKHOLE_MASS_SCALE: f32 = 50000000f32;
-    pub const BLACKHOLE_SIZE_SCALE: f32 = 3f32;
+    pub const BLACKHOLE_SIZE_SCALE: f32 = 10f32;
     pub const BLACKHOLE_DESTROY_MATTER: bool = true;
     pub mod compute {
         use super::{_root, _root::*};
@@ -1334,9 +1334,9 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
 const BLACKHOLE_COUNT: u32 = 5u;
-const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 1f, 3f), BlackHole(vec2<f32>(200f, -500f), 1f, 2f), BlackHole(vec2<f32>(500f, 200f), 1f, 7f), BlackHole(vec2<f32>(-600f, -300f), 1f, 7f), BlackHole(vec2<f32>(-300f, -100f), 1f, 7f));
+const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 1f, 3f), BlackHole(vec2<f32>(200f, -500f), 1f, 2f), BlackHole(vec2<f32>(500f, 200f), 1f, 7f), BlackHole(vec2<f32>(-600f, -300f), 1f, 7f), BlackHole(vec2<f32>(-300f, -200f), 2f, 30f));
 const BLACKHOLE_MASS_SCALE: f32 = 50000000f;
-const BLACKHOLE_SIZE_SCALE: f32 = 3f;
+const BLACKHOLE_SIZE_SCALE: f32 = 10f;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
 
 @group(0) @binding(0) 
