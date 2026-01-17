@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: d83e247c5d4e215dc278dafd0971690813ba7d554fbae59251191610a8502ad9
+// SourceHash: 4bcae918730470c98ad595bebe70b35cc4234d53837070ef44b2d6266ea26daf
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1334,7 +1334,7 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
 const BLACKHOLE_COUNT: u32 = 5u;
-const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 1f, 2f), BlackHole(vec2<f32>(200f, -500f), 1f, 10f), BlackHole(vec2<f32>(-300f, -200f), 2f, 200f), BlackHole(vec2<f32>(500f, 200f), 1f, 2f), BlackHole(vec2<f32>(-600f, -300f), 1f, 10f));
+const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 1f, 100f), BlackHole(vec2<f32>(200f, -500f), 1f, 10f), BlackHole(vec2<f32>(-300f, -200f), 2f, 200f), BlackHole(vec2<f32>(500f, 200f), 1f, 5f), BlackHole(vec2<f32>(-600f, -300f), 1f, 10f));
 const BLACKHOLE_MASS_SCALE: f32 = 50000000f;
 const BLACKHOLE_SIZE_SCALE: f32 = 3f;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
