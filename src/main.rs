@@ -53,7 +53,7 @@ use winit::{
     event::{ElementState, KeyEvent, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
-    window::{Window, WindowAttributes, WindowId},
+    window::{Fullscreen, Window, WindowAttributes, WindowId},
 };
 
 fn main() {
@@ -120,7 +120,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let mut window_attributes = WindowAttributes::default();
         window_attributes.inner_size = Some(PhysicalSize::new(1600, 800).into());
-        window_attributes.resizable = true;
+        window_attributes.fullscreen = Some(Fullscreen::Borderless(None));
         let window = Arc::new(event_loop.create_window(window_attributes).expect("Failed to create window"));
         let wgpu = wgpu::Instance::new(&wgpu::InstanceDescriptor::from_env_or_default());
         let surface = wgpu.create_surface(window.clone()).unwrap();
