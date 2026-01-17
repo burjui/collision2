@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: c802b18142efba3292bc673e333096c126eb6df65232d8ee1112e4394b21c880
+// SourceHash: 60559dbcd967d5122fcc9b58e6862c07fd54da7f837a2df2b489c1192733add6
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1069,6 +1069,10 @@ fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>) {
 pub mod integration {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
+    pub const BLACKHOLE_COUNT: u32 = 5u32;
+    pub const BLACKHOLE_MASS_SCALE: f32 = 50000000f32;
+    pub const BLACKHOLE_SIZE_SCALE: f32 = 3f32;
+    pub const BLACKHOLE_DESTROY_MATTER: bool = true;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CS_MAIN_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1314,15 +1318,26 @@ struct BvhNodeX_naga_oil_mod_XMNXW23LPNYX {
     index: u32,
 }
 
+struct BlackHole {
+    position: vec2<f32>,
+    radius: f32,
+    mass: f32,
+}
+
 struct IntegratedParameters {
     x: vec2<f32>,
     v: vec2<f32>,
 }
 
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
+const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
-const BLACKHOLE_POSITION: vec2<f32> = vec2<f32>();
+const BLACKHOLE_COUNT: u32 = 5u;
+const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 1f, 3f), BlackHole(vec2<f32>(200f, -500f), 1f, 2f), BlackHole(vec2<f32>(500f, 200f), 1f, 7f), BlackHole(vec2<f32>(-600f, -300f), 1f, 7f), BlackHole(vec2<f32>(-300f, -100f), 1f, 7f));
+const BLACKHOLE_MASS_SCALE: f32 = 50000000f;
+const BLACKHOLE_SIZE_SCALE: f32 = 3f;
+const BLACKHOLE_DESTROY_MATTER: bool = true;
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
@@ -1343,17 +1358,37 @@ fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, workgroup_size:
     return (gid_1.x + ((gid_1.y * 65535u) * workgroup_size));
 }
 
-fn blackhole_gravity(position: vec2<f32>) -> vec2<f32> {
-    let to_blackhole = (BLACKHOLE_POSITION - position);
+fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>) -> vec2<f32> {
+    let to_blackhole = (blackhole.position - position);
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    let bh_gravity = ((direction * 800000000f) / vec2((distance * distance)));
+    let bh_gravity = (((direction * blackhole.mass) * BLACKHOLE_MASS_SCALE) / vec2((distance * distance)));
     return bh_gravity;
 }
 
 fn forces(position_1: vec2<f32>) -> vec2<f32> {
-    let _e1 = blackhole_gravity(position_1);
-    return _e1;
+    var acc: vec2<f32> = vec2<f32>();
+    var bh_index_1: u32 = 0u;
+
+    loop {
+        let _e3 = bh_index_1;
+        if (_e3 < BLACKHOLE_COUNT) {
+        } else {
+            break;
+        }
+        {
+            let _e7 = bh_index_1;
+            let _e10 = blackhole_gravity(BLACKHOLES[_e7], position_1);
+            let _e12 = acc;
+            acc = (_e12 + _e10);
+        }
+        continuing {
+            let _e15 = bh_index_1;
+            bh_index_1 = (_e15 + 1u);
+        }
+    }
+    let _e17 = acc;
+    return _e17;
 }
 
 fn leapfrog_step(params_1: IntegratedParameters, w: f32) -> IntegratedParameters {
@@ -1393,39 +1428,58 @@ fn integrate_yoshida(params_2: IntegratedParameters) -> IntegratedParameters {
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var f: u32;
     var params: IntegratedParameters;
+    var bh_index: u32 = 0u;
 
-    let _e2 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, WORKGROUP_SIZE);
-    if (_e2 >= arrayLength((&masses))) {
+    let _e3 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, WORKGROUP_SIZE);
+    if (_e3 >= arrayLength((&masses))) {
         return;
     }
-    let _e9 = flags[_e2].inner;
-    f = _e9;
-    let _e11 = f;
-    if ((_e11 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+    let _e10 = flags[_e3].inner;
+    f = _e10;
+    let _e12 = f;
+    if ((_e12 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         return;
     }
-    let aabb = aabbs[_e2];
+    let aabb = aabbs[_e3];
     let start_x = ((aabb.min + aabb.max) / vec2(2f));
-    let _e28 = velocities[_e2].inner;
-    params = IntegratedParameters(start_x, _e28);
-    let _e31 = params;
-    let _e32 = integrate_yoshida(_e31);
-    params = _e32;
+    let _e29 = velocities[_e3].inner;
+    params = IntegratedParameters(start_x, _e29);
+    let _e32 = params;
+    let _e33 = integrate_yoshida(_e32);
+    params = _e33;
     let size = (aabb.max - aabb.min);
-    let _e38 = params.x;
-    let distance_1 = (length((BLACKHOLE_POSITION - _e38)) - (max(size.x, size.y) / 2f));
-    if (distance_1 < 100f) {
-        let _e50 = f;
-        f = (_e50 & 4294967290u);
-        params.v = vec2<f32>();
+    if BLACKHOLE_DESTROY_MATTER {
+        loop {
+            let _e39 = bh_index;
+            let _e42 = f;
+            if ((_e39 < BLACKHOLE_COUNT) && ((_e42 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
+            } else {
+                break;
+            }
+            {
+                let _e49 = bh_index;
+                let blackhole_1 = BLACKHOLES[_e49];
+                let _e53 = params.x;
+                let distance_1 = (length((blackhole_1.position - _e53)) - (max(size.x, size.y) / 2f));
+                if (distance_1 < (blackhole_1.radius * BLACKHOLE_SIZE_SCALE)) {
+                    let _e67 = f;
+                    f = (_e67 & 4294967288u);
+                    params.v = vec2<f32>();
+                }
+            }
+            continuing {
+                let _e72 = bh_index;
+                bh_index = (_e72 + 1u);
+            }
+        }
     }
-    let _e57 = f;
-    flags[_e2].inner = _e57;
-    let _e62 = params.v;
-    velocities[_e2].inner = _e62;
-    let _e64 = params.x;
-    let offset = (_e64 - start_x);
-    aabbs[_e2] = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb.min + offset), (aabb.max + offset));
+    let _e77 = f;
+    flags[_e3].inner = _e77;
+    let _e82 = params.v;
+    velocities[_e3].inner = _e82;
+    let _e84 = params.x;
+    let offset = (_e84 - start_x);
+    aabbs[_e3] = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb.min + offset), (aabb.max + offset));
     return;
 }
 "#;

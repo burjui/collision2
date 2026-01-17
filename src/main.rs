@@ -241,7 +241,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
                     let surface_texture_view = surface_texture.texture.create_view(&TextureViewDescriptor::default());
                     let node_count = usize::try_from(state.node_count_atomic.load(Ordering::Relaxed)).unwrap();
-                    let submission_index = render_scene(
+                    render_scene(
                         surface_texture_view,
                         &self.render_parameters,
                         &mut state.shape_renderer,
@@ -251,8 +251,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &state.device,
                         &state.queue,
                     );
-
-                    let _ = state.device.wait_for_submission(submission_index);
 
                     state.window.pre_present_notify();
                     surface_texture.present();
@@ -417,7 +415,7 @@ fn spawn_simulation_thread(
     thread::spawn(move || {
         let mut last_redraw = Instant::now();
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt.write(&queue, &[0.001]);
+        dt.write(&queue, &[0.0001]);
 
         let object_count = flags.len();
         let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), bvh_nodes.clone(), object_count);

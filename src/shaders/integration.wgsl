@@ -1,4 +1,8 @@
-#import common::{FLAG_DRAW_OBJECT, FLAG_PHYSICAL, AABB, Mass, Velocity, Position, Flags, BvhNode, invocation_index}
+#import common::{
+    FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB,
+    AABB, Mass, Velocity, Position, Flags, BvhNode,
+    invocation_index
+}
 
 @group(0) @binding(0) var<uniform> dt: f32;
 @group(0) @binding(1) var<storage, read_write> flags: array<Flags>;
@@ -10,8 +14,23 @@
 
 const WORKGROUP_SIZE: u32 = 64;
 
-const BLACKHOLE_POSITION = vec2f();
-const BLACKHOLE_MASS = 800000000.0;
+struct BlackHole {
+    position: vec2f,
+    radius: f32,
+    mass: f32,
+}
+
+const BLACKHOLE_COUNT: u32 = 5;
+const BLACKHOLES = array<BlackHole, BLACKHOLE_COUNT>(
+    BlackHole(vec2f(-200, 500), 1, 3),
+    BlackHole(vec2f(200, -500), 1, 2),
+    BlackHole(vec2f(500, 200), 1, 7),
+    BlackHole(vec2f(-600, -300), 1, 7),
+    BlackHole(vec2f(-300, -100), 1, 7),
+);
+const BLACKHOLE_MASS_SCALE: f32 = 50000000;
+const BLACKHOLE_SIZE_SCALE: f32 = 3;
+const BLACKHOLE_DESTROY_MATTER: bool = true;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn cs_main(
@@ -33,10 +52,15 @@ fn cs_main(
     params = integrate_yoshida(params);
 
     let size = aabb.max - aabb.min;
-    let distance = length(BLACKHOLE_POSITION - params.x) - max(size.x, size.y) / 2;
-    if distance < 100 {
-        f &= ~(FLAG_PHYSICAL | FLAG_DRAW_OBJECT);
-        params.v = vec2f();
+    if BLACKHOLE_DESTROY_MATTER {
+        for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT && (f & FLAG_PHYSICAL) != 0; bh_index++) {
+            let blackhole = BLACKHOLES[bh_index];
+            let distance = length(blackhole.position - params.x) - max(size.x, size.y) / 2;
+            if distance < blackhole.radius * BLACKHOLE_SIZE_SCALE {
+                f &= ~(FLAG_PHYSICAL | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
+                params.v = vec2f();
+            }
+        }
     }
 
     flags[i].inner = f;
@@ -46,14 +70,18 @@ fn cs_main(
 }
 
 fn forces(position: vec2f) -> vec2f {
-    return blackhole_gravity(position);
+    var acc = vec2f();
+    for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT; bh_index += 1) {
+        acc += blackhole_gravity(BLACKHOLES[bh_index], position);
+    }
+    return acc;
 }
 
-fn blackhole_gravity(position: vec2f) -> vec2f {
-    let to_blackhole = BLACKHOLE_POSITION - position;
+fn blackhole_gravity(blackhole: BlackHole, position: vec2f) -> vec2f {
+    let to_blackhole = blackhole.position - position;
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    let bh_gravity = direction * BLACKHOLE_MASS / (distance * distance);
+    let bh_gravity = direction * blackhole.mass * BLACKHOLE_MASS_SCALE / (distance * distance);
     return bh_gravity;
 }
 
