@@ -47,8 +47,6 @@ impl PassDurationMeasurer {
     pub fn update(&self, encoder: &mut CommandEncoder) {
         encoder.resolve_query_set(&self.query_set, 0..2, self.query_buffer.buffer(), 0);
         encoder.copy_buffer_to_buffer(self.query_buffer.buffer(), 0, self.query_readback_buffer.buffer(), 0, None);
-        let mut timestamps = [0u64; 2];
-        self.query_readback_buffer.read(&self.device, &mut timestamps);
     }
 
     pub fn duration(&self) -> Duration {

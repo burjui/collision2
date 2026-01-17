@@ -20,16 +20,17 @@ struct BlackHole {
     mass: f32,
 }
 
-const BLACKHOLE_COUNT: u32 = 5;
+const BLACKHOLE_COUNT: u32 = 6;
 const BLACKHOLES = array<BlackHole, BLACKHOLE_COUNT>(
-    BlackHole(vec2f(-200, 500), 1, 10),
-    BlackHole(vec2f(400, -500), 1, 10),
-    BlackHole(vec2f(-100, -200), 2, 100),
+    BlackHole(vec2f(-200, 500), 1, 50),
+    BlackHole(vec2f(600, -700), 1, 200),
+    BlackHole(vec2f(0, -200), 2, 100),
     BlackHole(vec2f(500, 200), 1, 20),
-    BlackHole(vec2f(-600, -300), 1, 10),
+    BlackHole(vec2f(-600, -300), 1, 50),
+    BlackHole(vec2f(3000, 1000), 3, 1000),
 );
-const BLACKHOLE_MASS_SCALE: f32 = 50000000;
-const BLACKHOLE_SIZE_SCALE: f32 = 5;
+const BLACKHOLE_MASS_SCALE: f32 = 30000000;
+const BLACKHOLE_SIZE_SCALE: f32 = 30;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
 
 @compute @workgroup_size(WORKGROUP_SIZE)

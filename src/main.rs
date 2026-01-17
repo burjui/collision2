@@ -127,7 +127,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let (adapter, device, queue, swapchain_format) = init_wgpu(&wgpu, &surface);
         let window_size = window.inner_size();
         let surface_config = wgpu::SurfaceConfiguration {
-            present_mode: PresentMode::AutoVsync,
+            present_mode: PresentMode::Immediate,
             ..surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap()
         };
         surface.configure(&device, &surface_config);
@@ -390,8 +390,6 @@ fn render_scene(
 
     pass_duration_measurer.update(&mut encoder);
     let submission_index = queue.submit([encoder.finish()]);
-    device.wait_for_submission(submission_index.clone()).unwrap();
-
     let duration = pass_duration_measurer.duration();
     println!("Rendered {} objects in {:?}", range.len(), duration);
 
@@ -432,7 +430,7 @@ fn spawn_simulation_thread(
     thread::spawn(move || {
         let mut last_redraw = Instant::now();
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt.write(&queue, &[0.0002]);
+        dt.write(&queue, &[0.0003]);
 
         let object_count = flags.len();
         let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), bvh_nodes.clone(), object_count);

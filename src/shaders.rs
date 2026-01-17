@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: a309e46332fca4044611d6bb7233b81d95dd9ad1b93da61ce086309b48575aed
+// SourceHash: 7135d44482cf8c110a408bbe2ba52b82b46c5ff810f9f3583797054047b8e2e4
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -659,7 +659,7 @@ fn velocity_to_color(velocity: vec2<f32>, max_speed: f32) -> vec4<f32> {
     let lambda_2 = mix(700f, 380f, t);
     let _e10 = wavelength_to_rgb(lambda_2);
     let _e11 = spectral_intensity(lambda_2);
-    return vec4<f32>((_e10 * _e11), 0.1f);
+    return vec4<f32>(((_e10 * _e11) * 0.8f), 0.1f);
 }
 
 fn sdf_cirle(p: vec2<f32>) -> f32 {
@@ -1183,9 +1183,9 @@ fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>) {
 pub mod integration {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const BLACKHOLE_COUNT: u32 = 5u32;
-    pub const BLACKHOLE_MASS_SCALE: f32 = 50000000f32;
-    pub const BLACKHOLE_SIZE_SCALE: f32 = 5f32;
+    pub const BLACKHOLE_COUNT: u32 = 6u32;
+    pub const BLACKHOLE_MASS_SCALE: f32 = 30000000f32;
+    pub const BLACKHOLE_SIZE_SCALE: f32 = 30f32;
     pub const BLACKHOLE_DESTROY_MATTER: bool = true;
     pub mod compute {
         use super::{_root, _root::*};
@@ -1447,10 +1447,10 @@ const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
-const BLACKHOLE_COUNT: u32 = 5u;
-const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 1f, 10f), BlackHole(vec2<f32>(400f, -500f), 1f, 10f), BlackHole(vec2<f32>(-100f, -200f), 2f, 100f), BlackHole(vec2<f32>(500f, 200f), 1f, 20f), BlackHole(vec2<f32>(-600f, -300f), 1f, 10f));
-const BLACKHOLE_MASS_SCALE: f32 = 50000000f;
-const BLACKHOLE_SIZE_SCALE: f32 = 5f;
+const BLACKHOLE_COUNT: u32 = 6u;
+const BLACKHOLES: array<BlackHole, 6> = array<BlackHole, 6>(BlackHole(vec2<f32>(-200f, 500f), 1f, 50f), BlackHole(vec2<f32>(600f, -700f), 1f, 200f), BlackHole(vec2<f32>(0f, -200f), 2f, 100f), BlackHole(vec2<f32>(500f, 200f), 1f, 20f), BlackHole(vec2<f32>(-600f, -300f), 1f, 50f), BlackHole(vec2<f32>(3000f, 1000f), 3f, 1000f));
+const BLACKHOLE_MASS_SCALE: f32 = 30000000f;
+const BLACKHOLE_SIZE_SCALE: f32 = 30f;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
 
 @group(0) @binding(0) 
