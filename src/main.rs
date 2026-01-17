@@ -50,7 +50,7 @@ use wgpu::{
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
-    event::{ElementState, KeyEvent, WindowEvent},
+    event::{ElementState, KeyEvent, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
     window::{Window, WindowAttributes, WindowId},
@@ -87,6 +87,7 @@ enum AppEvent {
 struct RenderParameters {
     enabled: bool,
     draw_aabbs: bool,
+    zoom: f32,
 }
 
 impl Default for RenderParameters {
@@ -94,6 +95,7 @@ impl Default for RenderParameters {
         Self {
             enabled: true,
             draw_aabbs: false,
+            zoom: 1.0,
         }
     }
 }
@@ -234,7 +236,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 if let Some(state) = &mut self.gpu_state {
                     let view_size = state.window.inner_size();
                     let world_height = state.world_aabb.max().y - state.world_aabb.min().y;
-                    let camera = orthographic_camera(view_size.cast(), world_height);
+                    let camera = orthographic_camera(self.render_parameters.zoom, view_size.cast(), world_height);
                     state.camera_buffer.write(&state.queue, &[Camera::new(camera)]);
 
                     let surface_texture =
@@ -254,8 +256,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
                     state.window.pre_present_notify();
                     surface_texture.present();
-
-                    // TODO: use query sets for duration measurement
                 }
             }
 
@@ -291,6 +291,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     },
                 ..
             } => event_loop.exit(),
+
+            WindowEvent::MouseWheel {
+                delta: MouseScrollDelta::LineDelta(_, dy),
+                ..
+            } => {
+                self.render_parameters.zoom *= 1.0 + dy * 0.1;
+            }
 
             _ => (),
         }
@@ -381,7 +388,7 @@ fn render_scene(
     submission_index
 }
 
-fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {
+fn orthographic_camera(zoom: f32, view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {
     let aspect = view_size.width / view_size.height;
     let world_width = world_height * aspect;
     let l = -world_width * 0.5;
@@ -389,8 +396,8 @@ fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32) -> [[f32
     let b = -world_height * 0.5;
     let t = world_height * 0.5;
     // TODO: implement zoom
-    let sx = 2.0 / (r - l);
-    let sy = 2.0 / (t - b);
+    let sx = zoom * 2.0 / (r - l);
+    let sy = zoom * 2.0 / (t - b);
     [
         [sx, 0.0, 0.0, 0.0],
         [0.0, sy, 0.0, 0.0],

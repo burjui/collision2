@@ -22,7 +22,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         const RADIUS: f32 = 2.0;
         const MARGIN: f32 = -0.7;
         const POSITION_RAND_FACTOR: f32 = 1.0;
-        const VELOCITY_RAND_MAX: f32 = 100.0;
+        const VELOCITY_RAND_MAX: f32 = 300.0;
         const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = -VELOCITY_RAND_MAX / 3.0..=VELOCITY_RAND_MAX;
         const VELOCITY_RAND_RANGE_Y: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
         const _COLOR_RAND_RANGE: Range<f32> = 0.8..1.0;
