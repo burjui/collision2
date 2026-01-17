@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 4bcae918730470c98ad595bebe70b35cc4234d53837070ef44b2d6266ea26daf
+// SourceHash: a309e46332fca4044611d6bb7233b81d95dd9ad1b93da61ce086309b48575aed
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -61,6 +61,10 @@ pub mod layout_asserts {
         assert!(std::mem::offset_of!(common::Camera, inner) == 0);
         assert!(std::mem::size_of::<common::Camera>() == 64);
     };
+    const COMMON_VELOCITY_ASSERTS: () = {
+        assert!(std::mem::offset_of!(common::Velocity, inner) == 0);
+        assert!(std::mem::size_of::<common::Velocity>() == 8);
+    };
     const COMMON_FLAGS_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::Flags, inner) == 0);
         assert!(std::mem::size_of::<common::Flags>() == 4);
@@ -88,10 +92,6 @@ pub mod layout_asserts {
         assert!(std::mem::offset_of!(bvh::CombineNodePass, parent_count) == 8);
         assert!(std::mem::size_of::<bvh::CombineNodePass>() == 12);
     };
-    const COMMON_VELOCITY_ASSERTS: () = {
-        assert!(std::mem::offset_of!(common::Velocity, inner) == 0);
-        assert!(std::mem::size_of::<common::Velocity>() == 8);
-    };
     const COMMON_MASS_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::Mass, inner) == 0);
         assert!(std::mem::size_of::<common::Mass>() == 4);
@@ -111,6 +111,17 @@ pub mod common {
     }
     impl Camera {
         pub const fn new(inner: [[f32; 4]; 4]) -> Self {
+            Self { inner }
+        }
+    }
+    #[repr(C, align(8))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct Velocity {
+        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
+        pub inner: [f32; 2],
+    }
+    impl Velocity {
+        pub const fn new(inner: [f32; 2]) -> Self {
             Self { inner }
         }
     }
@@ -169,17 +180,6 @@ pub mod common {
     impl BvhNode {
         pub const fn new(index: u32) -> Self {
             Self { index }
-        }
-    }
-    #[repr(C, align(8))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct Velocity {
-        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
-        pub inner: [f32; 2],
-    }
-    impl Velocity {
-        pub const fn new(inner: [f32; 2]) -> Self {
-            Self { inner }
         }
     }
     #[repr(C, align(4))]
@@ -264,6 +264,8 @@ pub mod bytemuck_impls {
     use super::{_root, _root::*};
     unsafe impl bytemuck::Zeroable for common::Camera {}
     unsafe impl bytemuck::Pod for common::Camera {}
+    unsafe impl bytemuck::Zeroable for common::Velocity {}
+    unsafe impl bytemuck::Pod for common::Velocity {}
     unsafe impl bytemuck::Zeroable for common::Flags {}
     unsafe impl bytemuck::Pod for common::Flags {}
     unsafe impl bytemuck::Zeroable for common::Color {}
@@ -276,8 +278,6 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for common::BvhNode {}
     unsafe impl bytemuck::Zeroable for bvh::CombineNodePass {}
     unsafe impl bytemuck::Pod for bvh::CombineNodePass {}
-    unsafe impl bytemuck::Zeroable for common::Velocity {}
-    unsafe impl bytemuck::Pod for common::Velocity {}
     unsafe impl bytemuck::Zeroable for common::Mass {}
     unsafe impl bytemuck::Pod for common::Mass {}
 }
@@ -344,18 +344,22 @@ pub mod shape {
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub camera: wgpu::BufferBinding<'a>,
+        pub size_factor: wgpu::BufferBinding<'a>,
         pub flags: wgpu::BufferBinding<'a>,
         pub aabbs: wgpu::BufferBinding<'a>,
         pub colors: wgpu::BufferBinding<'a>,
         pub shapes: wgpu::BufferBinding<'a>,
+        pub velocities: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub camera: wgpu::BindGroupEntry<'a>,
+        pub size_factor: wgpu::BindGroupEntry<'a>,
         pub flags: wgpu::BindGroupEntry<'a>,
         pub aabbs: wgpu::BindGroupEntry<'a>,
         pub colors: wgpu::BindGroupEntry<'a>,
         pub shapes: wgpu::BindGroupEntry<'a>,
+        pub velocities: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -364,12 +368,16 @@ pub mod shape {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.camera),
                 },
-                flags: wgpu::BindGroupEntry {
+                size_factor: wgpu::BindGroupEntry {
                     binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.size_factor),
+                },
+                flags: wgpu::BindGroupEntry {
+                    binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.flags),
                 },
                 aabbs: wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.aabbs),
                 },
                 colors: wgpu::BindGroupEntry {
@@ -380,10 +388,22 @@ pub mod shape {
                     binding: 5,
                     resource: wgpu::BindingResource::Buffer(params.shapes),
                 },
+                velocities: wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Buffer(params.velocities),
+                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
-            [self.camera, self.flags, self.aabbs, self.colors, self.shapes]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 7] {
+            [
+                self.camera,
+                self.size_factor,
+                self.flags,
+                self.aabbs,
+                self.colors,
+                self.shapes,
+                self.velocities,
+            ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -406,9 +426,20 @@ pub mod shape {
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"flags\""]
+                #[doc = " @binding(1): \"size_factor\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -417,9 +448,9 @@ pub mod shape {
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"aabbs\""]
+                #[doc = " @binding(3): \"aabbs\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 2,
+                    binding: 3,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -442,6 +473,17 @@ pub mod shape {
                 #[doc = " @binding(5): \"shapes\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 5,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(6): \"velocities\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -510,6 +552,10 @@ struct CameraX_naga_oil_mod_XMNXW23LPNYX {
     inner: mat4x4<f32>,
 }
 
+struct VelocityX_naga_oil_mod_XMNXW23LPNYX {
+    inner: vec2<f32>,
+}
+
 struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
     inner: u32,
 }
@@ -546,13 +592,75 @@ const SHAPE_CIRCLE: u32 = 1u;
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(1) 
-var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+var<uniform> size_factor: f32;
 @group(0) @binding(2) 
+var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(3) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(4) 
 var<storage> colors: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(5) 
 var<storage> shapes: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(6) 
+var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
+
+fn wavelength_to_rgb(lambda: f32) -> vec3<f32> {
+    var r: f32 = 0f;
+    var g: f32 = 0f;
+    var b: f32 = 0f;
+
+    if ((lambda >= 380f) && (lambda < 440f)) {
+        r = (-((lambda - 440f)) / 60f);
+        b = 1f;
+    } else {
+        if (lambda < 490f) {
+            g = ((lambda - 440f) / 50f);
+            b = 1f;
+        } else {
+            if (lambda < 510f) {
+                g = 1f;
+                b = (-((lambda - 510f)) / 20f);
+            } else {
+                if (lambda < 580f) {
+                    r = ((lambda - 510f) / 70f);
+                    g = 1f;
+                } else {
+                    if (lambda < 645f) {
+                        r = 1f;
+                        g = (-((lambda - 645f)) / 65f);
+                    } else {
+                        if (lambda <= 700f) {
+                            r = 1f;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let _e49 = r;
+    let _e50 = g;
+    let _e51 = b;
+    return vec3<f32>(_e49, _e50, _e51);
+}
+
+fn spectral_intensity(lambda_1: f32) -> f32 {
+    if (lambda_1 < 420f) {
+        return (0.3f + ((0.7f * (lambda_1 - 380f)) / 40f));
+    }
+    if (lambda_1 > 645f) {
+        return (0.3f + ((0.7f * (700f - lambda_1)) / 55f));
+    }
+    return 1f;
+}
+
+fn velocity_to_color(velocity: vec2<f32>, max_speed: f32) -> vec4<f32> {
+    let speed = length(velocity);
+    let t = clamp((speed / max_speed), 0f, 1f);
+    let lambda_2 = mix(700f, 380f, t);
+    let _e10 = wavelength_to_rgb(lambda_2);
+    let _e11 = spectral_intensity(lambda_2);
+    return vec4<f32>((_e10 * _e11), 0.1f);
+}
 
 fn sdf_cirle(p: vec2<f32>) -> f32 {
     return (length(p) - 0.5f);
@@ -561,6 +669,7 @@ fn sdf_cirle(p: vec2<f32>) -> f32 {
 @vertex 
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput = VertexOutput();
+    var v: vec2<f32>;
 
     let _e5 = flags[i].inner;
     if ((_e5 & FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
@@ -568,19 +677,23 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
         return _e11;
     }
     let aabb = aabbs[i];
-    let scale = (aabb.max - aabb.min);
+    let _e19 = size_factor;
+    let scale = ((aabb.max - aabb.min) * _e19);
     let center = ((aabb.min + aabb.max) / vec2(2f));
     let model = mat4x4<f32>(vec4<f32>(scale.x, 0f, 0f, 0f), vec4<f32>(0f, scale.y, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
     let vertex = UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX[vertex_index];
-    let _e51 = camera.inner;
-    out.clip_position = ((_e51 * model) * vec4<f32>(vertex, 0f, 1f));
+    let _e54 = camera.inner;
+    out.clip_position = ((_e54 * model) * vec4<f32>(vertex, 0f, 1f));
     out.quad_position = vertex;
-    let _e62 = colors[i].inner;
-    out.color = _e62;
-    let _e67 = shapes[i].inner;
-    out.shape = _e67;
-    let _e68 = out;
-    return _e68;
+    let _e64 = velocities[i].inner;
+    v = _e64;
+    let _e67 = v;
+    let _e69 = velocity_to_color(_e67, 6400f);
+    out.color = _e69;
+    let _e74 = shapes[i].inner;
+    out.shape = _e74;
+    let _e75 = out;
+    return _e75;
 }
 
 @fragment 
@@ -592,10 +705,11 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let _e5 = fwidth(_e4);
     let w = (_e5 / 2f);
     if (in.shape == SHAPE_CIRCLE) {
-        color.w = smoothstep(w, -(w), _e4);
+        let _e14 = color.w;
+        color.w = (_e14 * smoothstep(w, -(w), _e4));
     }
-    let _e14 = color;
-    return FragmentOutput(_e14);
+    let _e16 = color;
+    return FragmentOutput(_e16);
 }
 "#;
 }
@@ -1071,7 +1185,7 @@ pub mod integration {
     pub const WORKGROUP_SIZE: u32 = 64u32;
     pub const BLACKHOLE_COUNT: u32 = 5u32;
     pub const BLACKHOLE_MASS_SCALE: f32 = 50000000f32;
-    pub const BLACKHOLE_SIZE_SCALE: f32 = 3f32;
+    pub const BLACKHOLE_SIZE_SCALE: f32 = 5f32;
     pub const BLACKHOLE_DESTROY_MATTER: bool = true;
     pub mod compute {
         use super::{_root, _root::*};
@@ -1334,9 +1448,9 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
 const BLACKHOLE_COUNT: u32 = 5u;
-const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 1f, 100f), BlackHole(vec2<f32>(200f, -500f), 1f, 10f), BlackHole(vec2<f32>(-300f, -200f), 2f, 200f), BlackHole(vec2<f32>(500f, 200f), 1f, 5f), BlackHole(vec2<f32>(-600f, -300f), 1f, 10f));
+const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 1f, 10f), BlackHole(vec2<f32>(400f, -500f), 1f, 10f), BlackHole(vec2<f32>(-100f, -200f), 2f, 100f), BlackHole(vec2<f32>(500f, 200f), 1f, 20f), BlackHole(vec2<f32>(-600f, -300f), 1f, 10f));
 const BLACKHOLE_MASS_SCALE: f32 = 50000000f;
-const BLACKHOLE_SIZE_SCALE: f32 = 3f;
+const BLACKHOLE_SIZE_SCALE: f32 = 5f;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
 
 @group(0) @binding(0) 

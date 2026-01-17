@@ -8,7 +8,7 @@ use wgpu::{
 use crate::{
     gpu_buffer::GpuBuffer,
     shaders::{
-        common::{AABB, Camera, Color, Flags, Shape},
+        common::{AABB, Camera, Color, Flags, Shape, Velocity},
         shape,
     },
 };
@@ -23,11 +23,13 @@ impl ShapeRenderer {
         device: &Device,
         swapchain_format: TextureFormat,
         pipeline_cache: &PipelineCache,
-        camera_buffer: GpuBuffer<Camera>,
+        camera: GpuBuffer<Camera>,
+        size_factor: GpuBuffer<f32>,
         flags: GpuBuffer<Flags>,
         aabbs: GpuBuffer<AABB>,
         colors: GpuBuffer<Color>,
         shapes: GpuBuffer<Shape>,
+        velocities: GpuBuffer<Velocity>,
     ) -> Self {
         let pipeline_layout = shape::create_pipeline_layout(device);
         let shader = shape::create_shader_module_embed_source(device);
@@ -57,11 +59,13 @@ impl ShapeRenderer {
         let bind_group = shape::WgpuBindGroup0::from_bindings(
             device,
             shape::WgpuBindGroup0Entries::new(shape::WgpuBindGroup0EntriesParams {
-                camera: camera_buffer.buffer().as_entire_buffer_binding(),
+                camera: camera.buffer().as_entire_buffer_binding(),
+                size_factor: size_factor.buffer().as_entire_buffer_binding(),
                 flags: flags.buffer().as_entire_buffer_binding(),
                 aabbs: aabbs.buffer().as_entire_buffer_binding(),
                 colors: colors.buffer().as_entire_buffer_binding(),
                 shapes: shapes.buffer().as_entire_buffer_binding(),
+                velocities: velocities.buffer().as_entire_buffer_binding(),
             }),
         );
 

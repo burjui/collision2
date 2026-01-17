@@ -7,7 +7,7 @@ use crate::gpu_buffer::GpuBuffer;
 #[must_use]
 pub struct PassDurationMeasurer {
     device: Device,
-    query_set: QuerySet,
+    pub query_set: QuerySet,
     query_buffer: GpuBuffer<u64>,
     query_readback_buffer: GpuBuffer<u64>,
 }
@@ -36,46 +36,22 @@ impl PassDurationMeasurer {
         }
     }
 
-    pub fn start(&self, encoder: &mut CommandEncoder) -> PassDurationMeasurementStart {
-        encoder.write_timestamp(&self.query_set, 0);
-
-        PassDurationMeasurementStart {
-            device: self.device.clone(),
-            query_set: self.query_set.clone(),
-            query_buffer: self.query_buffer.clone(),
-            query_readback_buffer: self.query_readback_buffer.clone(),
+    pub fn render_pass_timestamp_writes(&self) -> wgpu::RenderPassTimestampWrites<'_> {
+        wgpu::RenderPassTimestampWrites {
+            query_set: &self.query_set,
+            beginning_of_pass_write_index: Some(0),
+            end_of_pass_write_index: Some(1),
         }
     }
-}
 
-#[must_use]
-pub struct PassDurationMeasurementStart {
-    device: Device,
-    query_set: QuerySet,
-    query_buffer: GpuBuffer<u64>,
-    query_readback_buffer: GpuBuffer<u64>,
-}
-
-impl PassDurationMeasurementStart {
-    pub fn finish(self, encoder: &mut CommandEncoder) -> PassDurationMeasurementResult {
-        encoder.write_timestamp(&self.query_set, 1);
+    pub fn update(&self, encoder: &mut CommandEncoder) {
         encoder.resolve_query_set(&self.query_set, 0..2, self.query_buffer.buffer(), 0);
         encoder.copy_buffer_to_buffer(self.query_buffer.buffer(), 0, self.query_readback_buffer.buffer(), 0, None);
-        PassDurationMeasurementResult {
-            device: self.device,
-            query_readback_buffer: self.query_readback_buffer,
-        }
+        let mut timestamps = [0u64; 2];
+        self.query_readback_buffer.read(&self.device, &mut timestamps);
     }
-}
 
-#[must_use]
-pub struct PassDurationMeasurementResult {
-    device: Device,
-    query_readback_buffer: GpuBuffer<u64>,
-}
-
-impl PassDurationMeasurementResult {
-    pub fn duration(self) -> Duration {
+    pub fn duration(&self) -> Duration {
         let mut timestamps = [0u64; 2];
         self.query_readback_buffer.read(&self.device, &mut timestamps);
         Duration::from_nanos(timestamps[1] - timestamps[0])

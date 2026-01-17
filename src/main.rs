@@ -43,9 +43,9 @@ use std::{
     time::{Duration, Instant},
 };
 use wgpu::{
-    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCacheDescriptor, PresentMode,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, SubmissionIndex, TextureFormat,
-    TextureView, TextureViewDescriptor,
+    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, ComputePassTimestampWrites, PipelineCacheDescriptor,
+    PresentMode, RenderPassColorAttachment, RenderPassDescriptor, RenderPassTimestampWrites, RequestAdapterOptions,
+    SubmissionIndex, TextureFormat, TextureView, TextureViewDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
@@ -95,7 +95,7 @@ impl Default for RenderParameters {
         Self {
             enabled: true,
             draw_aabbs: false,
-            zoom: 1.0,
+            zoom: 0.8,
         }
     }
 }
@@ -106,7 +106,7 @@ struct GpuState<'a> {
     exit_notification_sender: Sender<()>,
     world_aabb: AABB,
     object_count: usize,
-    camera_buffer: GpuBuffer<Camera>,
+    camera: GpuBuffer<Camera>,
     node_count_atomic: Arc<AtomicU32>,
 
     surface_config: wgpu::SurfaceConfiguration,
@@ -152,13 +152,16 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 fallback: true,
             })
         };
-        let camera_buffer =
+        let camera =
             GpuBuffer::<Camera>::new(1, "camera buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
+        let size_factor =
+            GpuBuffer::new(1, "size factor buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
+        size_factor.write(&queue, &[1.0]);
         let aabb_renderer = AabbRenderer::new(
             &device,
             swapchain_format,
             &pipeline_cache,
-            camera_buffer.clone(),
+            camera.clone(),
             buffers.flags.clone(),
             buffers.aabbs.clone(),
         );
@@ -166,11 +169,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             &device,
             swapchain_format,
             &pipeline_cache,
-            camera_buffer.clone(),
+            camera.clone(),
+            size_factor.clone(),
             buffers.flags.clone(),
             buffers.aabbs.clone(),
             buffers.colors,
             buffers.shapes,
+            buffers.velocities.clone(),
         );
         let (exit_notification_sender, exit_notification_receiver) = crossbeam::channel::bounded(1);
         let node_count_atomic = Arc::new(AtomicU32::new(u32::try_from(object_count).unwrap()));
@@ -201,7 +206,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             exit_notification_sender,
             world_aabb,
             object_count,
-            camera_buffer,
+            camera,
             node_count_atomic,
 
             surface_config,
@@ -237,7 +242,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     let view_size = state.window.inner_size();
                     let world_height = state.world_aabb.max().y - state.world_aabb.min().y;
                     let camera = orthographic_camera(self.render_parameters.zoom, view_size.cast(), world_height);
-                    state.camera_buffer.write(&state.queue, &[Camera::new(camera)]);
+                    state.camera.write(&state.queue, &[Camera::new(camera)]);
 
                     let surface_texture =
                         state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
@@ -296,7 +301,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 delta: MouseScrollDelta::LineDelta(_, dy),
                 ..
             } => {
-                self.render_parameters.zoom *= 1.0 + dy * 0.2;
+                self.render_parameters.zoom *= 1.0 + dy * 0.1;
             }
 
             _ => (),
@@ -354,7 +359,6 @@ fn render_scene(
 ) -> SubmissionIndex {
     let pass_duration_measurer = PassDurationMeasurer::new(device);
     let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
-    let measurement_start = pass_duration_measurer.start(&mut encoder);
 
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,
@@ -368,7 +372,11 @@ fn render_scene(
             },
         })],
         depth_stencil_attachment: None,
-        timestamp_writes: None,
+        timestamp_writes: Some(RenderPassTimestampWrites {
+            query_set: &pass_duration_measurer.query_set,
+            beginning_of_pass_write_index: Some(0),
+            end_of_pass_write_index: Some(1),
+        }),
         occlusion_query_set: None,
     });
     if render_parameters.enabled {
@@ -380,10 +388,11 @@ fn render_scene(
     // TODO: EDF
     drop(render_pass);
 
-    let measurement_result = measurement_start.finish(&mut encoder);
+    pass_duration_measurer.update(&mut encoder);
     let submission_index = queue.submit([encoder.finish()]);
+    device.wait_for_submission(submission_index.clone()).unwrap();
 
-    let duration = measurement_result.duration();
+    let duration = pass_duration_measurer.duration();
     println!("Rendered {} objects in {:?}", range.len(), duration);
 
     submission_index
@@ -423,7 +432,7 @@ fn spawn_simulation_thread(
     thread::spawn(move || {
         let mut last_redraw = Instant::now();
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt.write(&queue, &[0.0001]);
+        dt.write(&queue, &[0.0002]);
 
         let object_count = flags.len();
         let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), bvh_nodes.clone(), object_count);
@@ -444,26 +453,39 @@ fn spawn_simulation_thread(
 
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
 
-            let integration_measurement_start = integration_duration_measurer.start(&mut encoder);
-            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
+            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some("integration pass"),
+                timestamp_writes: Some(ComputePassTimestampWrites {
+                    query_set: &integration_duration_measurer.query_set,
+                    beginning_of_pass_write_index: Some(0),
+                    end_of_pass_write_index: Some(1),
+                }),
+            });
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
-            let integration_measurement_result = integration_measurement_start.finish(&mut encoder);
 
-            let bvh_measurement_start = bvh_duration_measurer.start(&mut encoder);
-            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
+            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some("bvh pass"),
+                timestamp_writes: Some(ComputePassTimestampWrites {
+                    query_set: &bvh_duration_measurer.query_set,
+                    beginning_of_pass_write_index: Some(0),
+                    end_of_pass_write_index: Some(1),
+                }),
+            });
             bvh_builder.compute(&mut compute_pass);
             let node_count = bvh_builder.node_count();
             drop(compute_pass);
-            let bvh_measurement_result = bvh_measurement_start.finish(&mut encoder);
+
+            integration_duration_measurer.update(&mut encoder);
+            bvh_duration_measurer.update(&mut encoder);
 
             let submission_index = queue.submit([encoder.finish()]);
             node_count_atomic.store(node_count, Ordering::SeqCst);
             device.wait_for_submission(submission_index).unwrap();
 
-            let integration_duration = integration_measurement_result.duration();
+            let integration_duration = integration_duration_measurer.duration();
             println!("Integrated {} objects in {:?}", object_count, integration_duration);
-            let bvh_duration = bvh_measurement_result.duration();
+            let bvh_duration = bvh_duration_measurer.duration();
             println!("Built BVH with {} nodes in {:?}", node_count, bvh_duration);
         }
     });

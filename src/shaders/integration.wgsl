@@ -22,14 +22,14 @@ struct BlackHole {
 
 const BLACKHOLE_COUNT: u32 = 5;
 const BLACKHOLES = array<BlackHole, BLACKHOLE_COUNT>(
-    BlackHole(vec2f(-200, 500), 1, 100),
-    BlackHole(vec2f(200, -500), 1, 10),
-    BlackHole(vec2f(-300, -200), 2, 200),
-    BlackHole(vec2f(500, 200), 1, 5),
+    BlackHole(vec2f(-200, 500), 1, 10),
+    BlackHole(vec2f(400, -500), 1, 10),
+    BlackHole(vec2f(-100, -200), 2, 100),
+    BlackHole(vec2f(500, 200), 1, 20),
     BlackHole(vec2f(-600, -300), 1, 10),
 );
 const BLACKHOLE_MASS_SCALE: f32 = 50000000;
-const BLACKHOLE_SIZE_SCALE: f32 = 3;
+const BLACKHOLE_SIZE_SCALE: f32 = 5;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
@@ -84,7 +84,6 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2f) -> vec2f {
     let bh_gravity = direction * blackhole.mass * BLACKHOLE_MASS_SCALE / (distance * distance);
     return bh_gravity;
 }
-
 
 struct IntegratedParameters {
     x: vec2f,
