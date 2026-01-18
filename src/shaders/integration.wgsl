@@ -18,20 +18,21 @@ struct BlackHole {
     position: vec2f,
     radius: f32,
     mass: f32,
+    spin: f32
 }
 
-const BLACKHOLE_COUNT: u32 = 6;
+const BLACKHOLE_COUNT: u32 = 5;
 const BLACKHOLES = array<BlackHole, BLACKHOLE_COUNT>(
-    BlackHole(vec2f(-200, 500), 1, 50),
-    BlackHole(vec2f(600, -700), 1, 200),
-    BlackHole(vec2f(0, -200), 2, 100),
-    BlackHole(vec2f(500, 200), 1, 20),
-    BlackHole(vec2f(-600, -300), 1, 50),
-    BlackHole(vec2f(3000, 1000), 3, 1000),
+    BlackHole(vec2f(-200, 500),     1, 4,  0),
+    BlackHole(vec2f(500, 200),      1, 2,  0),
+    BlackHole(vec2f(),              3, 10, 1000),
+    BlackHole(vec2f(-600, -300),    1, 2,  0),
+    BlackHole(vec2f(600, -700),     1, 4,  -100),
 );
-const BLACKHOLE_MASS_SCALE: f32 = 30000000;
-const BLACKHOLE_SIZE_SCALE: f32 = 30;
+const BLACKHOLE_MASS_SCALE: f32 = 5000;
+const BLACKHOLE_SIZE_SCALE: f32 = 10;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
+const GRAVITATIONAL_CONSTANT: f32 = 100000;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn cs_main(
@@ -70,10 +71,12 @@ fn cs_main(
     aabbs[i] = AABB(aabb.min + offset, aabb.max + offset);
 }
 
-fn forces(position: vec2f) -> vec2f {
+fn forces(position: vec2f, velocity: vec2f) -> vec2f {
     var acc = vec2f();
     for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT; bh_index += 1) {
-        acc += blackhole_gravity(BLACKHOLES[bh_index], position);
+        let blackhole = BLACKHOLES[bh_index];
+        acc += blackhole_gravity(blackhole, position);
+        acc += frame_dragging(blackhole, position, velocity );
     }
     return acc;
 }
@@ -82,8 +85,20 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2f) -> vec2f {
     let to_blackhole = blackhole.position - position;
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    let bh_gravity = direction * blackhole.mass * BLACKHOLE_MASS_SCALE / (distance * distance);
+    let bh_gravity = direction * GRAVITATIONAL_CONSTANT * blackhole.mass * BLACKHOLE_MASS_SCALE / (distance * distance);
     return bh_gravity;
+}
+
+fn frame_dragging(blackhole: BlackHole, position: vec2f, velocity: vec2f) -> vec2f {
+    let rel = blackhole.position - position;
+    let r = length(rel);
+    let angular_momentum = blackhole.spin * vec2f(1, 1);
+    let vr_cross = cross(vec3f(velocity, 0), vec3f(rel, 0)).z;
+    let vj_cross = cross(vec3f(velocity, 0), vec3f(angular_momentum, 0)).z;
+    let a = 2 * GRAVITATIONAL_CONSTANT / pow(r, 3) * (
+        vj_cross - 3 * rel * angular_momentum * vr_cross / pow(r, 2)
+    );
+    return a;
 }
 
 struct IntegratedParameters {
@@ -107,7 +122,7 @@ fn leapfrog_step(params: IntegratedParameters, w: f32) -> IntegratedParameters {
     // Drift (position half-step)
     var x = params.x + params.v * half_step;
     // Kick (full velocity step)
-    let a = forces(x);
+    let a = forces(x, params.v);
     let v = params.v + a * (w * dt);
     // Drift (position half-step)
     x = x + v * half_step;

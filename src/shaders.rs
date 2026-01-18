@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 7135d44482cf8c110a408bbe2ba52b82b46c5ff810f9f3583797054047b8e2e4
+// SourceHash: 4c7e87740bdb0b7a4210356724809258956b6c081976b8461256e9340b56824a
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1183,10 +1183,11 @@ fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>) {
 pub mod integration {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const BLACKHOLE_COUNT: u32 = 6u32;
-    pub const BLACKHOLE_MASS_SCALE: f32 = 30000000f32;
-    pub const BLACKHOLE_SIZE_SCALE: f32 = 30f32;
+    pub const BLACKHOLE_COUNT: u32 = 5u32;
+    pub const BLACKHOLE_MASS_SCALE: f32 = 5000f32;
+    pub const BLACKHOLE_SIZE_SCALE: f32 = 10f32;
     pub const BLACKHOLE_DESTROY_MATTER: bool = true;
+    pub const GRAVITATIONAL_CONSTANT: f32 = 100000f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CS_MAIN_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1436,6 +1437,7 @@ struct BlackHole {
     position: vec2<f32>,
     radius: f32,
     mass: f32,
+    spin: f32,
 }
 
 struct IntegratedParameters {
@@ -1447,11 +1449,12 @@ const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
-const BLACKHOLE_COUNT: u32 = 6u;
-const BLACKHOLES: array<BlackHole, 6> = array<BlackHole, 6>(BlackHole(vec2<f32>(-200f, 500f), 1f, 50f), BlackHole(vec2<f32>(600f, -700f), 1f, 200f), BlackHole(vec2<f32>(0f, -200f), 2f, 100f), BlackHole(vec2<f32>(500f, 200f), 1f, 20f), BlackHole(vec2<f32>(-600f, -300f), 1f, 50f), BlackHole(vec2<f32>(3000f, 1000f), 3f, 1000f));
-const BLACKHOLE_MASS_SCALE: f32 = 30000000f;
-const BLACKHOLE_SIZE_SCALE: f32 = 30f;
+const BLACKHOLE_COUNT: u32 = 5u;
+const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 1f, 4f, 0f), BlackHole(vec2<f32>(500f, 200f), 1f, 2f, 0f), BlackHole(vec2<f32>(), 3f, 10f, 1000f), BlackHole(vec2<f32>(-600f, -300f), 1f, 2f, 0f), BlackHole(vec2<f32>(600f, -700f), 1f, 4f, -100f));
+const BLACKHOLE_MASS_SCALE: f32 = 5000f;
+const BLACKHOLE_SIZE_SCALE: f32 = 10f;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
+const GRAVITATIONAL_CONSTANT: f32 = 100000f;
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
@@ -1476,11 +1479,21 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>) -> vec2<f32> {
     let to_blackhole = (blackhole.position - position);
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    let bh_gravity = (((direction * blackhole.mass) * BLACKHOLE_MASS_SCALE) / vec2((distance * distance)));
+    let bh_gravity = ((((direction * GRAVITATIONAL_CONSTANT) * blackhole.mass) * BLACKHOLE_MASS_SCALE) / vec2((distance * distance)));
     return bh_gravity;
 }
 
-fn forces(position_1: vec2<f32>) -> vec2<f32> {
+fn frame_dragging(blackhole_1: BlackHole, position_1: vec2<f32>, velocity: vec2<f32>) -> vec2<f32> {
+    let rel = (blackhole_1.position - position_1);
+    let r = length(rel);
+    let angular_momentum = (blackhole_1.spin * vec2<f32>(1f, 1f));
+    let vr_cross = cross(vec3<f32>(velocity, 0f), vec3<f32>(rel, 0f)).z;
+    let vj_cross = cross(vec3<f32>(velocity, 0f), vec3<f32>(angular_momentum, 0f)).z;
+    let a = ((200000f / pow(r, 3f)) * (vec2(vj_cross) - ((((3f * rel) * angular_momentum) * vr_cross) / vec2(pow(r, 2f)))));
+    return a;
+}
+
+fn forces(position_2: vec2<f32>, velocity_1: vec2<f32>) -> vec2<f32> {
     var acc: vec2<f32> = vec2<f32>();
     var bh_index_1: u32 = 0u;
 
@@ -1492,17 +1505,21 @@ fn forces(position_1: vec2<f32>) -> vec2<f32> {
         }
         {
             let _e7 = bh_index_1;
-            let _e10 = blackhole_gravity(BLACKHOLES[_e7], position_1);
+            let blackhole_2 = BLACKHOLES[_e7];
+            let _e10 = blackhole_gravity(blackhole_2, position_2);
             let _e12 = acc;
             acc = (_e12 + _e10);
+            let _e15 = frame_dragging(blackhole_2, position_2, velocity_1);
+            let _e16 = acc;
+            acc = (_e16 + _e15);
         }
         continuing {
-            let _e15 = bh_index_1;
-            bh_index_1 = (_e15 + 1u);
+            let _e19 = bh_index_1;
+            bh_index_1 = (_e19 + 1u);
         }
     }
-    let _e17 = acc;
-    return _e17;
+    let _e21 = acc;
+    return _e21;
 }
 
 fn leapfrog_step(params_1: IntegratedParameters, w: f32) -> IntegratedParameters {
@@ -1512,13 +1529,13 @@ fn leapfrog_step(params_1: IntegratedParameters, w: f32) -> IntegratedParameters
     let half_step = ((w * _e2) * 0.5f);
     x = (params_1.x + (params_1.v * half_step));
     let _e12 = x;
-    let _e13 = forces(_e12);
-    let _e16 = dt;
-    let v = (params_1.v + (_e13 * (w * _e16)));
-    let _e20 = x;
-    x = (_e20 + (v * half_step));
-    let _e23 = x;
-    return IntegratedParameters(_e23, v);
+    let _e14 = forces(_e12, params_1.v);
+    let _e17 = dt;
+    let v = (params_1.v + (_e14 * (w * _e17)));
+    let _e21 = x;
+    x = (_e21 + (v * half_step));
+    let _e24 = x;
+    return IntegratedParameters(_e24, v);
 }
 
 fn integrate_yoshida(params_2: IntegratedParameters) -> IntegratedParameters {
@@ -1572,10 +1589,10 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
             }
             {
                 let _e49 = bh_index;
-                let blackhole_1 = BLACKHOLES[_e49];
+                let blackhole_3 = BLACKHOLES[_e49];
                 let _e53 = params.x;
-                let distance_1 = (length((blackhole_1.position - _e53)) - (max(size.x, size.y) / 2f));
-                if (distance_1 < (blackhole_1.radius * BLACKHOLE_SIZE_SCALE)) {
+                let distance_1 = (length((blackhole_3.position - _e53)) - (max(size.x, size.y) / 2f));
+                if (distance_1 < (blackhole_3.radius * BLACKHOLE_SIZE_SCALE)) {
                     let _e67 = f;
                     f = (_e67 & 4294967288u);
                     params.v = vec2<f32>();
