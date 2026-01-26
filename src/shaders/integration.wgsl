@@ -23,16 +23,18 @@ struct BlackHole {
 
 const BLACKHOLE_COUNT: u32 = 5;
 const BLACKHOLES = array<BlackHole, BLACKHOLE_COUNT>(
-    BlackHole(vec2f(-200, 500),     1, 4,  0),
-    BlackHole(vec2f(500, 200),      1, 2,  0),
-    BlackHole(vec2f(),              3, 10, 1000),
-    BlackHole(vec2f(-600, -300),    1, 2,  0),
-    BlackHole(vec2f(600, -700),     1, 4,  -100),
+    BlackHole(vec2f(-200, 500),     2,  10,  0 * -50),
+    BlackHole(vec2f(500, 200),      1,  20,  0 * -50),
+    BlackHole(vec2f(),              2,  20,  0 * 50),
+    BlackHole(vec2f(-600, -300),    1,  20,  0 * -50),
+    BlackHole(vec2f(600, -700),     1,  10,  0 * -50),
 );
-const BLACKHOLE_MASS_SCALE: f32 = 5000;
+const BLACKHOLE_MASS_SCALE: f32 = 1 * 1000;
 const BLACKHOLE_SIZE_SCALE: f32 = 10;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
-const GRAVITATIONAL_CONSTANT: f32 = 100000;
+const GRAVITATIONAL_CONSTANT: f32 = 1 * 100000;
+
+const GLOBAL_FORCE = vec2f();
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn cs_main(
@@ -72,11 +74,11 @@ fn cs_main(
 }
 
 fn forces(position: vec2f, velocity: vec2f) -> vec2f {
-    var acc = vec2f();
+    var acc = GLOBAL_FORCE;
     for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT; bh_index += 1) {
         let blackhole = BLACKHOLES[bh_index];
         acc += blackhole_gravity(blackhole, position);
-        acc += frame_dragging(blackhole, position, velocity );
+        acc += frame_dragging(blackhole, position, velocity);
     }
     return acc;
 }

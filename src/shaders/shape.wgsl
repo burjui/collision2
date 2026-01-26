@@ -18,6 +18,7 @@ const SHAPE_CIRCLE: u32 = 1;
 @group(0) @binding(5) var<storage, read> shapes: array<Shape>;
 @group(0) @binding(6) var<storage, read> velocities: array<Velocity>;
 
+const COLORING_SPEED_LIMIT: f32 = pow(80.0, 2.0);
 
 @vertex
 fn vs_main(
@@ -30,7 +31,11 @@ fn vs_main(
     }
 
     let aabb = aabbs[i];
-    let scale = (aabb.max - aabb.min) * size_factor;
+    var scale = (aabb.max - aabb.min) * size_factor;
+    var v = velocities[i].inner;
+    let relative_speed = length(v) / COLORING_SPEED_LIMIT;
+    out.color = velocity_to_color(v, sqrt(relative_speed));
+    scale *= sqrt(sqrt(relative_speed)) * 1.5;
     let center = (aabb.min + aabb.max) / 2;
     let model = mat4x4f(
         scale.x, 0, 0, 0,
@@ -41,10 +46,6 @@ fn vs_main(
     let vertex = UNIT_QUAD_VERTICES[vertex_index];
     out.clip_position = camera.inner * model * vec4f(vertex, 0, 1);
     out.quad_position = vertex;
-    var v = velocities[i].inner;
-    const min_speed = pow(0.0, 2.0);
-    const max_speed = pow(80.0, 2.0);
-    out.color = velocity_to_color(v, max_speed);
     out.shape = shapes[i].inner;
 
     return out;
@@ -69,13 +70,12 @@ fn sdf_cirle(p: vec2f) -> f32 {
     return length(p) - 0.5;
 }
 
-fn velocity_to_color(velocity: vec2f, max_speed: f32) -> vec4f {
-    let speed = length(velocity);
-    let t = clamp(speed / max_speed, 0.0, 1.0);
+fn velocity_to_color(velocity: vec2f, relative_speed: f32) -> vec4f {
+    let t = clamp(relative_speed, 0.0, 1.0);
     let lambda = mix(700.0, 380.0, t);
     let rgb = wavelength_to_rgb(lambda);
     let intensity = spectral_intensity(lambda);
-    return vec4f(rgb * intensity * 0.8, 0.1);
+    return vec4f(rgb * intensity, 0.1);
 }
 
 fn spectral_intensity(lambda: f32) -> f32 {

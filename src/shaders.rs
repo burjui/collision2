@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 4c7e87740bdb0b7a4210356724809258956b6c081976b8461256e9340b56824a
+// SourceHash: 9d9ebfac20c48be3b76526f316a8862afbd8ec83e15b10361450b79e4b0d1724
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -285,6 +285,7 @@ pub mod shape {
     use super::{_root, _root::*};
     pub const SHAPE_RECT: u32 = 0u32;
     pub const SHAPE_CIRCLE: u32 = 1u32;
+    pub const COLORING_SPEED_LIMIT: f32 = 6400f32;
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
     #[derive(Debug)]
@@ -588,6 +589,7 @@ const UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX: array<vec2<f32>, 6> = array
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
+const COLORING_SPEED_LIMIT: f32 = 6400f;
 
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
@@ -653,13 +655,12 @@ fn spectral_intensity(lambda_1: f32) -> f32 {
     return 1f;
 }
 
-fn velocity_to_color(velocity: vec2<f32>, max_speed: f32) -> vec4<f32> {
-    let speed = length(velocity);
-    let t = clamp((speed / max_speed), 0f, 1f);
+fn velocity_to_color(velocity: vec2<f32>, relative_speed: f32) -> vec4<f32> {
+    let t = clamp(relative_speed, 0f, 1f);
     let lambda_2 = mix(700f, 380f, t);
-    let _e10 = wavelength_to_rgb(lambda_2);
-    let _e11 = spectral_intensity(lambda_2);
-    return vec4<f32>(((_e10 * _e11) * 0.8f), 0.1f);
+    let _e7 = wavelength_to_rgb(lambda_2);
+    let _e8 = spectral_intensity(lambda_2);
+    return vec4<f32>((_e7 * _e8), 0.1f);
 }
 
 fn sdf_cirle(p: vec2<f32>) -> f32 {
@@ -669,6 +670,7 @@ fn sdf_cirle(p: vec2<f32>) -> f32 {
 @vertex 
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput = VertexOutput();
+    var scale: vec2<f32>;
     var v: vec2<f32>;
 
     let _e5 = flags[i].inner;
@@ -678,22 +680,28 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     }
     let aabb = aabbs[i];
     let _e19 = size_factor;
-    let scale = ((aabb.max - aabb.min) * _e19);
+    scale = ((aabb.max - aabb.min) * _e19);
+    let _e25 = velocities[i].inner;
+    v = _e25;
+    let _e27 = v;
+    let relative_speed_1 = (length(_e27) / COLORING_SPEED_LIMIT);
+    let _e32 = v;
+    let _e34 = velocity_to_color(_e32, sqrt(relative_speed_1));
+    out.color = _e34;
+    let _e39 = scale;
+    scale = (_e39 * (sqrt(sqrt(relative_speed_1)) * 1.5f));
     let center = ((aabb.min + aabb.max) / vec2(2f));
-    let model = mat4x4<f32>(vec4<f32>(scale.x, 0f, 0f, 0f), vec4<f32>(0f, scale.y, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
+    let _e48 = scale.x;
+    let _e50 = scale.y;
+    let model = mat4x4<f32>(vec4<f32>(_e48, 0f, 0f, 0f), vec4<f32>(0f, _e50, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
     let vertex = UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX[vertex_index];
-    let _e54 = camera.inner;
-    out.clip_position = ((_e54 * model) * vec4<f32>(vertex, 0f, 1f));
+    let _e76 = camera.inner;
+    out.clip_position = ((_e76 * model) * vec4<f32>(vertex, 0f, 1f));
     out.quad_position = vertex;
-    let _e64 = velocities[i].inner;
-    v = _e64;
-    let _e67 = v;
-    let _e69 = velocity_to_color(_e67, 6400f);
-    out.color = _e69;
-    let _e74 = shapes[i].inner;
-    out.shape = _e74;
-    let _e75 = out;
-    return _e75;
+    let _e87 = shapes[i].inner;
+    out.shape = _e87;
+    let _e88 = out;
+    return _e88;
 }
 
 @fragment 
@@ -1184,7 +1192,7 @@ pub mod integration {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
     pub const BLACKHOLE_COUNT: u32 = 5u32;
-    pub const BLACKHOLE_MASS_SCALE: f32 = 5000f32;
+    pub const BLACKHOLE_MASS_SCALE: f32 = 1000f32;
     pub const BLACKHOLE_SIZE_SCALE: f32 = 10f32;
     pub const BLACKHOLE_DESTROY_MATTER: bool = true;
     pub const GRAVITATIONAL_CONSTANT: f32 = 100000f32;
@@ -1450,11 +1458,12 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
 const BLACKHOLE_COUNT: u32 = 5u;
-const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 1f, 4f, 0f), BlackHole(vec2<f32>(500f, 200f), 1f, 2f, 0f), BlackHole(vec2<f32>(), 3f, 10f, 1000f), BlackHole(vec2<f32>(-600f, -300f), 1f, 2f, 0f), BlackHole(vec2<f32>(600f, -700f), 1f, 4f, -100f));
-const BLACKHOLE_MASS_SCALE: f32 = 5000f;
+const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 2f, 10f, 0f), BlackHole(vec2<f32>(500f, 200f), 1f, 20f, 0f), BlackHole(vec2<f32>(), 2f, 20f, 0f), BlackHole(vec2<f32>(-600f, -300f), 1f, 20f, 0f), BlackHole(vec2<f32>(600f, -700f), 1f, 10f, 0f));
+const BLACKHOLE_MASS_SCALE: f32 = 1000f;
 const BLACKHOLE_SIZE_SCALE: f32 = 10f;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
 const GRAVITATIONAL_CONSTANT: f32 = 100000f;
+const GLOBAL_FORCE: vec2<f32> = vec2<f32>();
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
@@ -1494,7 +1503,7 @@ fn frame_dragging(blackhole_1: BlackHole, position_1: vec2<f32>, velocity: vec2<
 }
 
 fn forces(position_2: vec2<f32>, velocity_1: vec2<f32>) -> vec2<f32> {
-    var acc: vec2<f32> = vec2<f32>();
+    var acc: vec2<f32> = GLOBAL_FORCE;
     var bh_index_1: u32 = 0u;
 
     loop {
