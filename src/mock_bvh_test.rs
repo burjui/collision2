@@ -87,6 +87,9 @@ fn mock_bvh() {
         ]
     );
     assert_eq!(aabbs.as_slice(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0]);
+
+    assert!(nodes[0..=6].iter().all(|node| !node.is_tree()));
+    assert!(nodes[7..node_count].iter().all(|node| node.is_tree()));
 }
 
 impl BvhNode {
@@ -100,5 +103,9 @@ impl BvhNode {
         Self {
             index: left | BVH_NODE_TREE_FLAG,
         }
+    }
+
+    pub const fn is_tree(&self) -> bool {
+        self.index & BVH_NODE_TREE_FLAG != 0
     }
 }
