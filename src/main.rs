@@ -478,6 +478,7 @@ fn spawn_simulation_thread(
                 // Copying the entire buffer is okay because integrated_aabbs is of object_count length
                 encoder.copy_buffer_to_buffer(integrated_aabbs.buffer(), 0, aabbs.buffer(), 0, None);
             });
+            update_duration_measurer.update(&mut encoder);
 
             let submission_index = queue.submit([encoder.finish()]);
             node_count_atomic.store(node_count, Ordering::SeqCst);

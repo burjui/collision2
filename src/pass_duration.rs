@@ -55,8 +55,6 @@ impl PassDurationMeasurer {
         }
     }
 
-    // TODO: unify measure() and update()
-
     pub fn measure(&self, encoder: &mut CommandEncoder, mut f: impl FnMut(&mut CommandEncoder)) {
         encoder.write_timestamp(&self.query_set, 0);
         f(encoder);
