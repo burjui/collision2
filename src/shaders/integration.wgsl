@@ -51,34 +51,47 @@ fn cs_main(
     }
 
     let aabb = aabbs[i];
-    let start_x = (aabb.min + aabb.max) / 2;
-    var params = IntegratedParameters(start_x, velocities[i].inner);
-    params = integrate_yoshida(params);
+    let start_position = (aabb.min + aabb.max) / 2;
+    var state = State(start_position, velocities[i].inner);
+    state = integrate_euler_symplectic(state);
 
     let size = aabb.max - aabb.min;
     if BLACKHOLE_DESTROY_MATTER {
         for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT && (f & FLAG_PHYSICAL) != 0; bh_index++) {
             let blackhole = BLACKHOLES[bh_index];
-            let distance = length(blackhole.position - params.x) - max(size.x, size.y) / 2;
+            let distance = length(blackhole.position - state.position) - max(size.x, size.y) / 2;
             if distance < blackhole.radius * BLACKHOLE_SIZE_SCALE {
                 f &= ~(FLAG_PHYSICAL | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
-                params.v = vec2f();
+                state.velocity = vec2f();
             }
         }
     }
 
     flags[i].inner = f;
-    velocities[i].inner = params.v;
-    let offset = params.x - start_x;
+    velocities[i].inner = state.velocity;
+    let offset = state.position - start_position;
     aabbs[i] = AABB(aabb.min + offset, aabb.max + offset);
 }
 
-fn forces(position: vec2f, velocity: vec2f) -> vec2f {
+struct State {
+    position: vec2f,
+    velocity: vec2f
+}
+
+fn integrate_euler_symplectic(state: State) -> State {
+    let a = forces(state);
+    var new_state = state;
+    new_state.velocity += a * dt;
+    new_state.position += new_state.velocity * dt;
+    return new_state;
+}
+
+fn forces(state: State) -> vec2f {
     var acc = GLOBAL_FORCE;
     for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT; bh_index += 1) {
-        let blackhole = BLACKHOLES[bh_index];
-        acc += blackhole_gravity(blackhole, position);
-        acc += frame_dragging(blackhole, position, velocity);
+        var blackhole = BLACKHOLES[bh_index];
+        acc += blackhole_gravity(blackhole, state.position);
+        acc += frame_dragging(blackhole, state);
     }
     return acc;
 }
@@ -91,42 +104,14 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2f) -> vec2f {
     return bh_gravity;
 }
 
-fn frame_dragging(blackhole: BlackHole, position: vec2f, velocity: vec2f) -> vec2f {
-    let rel = blackhole.position - position;
-    let r = length(rel);
+// TODO fix this steaming pile of nonsense :)
+fn frame_dragging(blackhole: BlackHole, state: State) -> vec2f {
+    let blackhole_vector = blackhole.position - state.position;
+    let r = length(blackhole_vector);
     let angular_momentum = blackhole.spin * vec2f(1, 1);
-    let vr_cross = cross(vec3f(velocity, 0), vec3f(rel, 0)).z;
-    let vj_cross = cross(vec3f(velocity, 0), vec3f(angular_momentum, 0)).z;
-    let a = 2 * GRAVITATIONAL_CONSTANT / pow(r, 3) * (
-        vj_cross - 3 * rel * angular_momentum * vr_cross / pow(r, 2)
-    );
+    let v_cross_r = cross(vec3f(state.velocity, 0), vec3f(blackhole_vector, 0)).z;
+    let v_cross_j = cross(vec3f(state.velocity, 0), vec3f(angular_momentum, 0)).z;
+    let a = 2 * GRAVITATIONAL_CONSTANT / pow(r, 3) *
+        (v_cross_j - 3 * blackhole_vector * angular_momentum * v_cross_r / pow(r, 2));
     return a;
-}
-
-struct IntegratedParameters {
-    x: vec2f,
-    v: vec2f
-}
-
-fn integrate_yoshida(params: IntegratedParameters) -> IntegratedParameters {
-    const w1 = 1.3512071919596578;
-    const w0 = -1.7024143839193155; // = 1 - 2*w1
-    var p = params;
-    p = leapfrog_step(p, w1);
-    p = leapfrog_step(p, w0);
-    p = leapfrog_step(p, w1);
-    return p;
-}
-
-// A single leapfrog (drift-kick-drift) step
-fn leapfrog_step(params: IntegratedParameters, w: f32) -> IntegratedParameters {
-    let half_step = w * dt * 0.5;
-    // Drift (position half-step)
-    var x = params.x + params.v * half_step;
-    // Kick (full velocity step)
-    let a = forces(x, params.v);
-    let v = params.v + a * (w * dt);
-    // Drift (position half-step)
-    x = x + v * half_step;
-    return IntegratedParameters(x, v);
 }

@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 9d9ebfac20c48be3b76526f316a8862afbd8ec83e15b10361450b79e4b0d1724
+// SourceHash: f18500c6e34183fbf3eae37f69730feea3a8f83367a2f094d3637ac1c4c29552
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1448,9 +1448,9 @@ struct BlackHole {
     spin: f32,
 }
 
-struct IntegratedParameters {
-    x: vec2<f32>,
-    v: vec2<f32>,
+struct State {
+    position: vec2<f32>,
+    velocity: vec2<f32>,
 }
 
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
@@ -1492,19 +1492,20 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>) -> vec2<f32> {
     return bh_gravity;
 }
 
-fn frame_dragging(blackhole_1: BlackHole, position_1: vec2<f32>, velocity: vec2<f32>) -> vec2<f32> {
-    let rel = (blackhole_1.position - position_1);
-    let r = length(rel);
+fn frame_dragging(blackhole_1: BlackHole, state_1: State) -> vec2<f32> {
+    let blackhole_vector = (blackhole_1.position - state_1.position);
+    let r = length(blackhole_vector);
     let angular_momentum = (blackhole_1.spin * vec2<f32>(1f, 1f));
-    let vr_cross = cross(vec3<f32>(velocity, 0f), vec3<f32>(rel, 0f)).z;
-    let vj_cross = cross(vec3<f32>(velocity, 0f), vec3<f32>(angular_momentum, 0f)).z;
-    let a = ((200000f / pow(r, 3f)) * (vec2(vj_cross) - ((((3f * rel) * angular_momentum) * vr_cross) / vec2(pow(r, 2f)))));
+    let v_cross_r = cross(vec3<f32>(state_1.velocity, 0f), vec3<f32>(blackhole_vector, 0f)).z;
+    let v_cross_j = cross(vec3<f32>(state_1.velocity, 0f), vec3<f32>(angular_momentum, 0f)).z;
+    let a = ((200000f / pow(r, 3f)) * (vec2(v_cross_j) - ((((3f * blackhole_vector) * angular_momentum) * v_cross_r) / vec2(pow(r, 2f)))));
     return a;
 }
 
-fn forces(position_2: vec2<f32>, velocity_1: vec2<f32>) -> vec2<f32> {
+fn forces(state_2: State) -> vec2<f32> {
     var acc: vec2<f32> = GLOBAL_FORCE;
     var bh_index_1: u32 = 0u;
+    var blackhole_2: BlackHole;
 
     loop {
         let _e3 = bh_index_1;
@@ -1514,60 +1515,45 @@ fn forces(position_2: vec2<f32>, velocity_1: vec2<f32>) -> vec2<f32> {
         }
         {
             let _e7 = bh_index_1;
-            let blackhole_2 = BLACKHOLES[_e7];
-            let _e10 = blackhole_gravity(blackhole_2, position_2);
-            let _e12 = acc;
-            acc = (_e12 + _e10);
-            let _e15 = frame_dragging(blackhole_2, position_2, velocity_1);
-            let _e16 = acc;
-            acc = (_e16 + _e15);
+            blackhole_2 = BLACKHOLES[_e7];
+            let _e11 = blackhole_2;
+            let _e13 = blackhole_gravity(_e11, state_2.position);
+            let _e15 = acc;
+            acc = (_e15 + _e13);
+            let _e17 = blackhole_2;
+            let _e18 = frame_dragging(_e17, state_2);
+            let _e19 = acc;
+            acc = (_e19 + _e18);
         }
         continuing {
-            let _e19 = bh_index_1;
-            bh_index_1 = (_e19 + 1u);
+            let _e22 = bh_index_1;
+            bh_index_1 = (_e22 + 1u);
         }
     }
-    let _e21 = acc;
-    return _e21;
+    let _e24 = acc;
+    return _e24;
 }
 
-fn leapfrog_step(params_1: IntegratedParameters, w: f32) -> IntegratedParameters {
-    var x: vec2<f32>;
+fn integrate_euler_symplectic(state_3: State) -> State {
+    var new_state: State;
 
-    let _e2 = dt;
-    let half_step = ((w * _e2) * 0.5f);
-    x = (params_1.x + (params_1.v * half_step));
-    let _e12 = x;
-    let _e14 = forces(_e12, params_1.v);
-    let _e17 = dt;
-    let v = (params_1.v + (_e14 * (w * _e17)));
-    let _e21 = x;
-    x = (_e21 + (v * half_step));
-    let _e24 = x;
-    return IntegratedParameters(_e24, v);
-}
-
-fn integrate_yoshida(params_2: IntegratedParameters) -> IntegratedParameters {
-    var p: IntegratedParameters;
-
-    p = params_2;
-    let _e2 = p;
-    let _e4 = leapfrog_step(_e2, 1.3512071f);
-    p = _e4;
-    let _e5 = p;
-    let _e7 = leapfrog_step(_e5, -1.7024144f);
-    p = _e7;
-    let _e8 = p;
-    let _e10 = leapfrog_step(_e8, 1.3512071f);
-    p = _e10;
-    let _e11 = p;
-    return _e11;
+    let _e1 = forces(state_3);
+    new_state = state_3;
+    let _e5 = dt;
+    let _e7 = new_state.velocity;
+    new_state.velocity = (_e7 + (_e1 * _e5));
+    let _e11 = new_state.velocity;
+    let _e13 = dt;
+    let _e15 = new_state.position;
+    new_state.position = (_e15 + (_e11 * _e13));
+    let _e17 = new_state;
+    return _e17;
 }
 
 @compute @workgroup_size(64, 1, 1) 
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var f: u32;
-    var params: IntegratedParameters;
+    var state: State;
     var bh_index: u32 = 0u;
 
     let _e3 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, WORKGROUP_SIZE);
@@ -1581,12 +1567,12 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
     let aabb = aabbs[_e3];
-    let start_x = ((aabb.min + aabb.max) / vec2(2f));
+    let start_position = ((aabb.min + aabb.max) / vec2(2f));
     let _e29 = velocities[_e3].inner;
-    params = IntegratedParameters(start_x, _e29);
-    let _e32 = params;
-    let _e33 = integrate_yoshida(_e32);
-    params = _e33;
+    state = State(start_position, _e29);
+    let _e32 = state;
+    let _e33 = integrate_euler_symplectic(_e32);
+    state = _e33;
     let size = (aabb.max - aabb.min);
     if BLACKHOLE_DESTROY_MATTER {
         loop {
@@ -1599,12 +1585,12 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
             {
                 let _e49 = bh_index;
                 let blackhole_3 = BLACKHOLES[_e49];
-                let _e53 = params.x;
+                let _e53 = state.position;
                 let distance_1 = (length((blackhole_3.position - _e53)) - (max(size.x, size.y) / 2f));
                 if (distance_1 < (blackhole_3.radius * BLACKHOLE_SIZE_SCALE)) {
                     let _e67 = f;
                     f = (_e67 & 4294967288u);
-                    params.v = vec2<f32>();
+                    state.velocity = vec2<f32>();
                 }
             }
             continuing {
@@ -1615,10 +1601,10 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
     let _e77 = f;
     flags[_e3].inner = _e77;
-    let _e82 = params.v;
+    let _e82 = state.velocity;
     velocities[_e3].inner = _e82;
-    let _e84 = params.x;
-    let offset = (_e84 - start_x);
+    let _e84 = state.position;
+    let offset = (_e84 - start_position);
     aabbs[_e3] = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb.min + offset), (aabb.max + offset));
     return;
 }
