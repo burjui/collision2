@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 63a902e91fee6e7ced7a7f534a02d746f736e9655072c5ca75a6a097a139ea1d
+// SourceHash: 001f6b7bd17c925371743fede88d8d3c0a4eb095a56dfeb3faba5e34a7e5c96c
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1221,6 +1221,8 @@ pub mod integration {
         pub velocities: wgpu::BufferBinding<'a>,
         pub aabbs: wgpu::BufferBinding<'a>,
         pub nodes: wgpu::BufferBinding<'a>,
+        pub integrated_velocities: wgpu::BufferBinding<'a>,
+        pub integrated_aabbs: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
@@ -1230,6 +1232,8 @@ pub mod integration {
         pub velocities: wgpu::BindGroupEntry<'a>,
         pub aabbs: wgpu::BindGroupEntry<'a>,
         pub nodes: wgpu::BindGroupEntry<'a>,
+        pub integrated_velocities: wgpu::BindGroupEntry<'a>,
+        pub integrated_aabbs: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -1258,9 +1262,17 @@ pub mod integration {
                     binding: 5,
                     resource: wgpu::BindingResource::Buffer(params.nodes),
                 },
+                integrated_velocities: wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Buffer(params.integrated_velocities),
+                },
+                integrated_aabbs: wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: wgpu::BindingResource::Buffer(params.integrated_aabbs),
+                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 8] {
             [
                 self.dt,
                 self.flags,
@@ -1268,6 +1280,8 @@ pub mod integration {
                 self.velocities,
                 self.aabbs,
                 self.nodes,
+                self.integrated_velocities,
+                self.integrated_aabbs,
             ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
@@ -1341,6 +1355,28 @@ pub mod integration {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(6): \"integrated_velocities\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(7): \"integrated_aabbs\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -1459,6 +1495,10 @@ var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(5) 
 var<storage> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(6) 
+var<storage, read_write> integrated_velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(7) 
+var<storage, read_write> integrated_aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
 fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return (gid_1.x + ((gid_1.y * 65535u) * workgroup_size));
@@ -1581,10 +1621,10 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let _e77 = f;
     flags[_e3].inner = _e77;
     let _e82 = state.velocity;
-    velocities[_e3].inner = _e82;
+    integrated_velocities[_e3].inner = _e82;
     let _e84 = state.position;
     let offset = (_e84 - start_position);
-    aabbs[_e3] = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb.min + offset), (aabb.max + offset));
+    integrated_aabbs[_e3] = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb.min + offset), (aabb.max + offset));
     return;
 }
 "#;

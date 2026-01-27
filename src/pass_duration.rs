@@ -1,13 +1,16 @@
 use std::time::Duration;
 
-use wgpu::{BufferUsages, CommandEncoder, Device, QuerySet, QueryType};
+use wgpu::{
+    BufferUsages, CommandEncoder, ComputePassTimestampWrites, Device, QuerySet, QuerySetDescriptor, QueryType,
+    RenderPassTimestampWrites,
+};
 
 use crate::gpu_buffer::GpuBuffer;
 
 #[must_use]
 pub struct PassDurationMeasurer {
     device: Device,
-    pub query_set: QuerySet,
+    query_set: QuerySet,
     query_buffer: GpuBuffer<u64>,
     query_readback_buffer: GpuBuffer<u64>,
 }
@@ -16,7 +19,7 @@ impl PassDurationMeasurer {
     pub fn new(device: &Device) -> Self {
         Self {
             device: device.clone(),
-            query_set: device.create_query_set(&wgpu::QuerySetDescriptor {
+            query_set: device.create_query_set(&QuerySetDescriptor {
                 label: Some("integrator duration query set"),
                 ty: QueryType::Timestamp,
                 count: 2,
@@ -36,12 +39,28 @@ impl PassDurationMeasurer {
         }
     }
 
-    pub fn render_pass_timestamp_writes(&self) -> wgpu::RenderPassTimestampWrites<'_> {
-        wgpu::RenderPassTimestampWrites {
+    pub fn compute_pass_timestamp_writes(&self) -> ComputePassTimestampWrites<'_> {
+        ComputePassTimestampWrites {
             query_set: &self.query_set,
             beginning_of_pass_write_index: Some(0),
             end_of_pass_write_index: Some(1),
         }
+    }
+
+    pub fn render_pass_timestamp_writes(&self) -> RenderPassTimestampWrites<'_> {
+        RenderPassTimestampWrites {
+            query_set: &self.query_set,
+            beginning_of_pass_write_index: Some(0),
+            end_of_pass_write_index: Some(1),
+        }
+    }
+
+    // TODO: unify measure() and update()
+
+    pub fn measure(&self, encoder: &mut CommandEncoder, mut f: impl FnMut(&mut CommandEncoder)) {
+        encoder.write_timestamp(&self.query_set, 0);
+        f(encoder);
+        encoder.write_timestamp(&self.query_set, 1);
     }
 
     pub fn update(&self, encoder: &mut CommandEncoder) {

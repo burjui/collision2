@@ -43,9 +43,9 @@ use std::{
     time::{Duration, Instant},
 };
 use wgpu::{
-    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, ComputePassTimestampWrites, PipelineCacheDescriptor,
-    PresentMode, RenderPassColorAttachment, RenderPassDescriptor, RenderPassTimestampWrites, RequestAdapterOptions,
-    SubmissionIndex, TextureFormat, TextureView, TextureViewDescriptor,
+    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCacheDescriptor, PresentMode,
+    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, SubmissionIndex, TextureFormat,
+    TextureView, TextureViewDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
@@ -186,6 +186,8 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             buffers.velocities,
             buffers.aabbs,
             buffers.bvh_nodes,
+            buffers.integrated_velocities,
+            buffers.integrated_aabbs,
             device.clone(),
             queue.clone(),
             self.event_loop_proxy.clone(),
@@ -365,11 +367,7 @@ fn render_scene(
             },
         })],
         depth_stencil_attachment: None,
-        timestamp_writes: Some(RenderPassTimestampWrites {
-            query_set: &pass_duration_measurer.query_set,
-            beginning_of_pass_write_index: Some(0),
-            end_of_pass_write_index: Some(1),
-        }),
+        timestamp_writes: Some(pass_duration_measurer.render_pass_timestamp_writes()),
         occlusion_query_set: None,
     });
     if render_parameters.enabled {
@@ -413,6 +411,8 @@ fn spawn_simulation_thread(
     velocities: GpuBuffer<Velocity>,
     aabbs: GpuBuffer<AABB>,
     bvh_nodes: GpuBuffer<BvhNode>,
+    integrated_velocities: GpuBuffer<Velocity>,
+    integrated_aabbs: GpuBuffer<AABB>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     event_loop_proxy: EventLoopProxy<AppEvent>,
@@ -426,9 +426,20 @@ fn spawn_simulation_thread(
 
         let object_count = flags.len();
         let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), bvh_nodes.clone(), object_count);
-        let integrator = GpuIntegrator::new(&device, dt, flags, masses, velocities, aabbs, bvh_nodes);
+        let integrator = GpuIntegrator::new(
+            &device,
+            dt,
+            flags,
+            masses,
+            velocities.clone(),
+            aabbs.clone(),
+            bvh_nodes,
+            integrated_velocities.clone(),
+            integrated_aabbs.clone(),
+        );
         let integration_duration_measurer = PassDurationMeasurer::new(&device);
         let bvh_duration_measurer = PassDurationMeasurer::new(&device);
+        let update_duration_measurer = PassDurationMeasurer::new(&device);
 
         loop {
             if exit_notification_receiver.try_recv().is_ok() {
@@ -445,11 +456,7 @@ fn spawn_simulation_thread(
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("bvh pass"),
-                timestamp_writes: Some(ComputePassTimestampWrites {
-                    query_set: &bvh_duration_measurer.query_set,
-                    beginning_of_pass_write_index: Some(0),
-                    end_of_pass_write_index: Some(1),
-                }),
+                timestamp_writes: Some(bvh_duration_measurer.compute_pass_timestamp_writes()),
             });
             bvh_builder.compute(&mut compute_pass);
             let node_count = bvh_builder.node_count();
@@ -457,17 +464,18 @@ fn spawn_simulation_thread(
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("integration pass"),
-                timestamp_writes: Some(ComputePassTimestampWrites {
-                    query_set: &integration_duration_measurer.query_set,
-                    beginning_of_pass_write_index: Some(0),
-                    end_of_pass_write_index: Some(1),
-                }),
+                timestamp_writes: Some(integration_duration_measurer.compute_pass_timestamp_writes()),
             });
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
 
             bvh_duration_measurer.update(&mut encoder);
             integration_duration_measurer.update(&mut encoder);
+
+            update_duration_measurer.measure(&mut encoder, |encoder| {
+                encoder.copy_buffer_to_buffer(integrated_velocities.buffer(), 0, velocities.buffer(), 0, None);
+                encoder.copy_buffer_to_buffer(integrated_aabbs.buffer(), 0, aabbs.buffer(), 0, None);
+            });
 
             let submission_index = queue.submit([encoder.finish()]);
             node_count_atomic.store(node_count, Ordering::SeqCst);
@@ -478,6 +486,9 @@ fn spawn_simulation_thread(
 
             let integration_duration = integration_duration_measurer.duration();
             println!("Integrated {} objects in {:?}", object_count, integration_duration);
+
+            let update_duration = update_duration_measurer.duration();
+            println!("Updated {} objects in {:?}", object_count, update_duration);
         }
     });
 }

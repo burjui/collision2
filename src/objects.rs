@@ -66,22 +66,27 @@ impl Objects {
     }
 
     pub fn to_buffers(self, device: &wgpu::Device, queue: &wgpu::Queue) -> ObjectBuffers {
-        let access_mode = BufferUsages::COPY_DST;
+        let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
+        let storage_copy_src: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_SRC;
 
         // These are twice the size to hold the BVH AABBs and nodes
-        let aabbs = GpuBuffer::new(self.len() * 2, "aabb buffer", BufferUsages::STORAGE | access_mode, device);
-        let bvh_nodes = GpuBuffer::new(self.len() * 2, "bvh node buffer", BufferUsages::STORAGE | access_mode, device);
+        // TODO: come up with a scheme that saves memory
+        let aabbs = GpuBuffer::new(self.len() * 2, "aabb buffer", storage_copy_dst, device);
+        let bvh_nodes = GpuBuffer::new(self.len() * 2, "bvh node buffer", storage_copy_dst, device);
 
-        let flags = GpuBuffer::new(self.len(), "flags buffer", BufferUsages::STORAGE | access_mode, device);
-        let velocities = GpuBuffer::new(self.len(), "velocity buffer", BufferUsages::STORAGE | access_mode, device);
-        let masses = GpuBuffer::new(self.len(), "mass buffer", BufferUsages::STORAGE | access_mode, device);
-        let colors = GpuBuffer::new(self.len(), "color buffer", BufferUsages::STORAGE | access_mode, device);
-        let shapes = GpuBuffer::new(self.len(), "shape buffer", BufferUsages::STORAGE | access_mode, device);
+        let flags = GpuBuffer::new(self.len(), "flags buffer", storage_copy_dst, device);
+        let velocities = GpuBuffer::new(self.len(), "velocity buffer", storage_copy_dst, device);
+        let masses = GpuBuffer::new(self.len(), "mass buffer", storage_copy_dst, device);
+        let colors = GpuBuffer::new(self.len(), "color buffer", storage_copy_dst, device);
+        let shapes = GpuBuffer::new(self.len(), "shape buffer", storage_copy_dst, device);
 
         aabbs.write(queue, &self.aabbs);
 
         let bvh_leaves = (0..u32::try_from(self.len()).unwrap()).map(BvhNode::new).collect_vec();
         bvh_nodes.write(queue, &bvh_leaves);
+
+        let integrated_velocities = GpuBuffer::new(self.len(), "integrated velocity buffer", storage_copy_src, device);
+        let integrated_aabbs = GpuBuffer::new(self.len(), "integrated aabb buffer", storage_copy_src, device);
 
         flags.write(queue, &self.flags);
         velocities.write(queue, &self.velocities);
@@ -94,6 +99,8 @@ impl Objects {
             aabbs,
             bvh_nodes,
             velocities,
+            integrated_velocities,
+            integrated_aabbs,
             masses,
             colors,
             shapes,
@@ -106,6 +113,8 @@ pub struct ObjectBuffers {
     pub aabbs: GpuBuffer<AABB>,
     pub bvh_nodes: GpuBuffer<BvhNode>,
     pub velocities: GpuBuffer<Velocity>,
+    pub integrated_velocities: GpuBuffer<Velocity>,
+    pub integrated_aabbs: GpuBuffer<AABB>,
     pub masses: GpuBuffer<Mass>,
     pub colors: GpuBuffer<Color>,
     pub shapes: GpuBuffer<Shape>,

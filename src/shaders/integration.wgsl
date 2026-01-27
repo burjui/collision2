@@ -10,6 +10,8 @@
 @group(0) @binding(3) var<storage, read_write> velocities: array<Velocity>;
 @group(0) @binding(4) var<storage, read_write> aabbs: array<AABB>;
 @group(0) @binding(5) var<storage, read> nodes: array<BvhNode>;
+@group(0) @binding(6) var<storage, read_write> integrated_velocities: array<Velocity>;
+@group(0) @binding(7) var<storage, read_write> integrated_aabbs: array<AABB>;
 
 const WORKGROUP_SIZE: u32 = 64;
 
@@ -67,9 +69,9 @@ fn cs_main(
     }
 
     flags[i].inner = f;
-    velocities[i].inner = state.velocity;
+    integrated_velocities[i].inner = state.velocity;
     let offset = state.position - start_position;
-    aabbs[i] = AABB(aabb.min + offset, aabb.max + offset);
+    integrated_aabbs[i] = AABB(aabb.min + offset, aabb.max + offset);
 }
 
 struct State {
