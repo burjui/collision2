@@ -34,6 +34,7 @@ use crossbeam::channel::Sender;
 use pollster::block_on;
 use shaders::common::{Flags, Mass, Velocity};
 use std::{
+    mem::size_of,
     ops::Range,
     sync::{
         Arc,
@@ -474,6 +475,7 @@ fn spawn_simulation_thread(
 
             update_duration_measurer.measure(&mut encoder, |encoder| {
                 encoder.copy_buffer_to_buffer(integrated_velocities.buffer(), 0, velocities.buffer(), 0, None);
+                // Copying the entire buffer is okay because integrated_aabbs is of object_count length
                 encoder.copy_buffer_to_buffer(integrated_aabbs.buffer(), 0, aabbs.buffer(), 0, None);
             });
 
