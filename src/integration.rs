@@ -26,7 +26,6 @@ impl GpuIntegrator {
         velocities: GpuBuffer<Velocity>,
         aabbs: GpuBuffer<AABB>,
         nodes: GpuBuffer<BvhNode>,
-        force_acc: GpuBuffer<[f32; 2]>,
     ) -> Self {
         let pipeline = create_cs_main_pipeline_embed_source(device);
         let bind_group = WgpuBindGroup0::from_bindings(
@@ -38,7 +37,6 @@ impl GpuIntegrator {
                 velocities: velocities.buffer().as_entire_buffer_binding(),
                 aabbs: aabbs.buffer().as_entire_buffer_binding(),
                 nodes: nodes.buffer().as_entire_buffer_binding(),
-                force_acc: force_acc.buffer().as_entire_buffer_binding(),
             }),
         );
         Self {

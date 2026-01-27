@@ -10,7 +10,6 @@
 @group(0) @binding(3) var<storage, read_write> velocities: array<Velocity>;
 @group(0) @binding(4) var<storage, read_write> aabbs: array<AABB>;
 @group(0) @binding(5) var<storage, read> nodes: array<BvhNode>;
-@group(0) @binding(6) var<storage, read_write> force_acc: array<vec2f>;
 
 const WORKGROUP_SIZE: u32 = 64;
 
@@ -25,7 +24,7 @@ const BLACKHOLE_COUNT: u32 = 5;
 const BLACKHOLES = array<BlackHole, BLACKHOLE_COUNT>(
     BlackHole(vec2f(-200, 500),     2,  10,  0 * -50),
     BlackHole(vec2f(500, 200),      1,  20,  0 * -50),
-    BlackHole(vec2f(),              2,  20,  0 * 50),
+    BlackHole(vec2f(),              2,  10,  1 * 50),
     BlackHole(vec2f(-600, -300),    1,  20,  0 * -50),
     BlackHole(vec2f(600, -700),     1,  10,  0 * -50),
 );
@@ -104,14 +103,13 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2f) -> vec2f {
     return bh_gravity;
 }
 
-// TODO fix this steaming pile of nonsense :)
+// Lense–Thirring formula for 2D
+// NOTE: some terms are missing and have to be reintroduced for 3D
 fn frame_dragging(blackhole: BlackHole, state: State) -> vec2f {
-    let blackhole_vector = blackhole.position - state.position;
-    let r = length(blackhole_vector);
-    let angular_momentum = blackhole.spin * vec2f(1, 1);
-    let v_cross_r = cross(vec3f(state.velocity, 0), vec3f(blackhole_vector, 0)).z;
-    let v_cross_j = cross(vec3f(state.velocity, 0), vec3f(angular_momentum, 0)).z;
-    let a = 2 * GRAVITATIONAL_CONSTANT / pow(r, 3) *
-        (v_cross_j - 3 * blackhole_vector * angular_momentum * v_cross_r / pow(r, 2));
+    let r_vec = blackhole.position - state.position;
+    let r = length(r_vec);
+    let J = blackhole.spin; // scalar angular momentum (Jz)
+    let v_perp = vec2f(-state.velocity.y, state.velocity.x); // v rotated by +90 degrees
+    let a = (2.0 * GRAVITATIONAL_CONSTANT * J / pow(r, 3.0)) * v_perp;
     return a;
 }

@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: f18500c6e34183fbf3eae37f69730feea3a8f83367a2f094d3637ac1c4c29552
+// SourceHash: 63a902e91fee6e7ced7a7f534a02d746f736e9655072c5ca75a6a097a139ea1d
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1221,7 +1221,6 @@ pub mod integration {
         pub velocities: wgpu::BufferBinding<'a>,
         pub aabbs: wgpu::BufferBinding<'a>,
         pub nodes: wgpu::BufferBinding<'a>,
-        pub force_acc: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
@@ -1231,7 +1230,6 @@ pub mod integration {
         pub velocities: wgpu::BindGroupEntry<'a>,
         pub aabbs: wgpu::BindGroupEntry<'a>,
         pub nodes: wgpu::BindGroupEntry<'a>,
-        pub force_acc: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -1260,13 +1258,9 @@ pub mod integration {
                     binding: 5,
                     resource: wgpu::BindingResource::Buffer(params.nodes),
                 },
-                force_acc: wgpu::BindGroupEntry {
-                    binding: 6,
-                    resource: wgpu::BindingResource::Buffer(params.force_acc),
-                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 7] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
             [
                 self.dt,
                 self.flags,
@@ -1274,7 +1268,6 @@ pub mod integration {
                 self.velocities,
                 self.aabbs,
                 self.nodes,
-                self.force_acc,
             ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
@@ -1348,17 +1341,6 @@ pub mod integration {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(6): \"force_acc\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -1458,7 +1440,7 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
 const BLACKHOLE_COUNT: u32 = 5u;
-const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 2f, 10f, 0f), BlackHole(vec2<f32>(500f, 200f), 1f, 20f, 0f), BlackHole(vec2<f32>(), 2f, 20f, 0f), BlackHole(vec2<f32>(-600f, -300f), 1f, 20f, 0f), BlackHole(vec2<f32>(600f, -700f), 1f, 10f, 0f));
+const BLACKHOLES: array<BlackHole, 5> = array<BlackHole, 5>(BlackHole(vec2<f32>(-200f, 500f), 2f, 10f, 0f), BlackHole(vec2<f32>(500f, 200f), 1f, 20f, 0f), BlackHole(vec2<f32>(), 2f, 10f, 50f), BlackHole(vec2<f32>(-600f, -300f), 1f, 20f, 0f), BlackHole(vec2<f32>(600f, -700f), 1f, 10f, 0f));
 const BLACKHOLE_MASS_SCALE: f32 = 1000f;
 const BLACKHOLE_SIZE_SCALE: f32 = 10f;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
@@ -1477,8 +1459,6 @@ var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(5) 
 var<storage> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(6) 
-var<storage, read_write> force_acc: array<vec2<f32>>;
 
 fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return (gid_1.x + ((gid_1.y * 65535u) * workgroup_size));
@@ -1493,12 +1473,11 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>) -> vec2<f32> {
 }
 
 fn frame_dragging(blackhole_1: BlackHole, state_1: State) -> vec2<f32> {
-    let blackhole_vector = (blackhole_1.position - state_1.position);
-    let r = length(blackhole_vector);
-    let angular_momentum = (blackhole_1.spin * vec2<f32>(1f, 1f));
-    let v_cross_r = cross(vec3<f32>(state_1.velocity, 0f), vec3<f32>(blackhole_vector, 0f)).z;
-    let v_cross_j = cross(vec3<f32>(state_1.velocity, 0f), vec3<f32>(angular_momentum, 0f)).z;
-    let a = ((200000f / pow(r, 3f)) * (vec2(v_cross_j) - ((((3f * blackhole_vector) * angular_momentum) * v_cross_r) / vec2(pow(r, 2f)))));
+    let r_vec = (blackhole_1.position - state_1.position);
+    let r = length(r_vec);
+    let J = blackhole_1.spin;
+    let v_perp = vec2<f32>(-(state_1.velocity.y), state_1.velocity.x);
+    let a = (((200000f * J) / pow(r, 3f)) * v_perp);
     return a;
 }
 

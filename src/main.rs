@@ -179,12 +179,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         );
         let (exit_notification_sender, exit_notification_receiver) = crossbeam::channel::bounded(1);
         let node_count_atomic = Arc::new(AtomicU32::new(u32::try_from(object_count).unwrap()));
-        let force_acc = GpuBuffer::new(
-            object_count,
-            "force accumulator buffer",
-            BufferUsages::STORAGE | BufferUsages::COPY_DST,
-            &device,
-        );
 
         spawn_simulation_thread(
             buffers.flags,
@@ -192,7 +186,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             buffers.velocities,
             buffers.aabbs,
             buffers.bvh_nodes,
-            force_acc,
             device.clone(),
             queue.clone(),
             self.event_loop_proxy.clone(),
@@ -403,7 +396,7 @@ fn orthographic_camera(zoom: f32, view_size: PhysicalSize<f32>, world_height: f3
     let r = world_width * 0.5;
     let b = -world_height * 0.5;
     let t = world_height * 0.5;
-    // TODO: implement zoom
+    // TODO: implement panning
     let sx = zoom * 2.0 / (r - l);
     let sy = zoom * 2.0 / (t - b);
     [
@@ -420,7 +413,6 @@ fn spawn_simulation_thread(
     velocities: GpuBuffer<Velocity>,
     aabbs: GpuBuffer<AABB>,
     bvh_nodes: GpuBuffer<BvhNode>,
-    foce_acc: GpuBuffer<[f32; 2]>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     event_loop_proxy: EventLoopProxy<AppEvent>,
@@ -434,7 +426,7 @@ fn spawn_simulation_thread(
 
         let object_count = flags.len();
         let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), bvh_nodes.clone(), object_count);
-        let integrator = GpuIntegrator::new(&device, dt, flags, masses, velocities, aabbs, bvh_nodes, foce_acc);
+        let integrator = GpuIntegrator::new(&device, dt, flags, masses, velocities, aabbs, bvh_nodes);
         let integration_duration_measurer = PassDurationMeasurer::new(&device);
         let bvh_duration_measurer = PassDurationMeasurer::new(&device);
 
@@ -452,17 +444,6 @@ fn spawn_simulation_thread(
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some("integration pass"),
-                timestamp_writes: Some(ComputePassTimestampWrites {
-                    query_set: &integration_duration_measurer.query_set,
-                    beginning_of_pass_write_index: Some(0),
-                    end_of_pass_write_index: Some(1),
-                }),
-            });
-            integrator.compute(&mut compute_pass);
-            drop(compute_pass);
-
-            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("bvh pass"),
                 timestamp_writes: Some(ComputePassTimestampWrites {
                     query_set: &bvh_duration_measurer.query_set,
@@ -474,17 +455,29 @@ fn spawn_simulation_thread(
             let node_count = bvh_builder.node_count();
             drop(compute_pass);
 
-            integration_duration_measurer.update(&mut encoder);
+            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some("integration pass"),
+                timestamp_writes: Some(ComputePassTimestampWrites {
+                    query_set: &integration_duration_measurer.query_set,
+                    beginning_of_pass_write_index: Some(0),
+                    end_of_pass_write_index: Some(1),
+                }),
+            });
+            integrator.compute(&mut compute_pass);
+            drop(compute_pass);
+
             bvh_duration_measurer.update(&mut encoder);
+            integration_duration_measurer.update(&mut encoder);
 
             let submission_index = queue.submit([encoder.finish()]);
             node_count_atomic.store(node_count, Ordering::SeqCst);
             device.wait_for_submission(submission_index).unwrap();
 
-            let integration_duration = integration_duration_measurer.duration();
-            println!("Integrated {} objects in {:?}", object_count, integration_duration);
             let bvh_duration = bvh_duration_measurer.duration();
             println!("Built BVH with {} nodes in {:?}", node_count, bvh_duration);
+
+            let integration_duration = integration_duration_measurer.duration();
+            println!("Integrated {} objects in {:?}", object_count, integration_duration);
         }
     });
 }
