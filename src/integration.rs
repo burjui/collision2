@@ -54,6 +54,8 @@ impl GpuIntegrator {
         compute_pass.set_pipeline(&self.pipeline);
         self.bind_group.set(compute_pass);
         let total_workgroups = u32::try_from(self.object_count).unwrap().div_ceil(WORKGROUP_SIZE);
-        compute_pass.dispatch_workgroups(total_workgroups.min(65535), total_workgroups.div_ceil(65535), 1);
+        let x = total_workgroups.min(65535);
+        let y = total_workgroups.div_ceil(65535);
+        compute_pass.dispatch_workgroups(x, y, 1);
     }
 }

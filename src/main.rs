@@ -30,7 +30,6 @@ use crate::{
     shape_renderer::ShapeRenderer,
     util::DeviceUtil,
 };
-use crossbeam::channel::Sender;
 use pollster::block_on;
 use shaders::common::{Flags, Mass, Velocity};
 use std::{
@@ -38,13 +37,13 @@ use std::{
     ops::Range,
     sync::{
         Arc,
-        atomic::{AtomicU32, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
     },
-    thread,
+    thread::{self, yield_now},
     time::{Duration, Instant},
 };
 use wgpu::{
-    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCacheDescriptor, PresentMode,
+    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCacheDescriptor, PollType, PresentMode,
     RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, SubmissionIndex, TextureFormat,
     TextureView, TextureViewDescriptor,
 };
@@ -104,7 +103,7 @@ impl Default for RenderParameters {
 struct GpuState<'a> {
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
-    exit_notification_sender: Sender<()>,
+    exit_requested: Arc<AtomicBool>,
     world_aabb: AABB,
     object_count: usize,
     camera: GpuBuffer<Camera>,
@@ -128,7 +127,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let (adapter, device, queue, swapchain_format) = init_wgpu(&wgpu, &surface);
         let window_size = window.inner_size();
         let surface_config = wgpu::SurfaceConfiguration {
-            present_mode: PresentMode::Immediate,
+            present_mode: PresentMode::AutoVsync,
             ..surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap()
         };
         surface.configure(&device, &surface_config);
@@ -178,7 +177,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             buffers.shapes,
             buffers.velocities.clone(),
         );
-        let (exit_notification_sender, exit_notification_receiver) = crossbeam::channel::bounded(1);
+        let exit_requested = Arc::new(AtomicBool::new(false));
         let node_count_atomic = Arc::new(AtomicU32::new(u32::try_from(object_count).unwrap()));
 
         spawn_simulation_thread(
@@ -192,14 +191,28 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             device.clone(),
             queue.clone(),
             self.event_loop_proxy.clone(),
-            exit_notification_receiver.clone(),
+            exit_requested.clone(),
             node_count_atomic.clone(),
         );
+
+        thread::spawn({
+            let device = device.clone();
+            let exit_requested = exit_requested.clone();
+            move || {
+                loop {
+                    device.poll(PollType::Poll).unwrap();
+                    if exit_requested.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    yield_now();
+                }
+            }
+        });
 
         self.gpu_state = Some(GpuState {
             shape_renderer,
             aabb_renderer,
-            exit_notification_sender,
+            exit_requested,
             world_aabb,
             object_count,
             camera,
@@ -244,6 +257,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
                     let surface_texture_view = surface_texture.texture.create_view(&TextureViewDescriptor::default());
                     let node_count = usize::try_from(state.node_count_atomic.load(Ordering::Relaxed)).unwrap();
+                    let start = Instant::now();
                     render_scene(
                         surface_texture_view,
                         &self.render_parameters,
@@ -254,6 +268,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &state.device,
                         &state.queue,
                     );
+                    println!("Render done in {:?}", start.elapsed());
 
                     state.window.pre_present_notify();
                     surface_texture.present();
@@ -306,7 +321,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(state) = &self.gpu_state {
-            let _ = state.exit_notification_sender.try_send(());
+            state.exit_requested.store(true, Ordering::SeqCst);
         }
     }
 }
@@ -417,7 +432,7 @@ fn spawn_simulation_thread(
     device: wgpu::Device,
     queue: wgpu::Queue,
     event_loop_proxy: EventLoopProxy<AppEvent>,
-    exit_notification_receiver: crossbeam::channel::Receiver<()>,
+    exit_requested: Arc<AtomicBool>,
     node_count_atomic: Arc<AtomicU32>,
 ) {
     thread::spawn(move || {
@@ -427,6 +442,7 @@ fn spawn_simulation_thread(
 
         let object_count = flags.len();
         let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), bvh_nodes.clone(), object_count);
+
         let integrator = GpuIntegrator::new(
             &device,
             dt,
@@ -438,12 +454,13 @@ fn spawn_simulation_thread(
             integrated_velocities.clone(),
             integrated_aabbs.clone(),
         );
+
         let integration_duration_measurer = PassDurationMeasurer::new(&device);
         let bvh_duration_measurer = PassDurationMeasurer::new(&device);
         let update_duration_measurer = PassDurationMeasurer::new(&device);
 
         loop {
-            if exit_notification_receiver.try_recv().is_ok() {
+            if exit_requested.load(Ordering::Relaxed) {
                 break;
             }
 
@@ -453,6 +470,8 @@ fn spawn_simulation_thread(
                 event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
             }
 
+            let compute_start = Instant::now();
+
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
@@ -460,8 +479,10 @@ fn spawn_simulation_thread(
                 timestamp_writes: Some(bvh_duration_measurer.compute_pass_timestamp_writes()),
             });
             bvh_builder.compute(&mut compute_pass);
-            let node_count = bvh_builder.node_count();
             drop(compute_pass);
+
+            let node_count = bvh_builder.node_count();
+            node_count_atomic.store(node_count, Ordering::SeqCst);
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("integration pass"),
@@ -470,18 +491,18 @@ fn spawn_simulation_thread(
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
 
-            bvh_duration_measurer.update(&mut encoder);
-            integration_duration_measurer.update(&mut encoder);
-
             update_duration_measurer.measure(&mut encoder, |encoder| {
                 encoder.copy_buffer_to_buffer(integrated_velocities.buffer(), 0, velocities.buffer(), 0, None);
                 // Copying the entire buffer is okay because integrated_aabbs is of object_count length
                 encoder.copy_buffer_to_buffer(integrated_aabbs.buffer(), 0, aabbs.buffer(), 0, None);
             });
+
+            bvh_duration_measurer.update(&mut encoder);
+            integration_duration_measurer.update(&mut encoder);
             update_duration_measurer.update(&mut encoder);
 
-            let submission_index = queue.submit([encoder.finish()]);
-            node_count_atomic.store(node_count, Ordering::SeqCst);
+            let command_buffer = encoder.finish();
+            let submission_index = queue.submit([command_buffer]);
             device.wait_for_submission(submission_index).unwrap();
 
             let bvh_duration = bvh_duration_measurer.duration();
@@ -492,6 +513,8 @@ fn spawn_simulation_thread(
 
             let update_duration = update_duration_measurer.duration();
             println!("Updated {} objects in {:?}", object_count, update_duration);
+
+            println!("Compute done in {:?}", compute_start.elapsed());
         }
     });
 }
