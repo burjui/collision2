@@ -498,18 +498,18 @@ fn spawn_simulation_thread(
                 device.wait_for_submission(render_submission_index).unwrap();
             }
             let submission_index = queue.submit([command_buffer]);
+            println!("Submitted command buffer at {:?}", compute_start.elapsed());
             device.wait_for_submission(submission_index).unwrap();
+            println!("Compute done in {:?}", compute_start.elapsed());
 
             let bvh_duration = bvh_duration_measurer.duration();
-            println!("Built BVH with {} nodes in {:?}", node_count, bvh_duration);
+            println!("  Built BVH with {} nodes in {:?}", node_count, bvh_duration);
 
             let integration_duration = integration_duration_measurer.duration();
-            println!("Integrated {} objects in {:?}", object_count, integration_duration);
+            println!("  Integrated {} objects in {:?}", object_count, integration_duration);
 
             let update_duration = update_duration_measurer.duration();
-            println!("Updated {} objects in {:?}", object_count, update_duration);
-
-            println!("Compute done in {:?}", compute_start.elapsed());
+            println!("  Updated {} objects in {:?}", object_count, update_duration);
         }
     });
 }
