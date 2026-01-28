@@ -30,6 +30,7 @@ use crate::{
     shape_renderer::ShapeRenderer,
     util::DeviceUtil,
 };
+use crossbeam::channel::{Receiver, Sender};
 use pollster::block_on;
 use shaders::common::{Flags, Mass, Velocity};
 use std::{
@@ -39,7 +40,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicU32, Ordering},
     },
-    thread::{self, yield_now},
+    thread::{self},
     time::{Duration, Instant},
 };
 use wgpu::{
@@ -66,7 +67,7 @@ fn main() {
 struct App<'a> {
     render_parameters: RenderParameters,
     gpu_state: Option<GpuState<'a>>,
-    event_loop_proxy: EventLoopProxy<AppEvent>,
+    _event_loop_proxy: EventLoopProxy<AppEvent>,
 }
 
 impl App<'_> {
@@ -74,15 +75,13 @@ impl App<'_> {
         Self {
             render_parameters: RenderParameters::default(),
             gpu_state: None,
-            event_loop_proxy,
+            _event_loop_proxy: event_loop_proxy,
         }
     }
 }
 
 #[derive(Copy, Clone, Debug)]
-enum AppEvent {
-    RedrawRequested,
-}
+enum AppEvent {}
 
 struct RenderParameters {
     enabled: bool,
@@ -108,6 +107,7 @@ struct GpuState<'a> {
     object_count: usize,
     camera: GpuBuffer<Camera>,
     node_count_atomic: Arc<AtomicU32>,
+    render_start_sender: Sender<SubmissionIndex>,
 
     surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
@@ -179,6 +179,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         );
         let exit_requested = Arc::new(AtomicBool::new(false));
         let node_count_atomic = Arc::new(AtomicU32::new(u32::try_from(object_count).unwrap()));
+        let (render_start_sender, render_start_receiver) = crossbeam::channel::bounded(1);
 
         spawn_simulation_thread(
             buffers.flags,
@@ -190,9 +191,9 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             buffers.integrated_aabbs,
             device.clone(),
             queue.clone(),
-            self.event_loop_proxy.clone(),
             exit_requested.clone(),
             node_count_atomic.clone(),
+            render_start_receiver,
         );
 
         thread::spawn({
@@ -204,7 +205,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     if exit_requested.load(Ordering::Relaxed) {
                         break;
                     }
-                    yield_now();
+                    thread::sleep(Duration::from_millis(1));
                 }
             }
         });
@@ -217,6 +218,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             object_count,
             camera,
             node_count_atomic,
+            render_start_sender,
 
             surface_config,
             queue,
@@ -224,16 +226,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             surface,
             window,
         });
-    }
-
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
-        match event {
-            AppEvent::RedrawRequested => {
-                if let Some(state) = &self.gpu_state {
-                    state.window.request_redraw();
-                }
-            }
-        }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
@@ -258,7 +250,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     let surface_texture_view = surface_texture.texture.create_view(&TextureViewDescriptor::default());
                     let node_count = usize::try_from(state.node_count_atomic.load(Ordering::Relaxed)).unwrap();
                     let start = Instant::now();
-                    render_scene(
+                    let sumbission_index = render_scene(
                         surface_texture_view,
                         &self.render_parameters,
                         &mut state.shape_renderer,
@@ -268,6 +260,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &state.device,
                         &state.queue,
                     );
+                    state.render_start_sender.send(sumbission_index).unwrap();
                     println!("Render done in {:?}", start.elapsed());
 
                     state.window.pre_present_notify();
@@ -322,6 +315,12 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(state) = &self.gpu_state {
             state.exit_requested.store(true, Ordering::SeqCst);
+        }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(state) = &self.gpu_state {
+            state.window.request_redraw();
         }
     }
 }
@@ -431,14 +430,13 @@ fn spawn_simulation_thread(
     integrated_aabbs: GpuBuffer<AABB>,
     device: wgpu::Device,
     queue: wgpu::Queue,
-    event_loop_proxy: EventLoopProxy<AppEvent>,
     exit_requested: Arc<AtomicBool>,
     node_count_atomic: Arc<AtomicU32>,
+    render_start_receiver: Receiver<SubmissionIndex>,
 ) {
-    thread::spawn(move || {
-        let mut last_redraw = Instant::now();
+    thread::spawn({
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt.write(&queue, &[0.0001]);
+        dt.write(&queue, &[0.001]);
 
         let object_count = flags.len();
         let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), bvh_nodes.clone(), object_count);
@@ -459,15 +457,9 @@ fn spawn_simulation_thread(
         let bvh_duration_measurer = PassDurationMeasurer::new(&device);
         let update_duration_measurer = PassDurationMeasurer::new(&device);
 
-        loop {
+        move || loop {
             if exit_requested.load(Ordering::Relaxed) {
                 break;
-            }
-
-            let now = Instant::now();
-            if now - last_redraw >= Duration::from_secs_f32(1.0 / 60.0) {
-                last_redraw = now;
-                event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
             }
 
             let compute_start = Instant::now();
@@ -502,6 +494,9 @@ fn spawn_simulation_thread(
             update_duration_measurer.update(&mut encoder);
 
             let command_buffer = encoder.finish();
+            if let Ok(render_submission_index) = render_start_receiver.try_recv() {
+                device.wait_for_submission(render_submission_index).unwrap();
+            }
             let submission_index = queue.submit([command_buffer]);
             device.wait_for_submission(submission_index).unwrap();
 
