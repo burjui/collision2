@@ -158,8 +158,12 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             GpuBuffer::new(1, "size factor buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         size_factor.write(&queue, &[1.0]);
 
-        let node_count_buffer =
-            GpuBuffer::new(1, "node count buffer", BufferUsages::COPY_DST | BufferUsages::COPY_SRC, &device);
+        let node_count_buffer = GpuBuffer::new(
+            1,
+            "node count buffer",
+            BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
+            &device,
+        );
         let aabb_renderer = AabbRenderer::new(
             &device,
             swapchain_format,
@@ -190,12 +194,10 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             buffers.velocities,
             buffers.aabbs,
             buffers.bvh_nodes,
-            buffers.integrated_velocities,
-            buffers.integrated_aabbs,
+            node_count_buffer.clone(),
             device.clone(),
             queue.clone(),
             exit_requested.clone(),
-            node_count_buffer.clone(),
             render_start_receiver,
         );
 
@@ -426,13 +428,11 @@ fn spawn_simulation_thread(
     masses: GpuBuffer<Mass>,
     velocities: GpuBuffer<Velocity>,
     aabbs: GpuBuffer<AABB>,
-    bvh_nodes: GpuBuffer<BvhNode>,
-    integrated_velocities: GpuBuffer<Velocity>,
-    integrated_aabbs: GpuBuffer<AABB>,
+    nodes: GpuBuffer<BvhNode>,
+    node_count_buffer: GpuBuffer<u32>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     exit_requested: Arc<AtomicBool>,
-    node_count_buffer: GpuBuffer<u32>,
     render_start_receiver: Receiver<SubmissionIndex>,
 ) {
     thread::spawn({
@@ -440,16 +440,26 @@ fn spawn_simulation_thread(
         dt.write(&queue, &[0.001]);
 
         let object_count = flags.len();
-        let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), bvh_nodes.clone(), object_count);
+        let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), nodes.clone(), object_count);
+
+        let storage_copy_src = BufferUsages::STORAGE | BufferUsages::COPY_SRC;
+        let integrated_flags =
+            GpuBuffer::<Flags>::new(object_count, "integrated flags buffer", storage_copy_src, &device);
+        let integrated_velocities =
+            GpuBuffer::<Velocity>::new(object_count, "integrated velocity buffer", storage_copy_src, &device);
+        let integrated_aabbs =
+            GpuBuffer::<AABB>::new(object_count, "integrated aabb buffer", storage_copy_src, &device);
 
         let integrator = GpuIntegrator::new(
             &device,
             dt,
-            flags,
+            flags.clone(),
             masses,
             velocities.clone(),
             aabbs.clone(),
-            bvh_nodes,
+            nodes,
+            node_count_buffer.clone(),
+            integrated_flags.clone(),
             integrated_velocities.clone(),
             integrated_aabbs.clone(),
         );
@@ -485,8 +495,9 @@ fn spawn_simulation_thread(
             drop(compute_pass);
 
             update_duration_measurer.measure(&mut encoder, |encoder| {
+                encoder.copy_buffer_to_buffer(integrated_flags.buffer(), 0, flags.buffer(), 0, None);
                 encoder.copy_buffer_to_buffer(integrated_velocities.buffer(), 0, velocities.buffer(), 0, None);
-                // Copying the entire buffer is okay because integrated_aabbs is of object_count length
+                // Only copying object AABBs here
                 encoder.copy_buffer_to_buffer(integrated_aabbs.buffer(), 0, aabbs.buffer(), 0, None);
             });
 
