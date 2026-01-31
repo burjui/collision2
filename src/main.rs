@@ -38,7 +38,7 @@ use std::{
     ops::Range,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU32, Ordering},
+        atomic::{AtomicBool, Ordering},
     },
     thread::{self},
     time::{Duration, Instant},
@@ -106,7 +106,6 @@ struct GpuState<'a> {
     world_aabb: AABB,
     object_count: usize,
     camera: GpuBuffer<Camera>,
-    node_count_atomic: Arc<AtomicU32>,
     render_start_sender: Sender<SubmissionIndex>,
 
     surface_config: wgpu::SurfaceConfiguration,
@@ -152,11 +151,15 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 fallback: true,
             })
         };
+
         let camera =
             GpuBuffer::<Camera>::new(1, "camera buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         let size_factor =
             GpuBuffer::new(1, "size factor buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         size_factor.write(&queue, &[1.0]);
+
+        let node_count_buffer =
+            GpuBuffer::new(1, "node count buffer", BufferUsages::COPY_DST | BufferUsages::COPY_SRC, &device);
         let aabb_renderer = AabbRenderer::new(
             &device,
             swapchain_format,
@@ -164,6 +167,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             camera.clone(),
             buffers.flags.clone(),
             buffers.aabbs.clone(),
+            node_count_buffer.clone(),
         );
         let shape_renderer = ShapeRenderer::new(
             &device,
@@ -178,7 +182,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             buffers.velocities.clone(),
         );
         let exit_requested = Arc::new(AtomicBool::new(false));
-        let node_count_atomic = Arc::new(AtomicU32::new(u32::try_from(object_count).unwrap()));
         let (render_start_sender, render_start_receiver) = crossbeam::channel::bounded(1);
 
         spawn_simulation_thread(
@@ -192,7 +195,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             device.clone(),
             queue.clone(),
             exit_requested.clone(),
-            node_count_atomic.clone(),
+            node_count_buffer.clone(),
             render_start_receiver,
         );
 
@@ -217,7 +220,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             world_aabb,
             object_count,
             camera,
-            node_count_atomic,
             render_start_sender,
 
             surface_config,
@@ -248,7 +250,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     let surface_texture =
                         state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
                     let surface_texture_view = surface_texture.texture.create_view(&TextureViewDescriptor::default());
-                    let node_count = usize::try_from(state.node_count_atomic.load(Ordering::Relaxed)).unwrap();
                     let start = Instant::now();
                     let sumbission_index = render_scene(
                         surface_texture_view,
@@ -256,7 +257,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &mut state.shape_renderer,
                         &mut state.aabb_renderer,
                         0..state.object_count,
-                        node_count,
                         &state.device,
                         &state.queue,
                     );
@@ -363,12 +363,13 @@ fn render_scene(
     shape_renderer: &mut ShapeRenderer,
     aabb_renderer: &mut AabbRenderer,
     range: Range<usize>,
-    node_count: usize,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
 ) -> SubmissionIndex {
     let pass_duration_measurer = PassDurationMeasurer::new(device);
     let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
+
+    aabb_renderer.prepare(&mut encoder, queue);
 
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,
@@ -389,7 +390,7 @@ fn render_scene(
         shape_renderer.render(&mut render_pass, range.clone());
     }
     if render_parameters.draw_aabbs {
-        aabb_renderer.render(&mut render_pass, 0..node_count);
+        aabb_renderer.render(&mut render_pass);
     }
     // TODO: EDF
     drop(render_pass);
@@ -431,7 +432,7 @@ fn spawn_simulation_thread(
     device: wgpu::Device,
     queue: wgpu::Queue,
     exit_requested: Arc<AtomicBool>,
-    node_count_atomic: Arc<AtomicU32>,
+    node_count_buffer: GpuBuffer<u32>,
     render_start_receiver: Receiver<SubmissionIndex>,
 ) {
     thread::spawn({
@@ -474,7 +475,7 @@ fn spawn_simulation_thread(
             drop(compute_pass);
 
             let node_count = bvh_builder.node_count();
-            node_count_atomic.store(node_count, Ordering::SeqCst);
+            node_count_buffer.write(&queue, &[node_count]);
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("integration pass"),
