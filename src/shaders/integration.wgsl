@@ -126,7 +126,7 @@ fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> ve
 
     var stack: array<u32, MAX_STACK_DEPTH>;
     var sp = 0u;
-    var acc = vec2f();
+    var f = vec2f();
 
     stack[sp] = node_count - 1; // root
     sp++;
@@ -149,41 +149,46 @@ fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> ve
         } else if other_index != index && (flags[other_index].inner & FLAG_PHYSICAL) != 0 {
             let other_aabb = aabbs[other_index];
             if aabb_overlaps(aabb, other_aabb) {
-                let size = aabb.max - aabb.min;
-                let other_size = other_aabb.max - other_aabb.min;
-                let position = (aabb.min + aabb.max) / 2;
-                let other_position = (other_aabb.min + other_aabb.max) / 2;
-                let separation_vector = position - other_position;
-                let distance = length(separation_vector);
-                let r1 = 0.5 * length(size);
-                let r2 = 0.5 * length(other_size);
-                if distance <= (r1 + r2) {
-                    let stiffness = 1000.0;
-
-                    let f_elastic = stiffness * pow((1 - distance / min(r1, r2)), 2);
-                    let direction = normalize(separation_vector);
-                    let vn = dot(velocity - velocities[other_index].inner, direction);
-                    let m1 = mass;
-                    let m2 = masses[other_index].inner;
-                    let m_eff = m1 * m2 / (m1 + m2);
-                    var f_damping: f32 = 0;
-                    if vn < 0 {
-                        const e: f32 = 2.71828;
-                        let gamma =
-                            (3.0 / 2.0) *
-                            (1.0 - e * e) / sqrt(5.0) *
-                            sqrt(stiffness * m_eff);
-                        f_damping = -gamma * vn;
-                    }
-                    let force = (f_elastic - f_damping) * direction;
-                    acc += force;
-                    // TODO: pairwise force accumulation for precision
-                }
+                // TODO: pairwise force accumulation for precision
+                f += collision_repulsion_pair(aabb, other_aabb, velocity, mass, other_index);
             }
         }
     }
 
-    return acc;
+    return f;
+}
+
+fn collision_repulsion_pair(aabb: AABB, other_aabb: AABB, velocity: vec2f, mass: f32, other_index: u32) -> vec2f {
+    let size = aabb.max - aabb.min;
+    let other_size = other_aabb.max - other_aabb.min;
+    let position = (aabb.min + aabb.max) / 2;
+    let other_position = (other_aabb.min + other_aabb.max) / 2;
+    let separation_vector = position - other_position;
+    let distance = length(separation_vector);
+    let r1 = 0.5 * length(size);
+    let r2 = 0.5 * length(other_size);
+    if distance > (r1 + r2) {
+        return vec2f();
+    }
+
+    const stiffness = 10000.0;
+
+    let f_elastic = stiffness * pow((1 - distance / min(r1, r2)), 2);
+    let direction = normalize(separation_vector);
+    let vn = dot(velocity - velocities[other_index].inner, direction);
+    let m1 = mass;
+    let m2 = masses[other_index].inner;
+    let m_eff = m1 * m2 / (m1 + m2);
+    var f_damping: f32 = 0;
+    if vn < 0 {
+        const e: f32 = 2.71828;
+        let gamma =
+            (3.0 / 2.0) *
+            (1.0 - e * e) / sqrt(5.0) *
+            sqrt(stiffness * m_eff);
+        f_damping = -gamma * vn;
+    }
+    return (f_elastic - f_damping) * direction;
 }
 
 fn aabb_overlaps(a: AABB, b: AABB) -> bool {
