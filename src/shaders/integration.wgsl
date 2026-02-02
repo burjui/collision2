@@ -161,9 +161,9 @@ fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> ve
 const stiffness = 100000.0;
 const restitution: f32 = 0.9;
 const gamma_coeff: f32 =
-        (3.0 / 2.0) *
-        (1.0 - restitution * restitution) / sqrt(5.0) *
-        sqrt(stiffness);
+    (3.0 / 2.0) *
+    (1.0 - restitution * restitution) / sqrt(5.0) *
+    sqrt(stiffness);
 
 fn collision_repulsion_pair(aabb: AABB, other_aabb: AABB, velocity: vec2f, mass: f32, other_index: u32) -> vec2f {
     let size = aabb.max - aabb.min;
@@ -185,10 +185,8 @@ fn collision_repulsion_pair(aabb: AABB, other_aabb: AABB, velocity: vec2f, mass:
     let m1 = mass;
     let m2 = masses[other_index].inner;
     let m_eff = m1 * m2 / (m1 + m2);
-    var f_damping = vec2f();
-    if v_ij_s < 0 {
-        f_damping = -gamma_coeff * sqrt(m_eff) * v_ij_s / distance_squared * separation_vector;
-    }
+    // if v_ij_s < 0 { f_damping = ... } else { f_damping = 0 }
+    var f_damping = -gamma_coeff * sqrt(m_eff) * min(v_ij_s, 0) / distance_squared * separation_vector;
     return f_elastic + f_damping;
 }
 

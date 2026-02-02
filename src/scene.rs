@@ -61,7 +61,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     // objects.push(ObjectPrototype {
     //     flags: FLAG_DRAW_OBJECT | FLAG_PHYSICAL,
     //     position: [-400.0, 380.0],
-    //     velocity: [1800.0, 0.0],
+    //     velocity: [800.0, -800.0],
     //     mass: 1.0,
     //     size: [100.0, 100.0],
     //     color: css::GREEN,
@@ -71,7 +71,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     // objects.push(ObjectPrototype {
     //     flags: FLAG_DRAW_OBJECT | FLAG_PHYSICAL,
     //     position: [400.0, 300.0],
-    //     velocity: [-1800.0, 0.0],
+    //     velocity: [-1800.0, -800.0],
     //     mass: 2.0,
     //     size: [100.0, 100.0],
     //     color: css::YELLOW,

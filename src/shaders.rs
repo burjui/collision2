@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 0575e6d3e1e20d7bfd5f0af8ddf3b2fa80b9142c15fa8d032cd9d2cdd32fc431
+// SourceHash: 30c87d81d65791cd405ece134fcf12563a09f797917ef1812c59790dd64918c7
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1644,7 +1644,7 @@ fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW
 }
 
 fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity: vec2<f32>, mass_1: f32, other_index: u32) -> vec2<f32> {
-    var f_damping: vec2<f32> = vec2<f32>();
+    var f_damping: vec2<f32>;
 
     let size = (aabb.max - aabb.min);
     let other_size = (other_aabb.max - other_aabb.min);
@@ -1660,15 +1660,13 @@ fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: A
         return vec2<f32>();
     }
     let f_elastic = ((100000f * (1f - (distance_squared / interaction_distance_squared))) * separation_vector);
-    let _e50 = velocities[other_index].inner;
-    let v_ij_s = dot((velocity - _e50), separation_vector);
+    let _e49 = velocities[other_index].inner;
+    let v_ij_s = dot((velocity - _e49), separation_vector);
     let m2_ = masses[other_index].inner;
     let m_eff = ((mass_1 * m2_) / (mass_1 + m2_));
-    if (v_ij_s < 0f) {
-        f_damping = ((((-40.305096f * sqrt(m_eff)) * v_ij_s) / distance_squared) * separation_vector);
-    }
-    let _e70 = f_damping;
-    return (f_elastic + _e70);
+    f_damping = ((((-40.305096f * sqrt(m_eff)) * min(v_ij_s, 0f)) / distance_squared) * separation_vector);
+    let _e69 = f_damping;
+    return (f_elastic + _e69);
 }
 
 fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity_1: vec2<f32>, mass_2: f32) -> vec2<f32> {
