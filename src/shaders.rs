@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 231351de164c43be761ba94581a507f5283f7e72375262865d62a64df690388a
+// SourceHash: 0575e6d3e1e20d7bfd5f0af8ddf3b2fa80b9142c15fa8d032cd9d2cdd32fc431
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -285,7 +285,8 @@ pub mod shape {
     use super::{_root, _root::*};
     pub const SHAPE_RECT: u32 = 0u32;
     pub const SHAPE_CIRCLE: u32 = 1u32;
-    pub const COLORING_SPEED_LIMIT: f32 = 6000f32;
+    pub const COLORING_SPEED_MIN: f32 = 500f32;
+    pub const COLORING_SPEED_MAX: f32 = 6000f32;
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
     #[derive(Debug)]
@@ -590,7 +591,8 @@ const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
-const COLORING_SPEED_LIMIT: f32 = 6000f;
+const COLORING_SPEED_MIN: f32 = 500f;
+const COLORING_SPEED_MAX: f32 = 6000f;
 
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
@@ -685,27 +687,27 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     let _e25 = velocities[i].inner;
     v = _e25;
     let _e27 = v;
-    let relative_speed_1 = (length(_e27) / COLORING_SPEED_LIMIT);
+    let relative_speed_1 = clamp((max(0f, (length(_e27) - COLORING_SPEED_MIN)) / COLORING_SPEED_MAX), 0f, 1f);
     if ((f & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
-        let _e39 = colors[i].inner;
-        out.color = _e39;
+        let _e46 = colors[i].inner;
+        out.color = _e46;
     } else {
-        let _e41 = v;
-        let _e43 = velocity_to_color(_e41, sqrt(relative_speed_1));
-        out.color = _e43;
+        let _e48 = v;
+        let _e50 = velocity_to_color(_e48, sqrt(relative_speed_1));
+        out.color = _e50;
     }
     let center = ((aabb.min + aabb.max) / vec2(2f));
-    let _e51 = scale.x;
-    let _e53 = scale.y;
-    let model = mat4x4<f32>(vec4<f32>(_e51, 0f, 0f, 0f), vec4<f32>(0f, _e53, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
+    let _e58 = scale.x;
+    let _e60 = scale.y;
+    let model = mat4x4<f32>(vec4<f32>(_e58, 0f, 0f, 0f), vec4<f32>(0f, _e60, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
     let vertex = UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX[vertex_index];
-    let _e79 = camera.inner;
-    out.clip_position = ((_e79 * model) * vec4<f32>(vertex, 0f, 1f));
+    let _e86 = camera.inner;
+    out.clip_position = ((_e86 * model) * vec4<f32>(vertex, 0f, 1f));
     out.quad_position = vertex;
-    let _e90 = shapes[i].inner;
-    out.shape = _e90;
-    let _e91 = out;
-    return _e91;
+    let _e97 = shapes[i].inner;
+    out.shape = _e97;
+    let _e98 = out;
+    return _e98;
 }
 
 @fragment 
@@ -1195,11 +1197,13 @@ fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>) {
 pub mod integration {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const BLACKHOLE_COUNT: u32 = 2u32;
+    pub const BLACKHOLE_COUNT: u32 = 1u32;
     pub const BLACKHOLE_MASS_SCALE: f32 = 1000f32;
     pub const BLACKHOLE_SIZE_SCALE: f32 = 10f32;
     pub const BLACKHOLE_DESTROY_MATTER: bool = true;
     pub const GRAVITATIONAL_CONSTANT: f32 = 100000f32;
+    pub const restitution: f32 = 0.9f32;
+    pub const gamma_coeff: f32 = 40.305096f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CS_MAIN_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1583,13 +1587,15 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
-const BLACKHOLE_COUNT: u32 = 2u;
-const BLACKHOLES: array<BlackHole, 2> = array<BlackHole, 2>(BlackHole(vec2<f32>(500f, 200f), 1f, 10f, 0f), BlackHole(vec2<f32>(), 2f, 10f, 300f));
+const BLACKHOLE_COUNT: u32 = 1u;
+const BLACKHOLES: array<BlackHole, 1> = array<BlackHole, 1>(BlackHole(vec2<f32>(), 2f, 20f, 300f));
 const BLACKHOLE_MASS_SCALE: f32 = 1000f;
 const BLACKHOLE_SIZE_SCALE: f32 = 10f;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
 const GRAVITATIONAL_CONSTANT: f32 = 100000f;
 const GLOBAL_FORCE: vec2<f32> = vec2<f32>();
+const restitution: f32 = 0.9f;
+const gamma_coeff: f32 = 40.305096f;
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
@@ -1638,35 +1644,35 @@ fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW
 }
 
 fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity: vec2<f32>, mass_1: f32, other_index: u32) -> vec2<f32> {
-    var f_damping: f32 = 0f;
+    var f_damping: vec2<f32> = vec2<f32>();
 
     let size = (aabb.max - aabb.min);
     let other_size = (other_aabb.max - other_aabb.min);
     let position_1 = ((aabb.min + aabb.max) / vec2(2f));
     let other_position = ((other_aabb.min + other_aabb.max) / vec2(2f));
     let separation_vector = (position_1 - other_position);
-    let distance_1 = length(separation_vector);
-    let r1_ = (0.5f * length(size));
-    let r2_ = (0.5f * length(other_size));
-    if (distance_1 > (r1_ + r2_)) {
+    let distance_squared = ((separation_vector.x * separation_vector.x) + (separation_vector.y * separation_vector.y));
+    let r1_ = (0.5f * size.x);
+    let r2_ = (0.5f * other_size.x);
+    let interaction_distance = (r1_ + r2_);
+    let interaction_distance_squared = (interaction_distance * interaction_distance);
+    if (distance_squared >= interaction_distance_squared) {
         return vec2<f32>();
     }
-    let f_elastic = (10000f * pow((1f - (distance_1 / min(r1_, r2_))), 2f));
-    let direction_1 = normalize(separation_vector);
-    let _e46 = velocities[other_index].inner;
-    let vn = dot((velocity - _e46), direction_1);
+    let f_elastic = ((100000f * (1f - (distance_squared / interaction_distance_squared))) * separation_vector);
+    let _e50 = velocities[other_index].inner;
+    let v_ij_s = dot((velocity - _e50), separation_vector);
     let m2_ = masses[other_index].inner;
     let m_eff = ((mass_1 * m2_) / (mass_1 + m2_));
-    if (vn < 0f) {
-        let gamma = (-4.285903f * sqrt((10000f * m_eff)));
-        f_damping = (-(gamma) * vn);
+    if (v_ij_s < 0f) {
+        f_damping = ((((-40.305096f * sqrt(m_eff)) * v_ij_s) / distance_squared) * separation_vector);
     }
-    let _e67 = f_damping;
-    return ((f_elastic - _e67) * direction_1);
+    let _e70 = f_damping;
+    return (f_elastic + _e70);
 }
 
 fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity_1: vec2<f32>, mass_2: f32) -> vec2<f32> {
-    var stack: array<u32, 32>;
+    var stack: array<u32, 64>;
     var sp: u32 = 0u;
     var f_1: vec2<f32> = vec2<f32>();
 
@@ -1689,7 +1695,7 @@ fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velo
             let other_index_1 = nodes[node_index].index;
             if ((other_index_1 & BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
                 let _e32 = sp;
-                if (_e32 >= 30u) {
+                if (_e32 >= 62u) {
                     let _e37 = atomicAdd((&errors), 1u);
                     break;
                 }
@@ -1808,8 +1814,8 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
                 let _e57 = bh_index;
                 let blackhole_3 = BLACKHOLES[_e57];
                 let _e61 = state.position;
-                let distance_2 = (length((blackhole_3.position - _e61)) - (max(size_1.x, size_1.y) / 2f));
-                if (distance_2 < (blackhole_3.radius * BLACKHOLE_SIZE_SCALE)) {
+                let distance_1 = (length((blackhole_3.position - _e61)) - (max(size_1.x, size_1.y) / 2f));
+                if (distance_1 < (blackhole_3.radius * BLACKHOLE_SIZE_SCALE)) {
                     let _e75 = f;
                     f = (_e75 & 4294967288u);
                     state.velocity = vec2<f32>();

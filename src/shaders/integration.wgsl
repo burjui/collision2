@@ -25,11 +25,11 @@ struct BlackHole {
     spin: f32
 }
 
-const BLACKHOLE_COUNT: u32 = 2;
+const BLACKHOLE_COUNT: u32 = 1;
 const BLACKHOLES = array<BlackHole, BLACKHOLE_COUNT>(
     // BlackHole(vec2f(-200, 500),     2,  10,  0 * -50),
-    BlackHole(vec2f(500, 200),      1,  10,  0 * -50),
-    BlackHole(vec2f(),              2,  10,  3 * 100),
+    // BlackHole(vec2f(500, 200),      1,  10,  0 * -50),
+    BlackHole(vec2f(),              2,  20,  3 * 100),
     // BlackHole(vec2f(-600, -300),    1,  20,  0 * -50),
     // BlackHole(vec2f(600, -700),     1,  10,  0 * -50),
 );
@@ -158,37 +158,38 @@ fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> ve
     return f;
 }
 
+const stiffness = 100000.0;
+const restitution: f32 = 0.9;
+const gamma_coeff: f32 =
+        (3.0 / 2.0) *
+        (1.0 - restitution * restitution) / sqrt(5.0) *
+        sqrt(stiffness);
+
 fn collision_repulsion_pair(aabb: AABB, other_aabb: AABB, velocity: vec2f, mass: f32, other_index: u32) -> vec2f {
     let size = aabb.max - aabb.min;
     let other_size = other_aabb.max - other_aabb.min;
     let position = (aabb.min + aabb.max) / 2;
     let other_position = (other_aabb.min + other_aabb.max) / 2;
     let separation_vector = position - other_position;
-    let distance = length(separation_vector);
-    let r1 = 0.5 * length(size);
-    let r2 = 0.5 * length(other_size);
-    if distance > (r1 + r2) {
+    let distance_squared = separation_vector.x * separation_vector.x + separation_vector.y * separation_vector.y;
+    let r1 = 0.5 * size.x;
+    let r2 = 0.5 * other_size.x;
+    let interaction_distance = r1 + r2;
+    let interaction_distance_squared = interaction_distance * interaction_distance;
+    if distance_squared >= interaction_distance_squared {
         return vec2f();
     }
 
-    const stiffness = 10000.0;
-
-    let f_elastic = stiffness * pow((1 - distance / min(r1, r2)), 2);
-    let direction = normalize(separation_vector);
-    let vn = dot(velocity - velocities[other_index].inner, direction);
+    let f_elastic = stiffness * (1 - distance_squared / interaction_distance_squared) * separation_vector;
+    let v_ij_s = dot(velocity - velocities[other_index].inner, separation_vector);
     let m1 = mass;
     let m2 = masses[other_index].inner;
     let m_eff = m1 * m2 / (m1 + m2);
-    var f_damping: f32 = 0;
-    if vn < 0 {
-        const e: f32 = 2.71828;
-        let gamma =
-            (3.0 / 2.0) *
-            (1.0 - e * e) / sqrt(5.0) *
-            sqrt(stiffness * m_eff);
-        f_damping = -gamma * vn;
+    var f_damping = vec2f();
+    if v_ij_s < 0 {
+        f_damping = -gamma_coeff * sqrt(m_eff) * v_ij_s / distance_squared * separation_vector;
     }
-    return (f_elastic - f_damping) * direction;
+    return f_elastic + f_damping;
 }
 
 fn aabb_overlaps(a: AABB, b: AABB) -> bool {

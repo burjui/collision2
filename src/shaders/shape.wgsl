@@ -18,7 +18,8 @@ const SHAPE_CIRCLE: u32 = 1;
 @group(0) @binding(5) var<storage, read> shapes: array<Shape>;
 @group(0) @binding(6) var<storage, read> velocities: array<Velocity>;
 
-const COLORING_SPEED_LIMIT: f32 = 6000;
+const COLORING_SPEED_MIN: f32 = 500;
+const COLORING_SPEED_MAX: f32 = 6000;
 
 @vertex
 fn vs_main(
@@ -34,7 +35,7 @@ fn vs_main(
     let aabb = aabbs[i];
     var scale = (aabb.max - aabb.min) * size_factor;
     var v = velocities[i].inner;
-    let relative_speed = length(v) / COLORING_SPEED_LIMIT;
+    let relative_speed = clamp(max(0, length(v) - COLORING_SPEED_MIN) / COLORING_SPEED_MAX, 0, 1);
     if (f & FLAG_PHYSICAL) == 0 {
         out.color = colors[i].inner;
     } else {

@@ -437,7 +437,7 @@ fn spawn_simulation_thread(
 ) {
     thread::spawn({
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt.write(&queue, &[0.0005]);
+        dt.write(&queue, &[0.001]);
 
         let object_count = flags.len();
         let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), nodes.clone(), object_count);
