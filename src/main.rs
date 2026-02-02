@@ -437,7 +437,7 @@ fn spawn_simulation_thread(
 ) {
     thread::spawn({
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt.write(&queue, &[0.001]);
+        dt.write(&queue, &[0.0005]);
 
         let object_count = flags.len();
         let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), nodes.clone(), object_count);
@@ -533,9 +533,9 @@ fn spawn_simulation_thread(
             let submission_index = queue.submit([command_buffer]);
             device.wait_for_submission(submission_index).unwrap();
 
-            // let mut errors = [0; 1];
-            // error_count_readback_buffer.read(&device, &mut errors);
-            // assert!(errors[0] == 0);
+            let mut errors = [0; 1];
+            error_count_readback_buffer.read(&device, &mut errors);
+            assert!(errors[0] == 0);
 
             println!("Compute done in {:?}", compute_start.elapsed());
 
