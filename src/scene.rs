@@ -1,6 +1,6 @@
 use std::ops::{Range, RangeInclusive};
 
-use color::{AlphaColor, palette::css};
+use color::{AlphaColor, Srgb, palette::css};
 use itertools::Itertools as _;
 use nalgebra::Vector2;
 use rand::random_range;
@@ -19,8 +19,8 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     println!("World size: {}x{}", world_size.x, world_size.y);
 
     let circles = {
-        const RADIUS: f32 = 2.0;
-        const MARGIN: f32 = -1.3;
+        const RADIUS: f32 = 5.0;
+        const MARGIN: f32 = 5.0;
         const POSITION_RAND_FACTOR: f32 = 0.5;
         const VELOCITY_RAND_MAX: f32 = 10.0;
         const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
@@ -57,45 +57,69 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     // for border in _borders {
     //     objects.push(border);
     // }
+
+    // objects.push(ObjectPrototype {
+    //     flags: FLAG_DRAW_OBJECT | FLAG_PHYSICAL,
+    //     position: [-400.0, 380.0],
+    //     velocity: [1800.0, 0.0],
+    //     mass: 1.0,
+    //     size: [100.0, 100.0],
+    //     color: css::GREEN,
+    //     shape: SHAPE_CIRCLE,
+    // });
+
+    // objects.push(ObjectPrototype {
+    //     flags: FLAG_DRAW_OBJECT | FLAG_PHYSICAL,
+    //     position: [400.0, 300.0],
+    //     velocity: [-1800.0, 0.0],
+    //     mass: 2.0,
+    //     size: [100.0, 100.0],
+    //     color: css::YELLOW,
+    //     shape: SHAPE_CIRCLE,
+    // });
 }
 
 fn world_borders(world_aabb: AABB) -> Vec<ObjectPrototype> {
+    const FLAGS: u32 = FLAG_DRAW_OBJECT;
+    const MASS: f32 = 10000.0;
+    const COLOR: AlphaColor<Srgb> = css::RED;
+
     let world_size = world_aabb.size();
     let border_thickness = world_size.y / 400.0;
     let top = ObjectPrototype {
-        flags: FLAG_DRAW_OBJECT,
+        flags: FLAGS,
         position: [0.0, world_aabb.max().y - border_thickness / 2.0],
         velocity: [0.0, 0.0],
-        mass: f32::INFINITY,
+        mass: MASS,
         size: [world_size.x, border_thickness],
-        color: css::RED,
+        color: COLOR,
         shape: SHAPE_RECT,
     };
     let bottom = ObjectPrototype {
-        flags: FLAG_DRAW_OBJECT,
+        flags: FLAGS,
         position: [0.0, world_aabb.min().y + border_thickness / 2.0],
         velocity: [0.0, 0.0],
-        mass: f32::INFINITY,
+        mass: MASS,
         size: [world_size.x, border_thickness],
-        color: css::RED,
+        color: COLOR,
         shape: SHAPE_RECT,
     };
     let left = ObjectPrototype {
-        flags: FLAG_DRAW_OBJECT,
+        flags: FLAGS,
         velocity: [0.0, 0.0],
         position: [world_aabb.min().x + border_thickness / 2.0, 0.0],
-        mass: f32::INFINITY,
+        mass: MASS,
         size: [border_thickness, world_size.y],
-        color: css::RED,
+        color: COLOR,
         shape: SHAPE_RECT,
     };
     let right = ObjectPrototype {
-        flags: FLAG_DRAW_OBJECT,
+        flags: FLAGS,
         position: [world_aabb.max().x - border_thickness / 2.0, 0.0],
         velocity: [0.0, 0.0],
-        mass: f32::INFINITY,
+        mass: MASS,
         size: [border_thickness, world_size.y],
-        color: css::RED,
+        color: COLOR,
         shape: SHAPE_RECT,
     };
     vec![top, bottom, left, right]

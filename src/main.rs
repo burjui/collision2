@@ -449,6 +449,18 @@ fn spawn_simulation_thread(
             GpuBuffer::<Velocity>::new(object_count, "integrated velocity buffer", storage_copy_src, &device);
         let integrated_aabbs =
             GpuBuffer::<AABB>::new(object_count, "integrated aabb buffer", storage_copy_src, &device);
+        let error_count_buffer = GpuBuffer::<u32>::new(
+            1,
+            "error count buffer",
+            BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
+            &device,
+        );
+        let error_count_readback_buffer = GpuBuffer::<u32>::new(
+            1,
+            "error count readback buffer",
+            BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+            &device,
+        );
 
         let integrator = GpuIntegrator::new(
             &device,
@@ -462,6 +474,7 @@ fn spawn_simulation_thread(
             integrated_flags.clone(),
             integrated_velocities.clone(),
             integrated_aabbs.clone(),
+            error_count_buffer.clone(),
         );
 
         let integration_duration_measurer = PassDurationMeasurer::new(&device);
@@ -487,6 +500,7 @@ fn spawn_simulation_thread(
             let node_count = bvh_builder.node_count();
             node_count_buffer.write(&queue, &[node_count]);
 
+            error_count_buffer.write(&queue, &[0]);
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("integration pass"),
                 timestamp_writes: Some(integration_duration_measurer.compute_pass_timestamp_writes()),
@@ -499,6 +513,13 @@ fn spawn_simulation_thread(
                 encoder.copy_buffer_to_buffer(integrated_velocities.buffer(), 0, velocities.buffer(), 0, None);
                 // Only copying object AABBs here
                 encoder.copy_buffer_to_buffer(integrated_aabbs.buffer(), 0, aabbs.buffer(), 0, None);
+                encoder.copy_buffer_to_buffer(
+                    error_count_buffer.buffer(),
+                    0,
+                    error_count_readback_buffer.buffer(),
+                    0,
+                    None,
+                );
             });
 
             bvh_duration_measurer.update(&mut encoder);
@@ -510,8 +531,12 @@ fn spawn_simulation_thread(
                 device.wait_for_submission(render_submission_index).unwrap();
             }
             let submission_index = queue.submit([command_buffer]);
-            println!("Submitted command buffer at {:?}", compute_start.elapsed());
             device.wait_for_submission(submission_index).unwrap();
+
+            // let mut errors = [0; 1];
+            // error_count_readback_buffer.read(&device, &mut errors);
+            // assert!(errors[0] == 0);
+
             println!("Compute done in {:?}", compute_start.elapsed());
 
             let bvh_duration = bvh_duration_measurer.duration();

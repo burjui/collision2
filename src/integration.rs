@@ -31,6 +31,7 @@ impl GpuIntegrator {
         integrated_flags: GpuBuffer<Flags>,
         integrated_velocities: GpuBuffer<Velocity>,
         integrated_aabbs: GpuBuffer<AABB>,
+        errors: GpuBuffer<u32>,
     ) -> Self {
         let pipeline = create_cs_main_pipeline_embed_source(device);
         let bind_group_src = WgpuBindGroup0::from_bindings(
@@ -51,6 +52,7 @@ impl GpuIntegrator {
                 integrated_flags: integrated_flags.buffer().as_entire_buffer_binding(),
                 integrated_velocities: integrated_velocities.buffer().as_entire_buffer_binding(),
                 integrated_aabbs: integrated_aabbs.buffer().as_entire_buffer_binding(),
+                errors: errors.buffer().as_entire_buffer_binding(),
             }),
         );
         Self {

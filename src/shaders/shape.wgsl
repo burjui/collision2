@@ -1,4 +1,4 @@
-#import common::{ UNIT_QUAD_VERTICES, FLAG_DRAW_OBJECT, Camera, Flags, AABB, Color, Shape, Velocity}
+#import common::{ UNIT_QUAD_VERTICES, FLAG_DRAW_OBJECT, FLAG_PHYSICAL, Camera, Flags, AABB, Color, Shape, Velocity }
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,
@@ -18,7 +18,7 @@ const SHAPE_CIRCLE: u32 = 1;
 @group(0) @binding(5) var<storage, read> shapes: array<Shape>;
 @group(0) @binding(6) var<storage, read> velocities: array<Velocity>;
 
-const COLORING_SPEED_LIMIT: f32 = pow(80.0, 2.0);
+const COLORING_SPEED_LIMIT: f32 = 6000;
 
 @vertex
 fn vs_main(
@@ -26,7 +26,8 @@ fn vs_main(
     @builtin(instance_index) i: u32,
 ) -> VertexOutput {
     var out = VertexOutput();
-    if (flags[i].inner & FLAG_DRAW_OBJECT) == 0 {
+    let f = flags[i].inner;
+    if (f & FLAG_DRAW_OBJECT) == 0 {
         return out;
     }
 
@@ -34,8 +35,13 @@ fn vs_main(
     var scale = (aabb.max - aabb.min) * size_factor;
     var v = velocities[i].inner;
     let relative_speed = length(v) / COLORING_SPEED_LIMIT;
-    out.color = velocity_to_color(v, sqrt(relative_speed));
-    scale *= sqrt(sqrt(relative_speed)) * 1.5;
+    if (f & FLAG_PHYSICAL) == 0 {
+        out.color = colors[i].inner;
+    } else {
+        out.color = velocity_to_color(v, sqrt(relative_speed));
+    }
+
+    // scale *= sqrt(sqrt(relative_speed)) * 1.5;
     let center = (aabb.min + aabb.max) / 2;
     let model = mat4x4f(
         scale.x, 0, 0, 0,
