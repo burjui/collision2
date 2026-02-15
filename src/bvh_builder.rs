@@ -36,9 +36,12 @@ impl BvhBuilder {
         }
     }
 
-    pub fn compute(&mut self, compute_pass: &mut ComputePass) {
+    pub fn prepare(&mut self) {
         self.passes.clear();
         calculate_passes(self.object_count, &mut self.passes);
+    }
+
+    pub fn compute(&mut self, compute_pass: &mut ComputePass) {
         compute_pass.set_pipeline(&self.pipeline);
         self.bind_group.set(compute_pass);
 

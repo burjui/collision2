@@ -481,6 +481,10 @@ fn spawn_simulation_thread(
         let bvh_duration_measurer = PassDurationMeasurer::new(&device);
         let update_duration_measurer = PassDurationMeasurer::new(&device);
 
+        bvh_builder.prepare();
+        let node_count = bvh_builder.node_count();
+        node_count_buffer.write(&queue, &[node_count]);
+
         move || loop {
             if exit_requested.load(Ordering::Relaxed) {
                 break;
@@ -496,9 +500,6 @@ fn spawn_simulation_thread(
             });
             bvh_builder.compute(&mut compute_pass);
             drop(compute_pass);
-
-            let node_count = bvh_builder.node_count();
-            node_count_buffer.write(&queue, &[node_count]);
 
             error_count_buffer.write(&queue, &[0]);
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
