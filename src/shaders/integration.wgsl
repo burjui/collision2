@@ -47,9 +47,10 @@ const EPSILON: f32 = 0.000001;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn cs_main(
-    @builtin(global_invocation_id) gid: vec3<u32>,
+    @builtin(global_invocation_id) gid: vec3u,
+    @builtin(num_workgroups) nwg: vec3u,
 ) {
-    let i = invocation_index(gid, WORKGROUP_SIZE);
+    let i = invocation_index(gid, nwg, WORKGROUP_SIZE);
     if i >= arrayLength(&masses) {
         return;
     }

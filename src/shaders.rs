@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: e1563637cbf378c4e52118b67555d4d1af7b8f767ba1e5e1d486d8113b282ae8
+// SourceHash: 36456b77e15d1913ed58840ed38df7ae8d6cae38169d860773c996627e9ab037
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -254,8 +254,8 @@ const FLAG_DRAW_AABB: u32 = 2u;
 const FLAG_PHYSICAL: u32 = 4u;
 const BVH_NODE_TREE_FLAG: u32 = 2147483648u;
 
-fn invocation_index(gid: vec3<u32>, workgroup_size: u32) -> u32 {
-    return (gid.x + ((gid.y * 65535u) * workgroup_size));
+fn invocation_index(gid: vec3<u32>, nwg: vec3<u32>, workgroup_size: u32) -> u32 {
+    return (gid.x + ((gid.y * nwg.x) * workgroup_size));
 }
 
 "#;
@@ -1169,21 +1169,21 @@ var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(1) 
 var<storage, read_write> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
 
-fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return (gid_1.x + ((gid_1.y * 65535u) * workgroup_size));
+fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
+    return (gid_1.x + ((gid_1.y * nwg_1.x) * workgroup_size));
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let _e2 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, WORKGROUP_SIZE);
-    let _e5 = params.parent_count;
-    if (_e2 >= _e5) {
+fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
+    let _e3 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
+    let _e6 = params.parent_count;
+    if (_e3 >= _e6) {
         return;
     }
-    let _e9 = params.src_start;
-    let src = (_e9 + (_e2 * 2u));
-    let _e15 = params.dst_start;
-    let dst = (_e15 + _e2);
+    let _e10 = params.src_start;
+    let src = (_e10 + (_e3 * 2u));
+    let _e16 = params.dst_start;
+    let dst = (_e16 + _e3);
     nodes[dst] = BvhNodeX_naga_oil_mod_XMNXW23LPNYX((src | BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX));
     let left_aabb = aabbs[src];
     let right_aabb = aabbs[(src + 1u)];
@@ -1665,8 +1665,8 @@ var<storage, read_write> integrated_aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX
 @group(2) @binding(3) 
 var<storage, read_write> errors: atomic<u32>;
 
-fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return (gid_1.x + ((gid_1.y * 65535u) * workgroup_size));
+fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
+    return (gid_1.x + ((gid_1.y * nwg_1.x) * workgroup_size));
 }
 
 fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW23LPNYX) -> bool {
@@ -1806,72 +1806,72 @@ fn frame_dragging(blackhole_1: BlackHole, state_3: State) -> vec2<f32> {
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
+fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
     var f: u32;
     var state: State;
     var new_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX;
 
-    let _e2 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, WORKGROUP_SIZE);
-    if (_e2 >= arrayLength((&masses))) {
+    let _e3 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
+    if (_e3 >= arrayLength((&masses))) {
         return;
     }
-    let aabb_4 = aabbs[_e2];
+    let aabb_4 = aabbs[_e3];
     let initial_position = ((aabb_4.min + aabb_4.max) / vec2(2f));
-    let initial_velocity = velocities[_e2].inner;
-    let _e22 = flags[_e2].inner;
-    f = _e22;
-    let mass_5 = masses[_e2].inner;
-    let _e31 = velocities[_e2].inner;
-    state = State(initial_position, _e31);
-    let _e34 = f;
-    if ((_e34 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
-        let _e39 = state;
-        let _e40 = integrate_euler_symplectic(_e39, _e2, aabb_4, mass_5);
-        state = _e40;
+    let initial_velocity = velocities[_e3].inner;
+    let _e23 = flags[_e3].inner;
+    f = _e23;
+    let mass_5 = masses[_e3].inner;
+    let _e32 = velocities[_e3].inner;
+    state = State(initial_position, _e32);
+    let _e35 = f;
+    if ((_e35 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
+        let _e40 = state;
+        let _e41 = integrate_euler_symplectic(_e40, _e3, aabb_4, mass_5);
+        state = _e41;
     }
     let size_1 = (aabb_4.max - aabb_4.min);
-    let _e45 = state.position;
-    let offset = (_e45 - initial_position);
+    let _e46 = state.position;
+    let offset = (_e46 - initial_position);
     new_aabb = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb_4.min + offset), (aabb_4.max + offset));
-    let _e55 = new_aabb.min.y;
-    if (_e55 < -1000f) {
-        let _e60 = new_aabb.min.y;
-        let overshoot = (-1000f - _e60);
-        let _e67 = new_aabb.min.y;
-        new_aabb.min.y = (_e67 + (overshoot / 2f));
-        let _e73 = new_aabb.max.y;
-        new_aabb.max.y = (_e73 + (overshoot / 2f));
-        let _e78 = state.velocity.y;
-        state.velocity.y = (_e78 * -1f);
+    let _e56 = new_aabb.min.y;
+    if (_e56 < -1000f) {
+        let _e61 = new_aabb.min.y;
+        let overshoot = (-1000f - _e61);
+        let _e68 = new_aabb.min.y;
+        new_aabb.min.y = (_e68 + (overshoot / 2f));
+        let _e74 = new_aabb.max.y;
+        new_aabb.max.y = (_e74 + (overshoot / 2f));
+        let _e79 = state.velocity.y;
+        state.velocity.y = (_e79 * -1f);
     }
-    let _e82 = new_aabb.min.x;
-    if (_e82 < -1600f) {
-        let _e87 = new_aabb.min.x;
-        let overshoot_1 = (-1600f - _e87);
-        let _e94 = new_aabb.min.x;
-        new_aabb.min.x = (_e94 + (overshoot_1 / 2f));
-        let _e100 = new_aabb.max.x;
-        new_aabb.max.x = (_e100 + (overshoot_1 / 2f));
-        let _e105 = state.velocity.x;
-        state.velocity.x = (_e105 * -1f);
+    let _e83 = new_aabb.min.x;
+    if (_e83 < -1600f) {
+        let _e88 = new_aabb.min.x;
+        let overshoot_1 = (-1600f - _e88);
+        let _e95 = new_aabb.min.x;
+        new_aabb.min.x = (_e95 + (overshoot_1 / 2f));
+        let _e101 = new_aabb.max.x;
+        new_aabb.max.x = (_e101 + (overshoot_1 / 2f));
+        let _e106 = state.velocity.x;
+        state.velocity.x = (_e106 * -1f);
     }
-    let _e109 = new_aabb.max.x;
-    if (_e109 > 1600f) {
-        let _e114 = new_aabb.max.x;
-        let overshoot_2 = (_e114 - 1600f);
-        let _e121 = new_aabb.min.x;
-        new_aabb.min.x = (_e121 - (overshoot_2 / 2f));
-        let _e127 = new_aabb.max.x;
-        new_aabb.max.x = (_e127 - (overshoot_2 / 2f));
-        let _e132 = state.velocity.x;
-        state.velocity.x = (_e132 * -1f);
+    let _e110 = new_aabb.max.x;
+    if (_e110 > 1600f) {
+        let _e115 = new_aabb.max.x;
+        let overshoot_2 = (_e115 - 1600f);
+        let _e122 = new_aabb.min.x;
+        new_aabb.min.x = (_e122 - (overshoot_2 / 2f));
+        let _e128 = new_aabb.max.x;
+        new_aabb.max.x = (_e128 - (overshoot_2 / 2f));
+        let _e133 = state.velocity.x;
+        state.velocity.x = (_e133 * -1f);
     }
-    let _e137 = f;
-    integrated_flags[_e2].inner = _e137;
-    let _e140 = new_aabb;
-    integrated_aabbs[_e2] = _e140;
-    let _e145 = state.velocity;
-    integrated_velocities[_e2].inner = _e145;
+    let _e138 = f;
+    integrated_flags[_e3].inner = _e138;
+    let _e141 = new_aabb;
+    integrated_aabbs[_e3] = _e141;
+    let _e146 = state.velocity;
+    integrated_velocities[_e3].inner = _e146;
     return;
 }
 "#;

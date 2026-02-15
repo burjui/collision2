@@ -15,8 +15,11 @@ var<push_constant> params: CombineNodePass;
 const WORKGROUP_SIZE: u32 = 64;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
-fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let index = invocation_index(gid, WORKGROUP_SIZE);
+fn combine_nodes(
+    @builtin(global_invocation_id) gid: vec3u,
+    @builtin(num_workgroups) nwg: vec3u,
+) {
+    let index = invocation_index(gid, nwg, WORKGROUP_SIZE);
     if (index >= params.parent_count) {
         return;
     }
