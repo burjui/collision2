@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 30c87d81d65791cd405ece134fcf12563a09f797917ef1812c59790dd64918c7
+// SourceHash: 7211c70605e7a5bd02b660dd3cc805af977a97d9c078d474f1c654770a768dec
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -285,8 +285,8 @@ pub mod shape {
     use super::{_root, _root::*};
     pub const SHAPE_RECT: u32 = 0u32;
     pub const SHAPE_CIRCLE: u32 = 1u32;
-    pub const COLORING_SPEED_MIN: f32 = 500f32;
-    pub const COLORING_SPEED_MAX: f32 = 6000f32;
+    pub const COLORING_SPEED_MIN: f32 = 0f32;
+    pub const COLORING_SPEED_MAX: f32 = 4000f32;
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
     #[derive(Debug)]
@@ -591,8 +591,8 @@ const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
-const COLORING_SPEED_MIN: f32 = 500f;
-const COLORING_SPEED_MAX: f32 = 6000f;
+const COLORING_SPEED_MIN: f32 = 0f;
+const COLORING_SPEED_MAX: f32 = 4000f;
 
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
@@ -1202,8 +1202,10 @@ pub mod integration {
     pub const BLACKHOLE_SIZE_SCALE: f32 = 10f32;
     pub const BLACKHOLE_DESTROY_MATTER: bool = true;
     pub const GRAVITATIONAL_CONSTANT: f32 = 100000f32;
-    pub const restitution: f32 = 0.9f32;
-    pub const gamma_coeff: f32 = 40.305096f32;
+    pub const STIFFNESS: f32 = 1000000f32;
+    pub const RESTITUTION: f32 = 0.5f32;
+    pub const GAMMA_COEFF: f32 = 503.1153f32;
+    pub const EPSILON: f32 = 0.000001f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CS_MAIN_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1582,8 +1584,11 @@ struct State {
     velocity: vec2<f32>,
 }
 
-const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
-const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
+struct InteractionResult {
+    force: vec2<f32>,
+    collision_count: u32,
+}
+
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
@@ -1593,9 +1598,11 @@ const BLACKHOLE_MASS_SCALE: f32 = 1000f;
 const BLACKHOLE_SIZE_SCALE: f32 = 10f;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
 const GRAVITATIONAL_CONSTANT: f32 = 100000f;
-const GLOBAL_FORCE: vec2<f32> = vec2<f32>();
-const restitution: f32 = 0.9f;
-const gamma_coeff: f32 = 40.305096f;
+const GLOBAL_FORCE: vec2<f32> = vec2<f32>(0f, -10000f);
+const STIFFNESS: f32 = 1000000f;
+const RESTITUTION: f32 = 0.5f;
+const GAMMA_COEFF: f32 = 503.1153f;
+const EPSILON: f32 = 0.000001f;
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
@@ -1624,55 +1631,51 @@ fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, workgroup_size:
     return (gid_1.x + ((gid_1.y * 65535u) * workgroup_size));
 }
 
-fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>, mass: f32) -> vec2<f32> {
-    let to_blackhole = (blackhole.position - position);
-    let direction = normalize(to_blackhole);
-    let distance = length(to_blackhole);
-    return (((((direction * GRAVITATIONAL_CONSTANT) * mass) * blackhole.mass) * BLACKHOLE_MASS_SCALE) / vec2((distance * distance)));
-}
-
-fn frame_dragging(blackhole_1: BlackHole, state_1: State) -> vec2<f32> {
-    let r_vec = (blackhole_1.position - state_1.position);
-    let r = length(r_vec);
-    let J = blackhole_1.spin;
-    let v_perp = vec2<f32>(-(state_1.velocity.y), state_1.velocity.x);
-    return (((200000f * J) / pow(r, 3f)) * v_perp);
-}
-
 fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW23LPNYX) -> bool {
     return ((((a.min.x < b.max.x) && (a.max.x > b.min.x)) && (a.min.y < b.max.y)) && (a.max.y > b.min.y));
 }
 
-fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity: vec2<f32>, mass_1: f32, other_index: u32) -> vec2<f32> {
-    var f_damping: vec2<f32>;
+fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity: vec2<f32>, mass: f32, other_index: u32) -> vec2<f32> {
+    var v_ij_n: f32;
+    var f_damping: vec2<f32> = vec2<f32>();
 
     let size = (aabb.max - aabb.min);
     let other_size = (other_aabb.max - other_aabb.min);
     let position_1 = ((aabb.min + aabb.max) / vec2(2f));
     let other_position = ((other_aabb.min + other_aabb.max) / vec2(2f));
     let separation_vector = (position_1 - other_position);
-    let distance_squared = ((separation_vector.x * separation_vector.x) + (separation_vector.y * separation_vector.y));
+    let distance = length(separation_vector);
     let r1_ = (0.5f * size.x);
     let r2_ = (0.5f * other_size.x);
     let interaction_distance = (r1_ + r2_);
-    let interaction_distance_squared = (interaction_distance * interaction_distance);
-    if (distance_squared >= interaction_distance_squared) {
+    if (distance >= interaction_distance) {
         return vec2<f32>();
     }
-    let f_elastic = ((100000f * (1f - (distance_squared / interaction_distance_squared))) * separation_vector);
-    let _e49 = velocities[other_index].inner;
-    let v_ij_s = dot((velocity - _e49), separation_vector);
+    let penetration = (interaction_distance - distance);
+    let n = normalize(separation_vector);
+    let _e39 = velocities[other_index].inner;
+    v_ij_n = dot((velocity - _e39), n);
+    let _e45 = v_ij_n;
+    if ((penetration <= 0f) && (_e45 > 0f)) {
+        let _e50 = v_ij_n;
+        v_ij_n = (-0.5f * _e50);
+    }
     let m2_ = masses[other_index].inner;
-    let m_eff = ((mass_1 * m2_) / (mass_1 + m2_));
-    f_damping = ((((-40.305096f * sqrt(m_eff)) * min(v_ij_s, 0f)) / distance_squared) * separation_vector);
-    let _e69 = f_damping;
-    return (f_elastic + _e69);
+    let m_eff = ((mass * m2_) / (mass + m2_));
+    let _e60 = v_ij_n;
+    if (_e60 < 0f) {
+        let _e66 = v_ij_n;
+        f_damping = (((-503.1153f * sqrt(m_eff)) * _e66) * n);
+    }
+    let f_elastic = ((STIFFNESS * penetration) * n);
+    let _e73 = f_damping;
+    return (f_elastic + _e73);
 }
 
-fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity_1: vec2<f32>, mass_2: f32) -> vec2<f32> {
+fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity_1: vec2<f32>, mass_1: f32) -> vec2<f32> {
     var stack: array<u32, 64>;
     var sp: u32 = 0u;
-    var f_1: vec2<f32> = vec2<f32>();
+    var total_force: vec2<f32> = vec2<f32>();
 
     let _e4 = sp;
     let _e7 = node_count;
@@ -1710,59 +1713,34 @@ fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velo
                     let other_aabb_1 = aabbs[other_index_1];
                     let _e66 = aabb_overlaps(aabb_1, other_aabb_1);
                     if _e66 {
-                        let _e69 = collision_repulsion_pair(aabb_1, other_aabb_1, velocity_1, mass_2, other_index_1);
-                        let _e71 = f_1;
-                        f_1 = (_e71 + _e69);
+                        let _e69 = collision_repulsion_pair(aabb_1, other_aabb_1, velocity_1, mass_1, other_index_1);
+                        let _e71 = total_force;
+                        total_force = (_e71 + _e69);
                     }
                 }
             }
         }
     }
-    let _e73 = f_1;
+    let _e73 = total_force;
     return _e73;
 }
 
-fn forces(state_2: State, index_1: u32, aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_3: f32) -> vec2<f32> {
-    var f_2: vec2<f32> = GLOBAL_FORCE;
-    var bh_index_1: u32 = 0u;
-    var blackhole_2: BlackHole;
+fn forces(state_1: State, index_1: u32, aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_2: f32) -> vec2<f32> {
+    var total_force_1: vec2<f32> = GLOBAL_FORCE;
 
-    loop {
-        let _e3 = bh_index_1;
-        if (_e3 < BLACKHOLE_COUNT) {
-        } else {
-            break;
-        }
-        {
-            let _e7 = bh_index_1;
-            blackhole_2 = BLACKHOLES[_e7];
-            let _e11 = blackhole_2;
-            let _e14 = blackhole_gravity(_e11, state_2.position, mass_3);
-            let _e16 = f_2;
-            f_2 = (_e16 + _e14);
-            let _e18 = blackhole_2;
-            let _e19 = frame_dragging(_e18, state_2);
-            let _e20 = f_2;
-            f_2 = (_e20 + _e19);
-        }
-        continuing {
-            let _e23 = bh_index_1;
-            bh_index_1 = (_e23 + 1u);
-        }
-    }
-    let _e28 = collision_repulsion(index_1, aabb_2, state_2.velocity, mass_3);
-    let _e29 = f_2;
-    f_2 = (_e29 + _e28);
-    let _e31 = f_2;
-    return _e31;
+    let _e6 = collision_repulsion(index_1, aabb_2, state_1.velocity, mass_2);
+    let _e8 = total_force_1;
+    total_force_1 = (_e8 + _e6);
+    let _e10 = total_force_1;
+    return _e10;
 }
 
-fn integrate_euler_symplectic(state_3: State, index_2: u32, aabb_3: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_4: f32) -> State {
+fn integrate_euler_symplectic(state_2: State, index_2: u32, aabb_3: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_3: f32) -> State {
     var new_state: State;
 
-    let _e4 = forces(state_3, index_2, aabb_3, mass_4);
-    let a_1 = (_e4 / vec2(mass_4));
-    new_state = state_3;
+    let _e4 = forces(state_2, index_2, aabb_3, mass_3);
+    let a_1 = (_e4 / vec2(mass_3));
+    new_state = state_2;
     let _e10 = dt;
     let _e12 = new_state.velocity;
     new_state.velocity = (_e12 + (a_1 * _e10));
@@ -1774,66 +1752,88 @@ fn integrate_euler_symplectic(state_3: State, index_2: u32, aabb_3: AABBX_naga_o
     return _e22;
 }
 
+fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>, mass_4: f32) -> vec2<f32> {
+    let to_blackhole = (blackhole.position - position);
+    let direction = normalize(to_blackhole);
+    let distance_1 = length(to_blackhole);
+    return (((((direction * GRAVITATIONAL_CONSTANT) * mass_4) * blackhole.mass) * BLACKHOLE_MASS_SCALE) / vec2((distance_1 * distance_1)));
+}
+
+fn frame_dragging(blackhole_1: BlackHole, state_3: State) -> vec2<f32> {
+    let r_vec = (blackhole_1.position - state_3.position);
+    let r = length(r_vec);
+    let J = blackhole_1.spin;
+    let v_perp = vec2<f32>(-(state_3.velocity.y), state_3.velocity.x);
+    return (((200000f * J) / pow(r, 3f)) * v_perp);
+}
+
 @compute @workgroup_size(64, 1, 1) 
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var f: u32;
     var state: State;
-    var bh_index: u32 = 0u;
     var new_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX;
 
-    let _e3 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, WORKGROUP_SIZE);
-    if (_e3 >= arrayLength((&masses))) {
+    let _e2 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, WORKGROUP_SIZE);
+    if (_e2 >= arrayLength((&masses))) {
         return;
     }
-    let aabb_4 = aabbs[_e3];
+    let aabb_4 = aabbs[_e2];
     let initial_position = ((aabb_4.min + aabb_4.max) / vec2(2f));
-    let initial_velocity = velocities[_e3].inner;
-    let _e23 = flags[_e3].inner;
-    f = _e23;
-    let mass_5 = masses[_e3].inner;
-    let _e32 = velocities[_e3].inner;
-    state = State(initial_position, _e32);
-    let _e35 = f;
-    if ((_e35 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
-        let _e40 = state;
-        let _e41 = integrate_euler_symplectic(_e40, _e3, aabb_4, mass_5);
-        state = _e41;
+    let initial_velocity = velocities[_e2].inner;
+    let _e22 = flags[_e2].inner;
+    f = _e22;
+    let mass_5 = masses[_e2].inner;
+    let _e31 = velocities[_e2].inner;
+    state = State(initial_position, _e31);
+    let _e34 = f;
+    if ((_e34 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
+        let _e39 = state;
+        let _e40 = integrate_euler_symplectic(_e39, _e2, aabb_4, mass_5);
+        state = _e40;
     }
     let size_1 = (aabb_4.max - aabb_4.min);
-    if BLACKHOLE_DESTROY_MATTER {
-        loop {
-            let _e47 = bh_index;
-            let _e50 = f;
-            if ((_e47 < BLACKHOLE_COUNT) && ((_e50 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
-            } else {
-                break;
-            }
-            {
-                let _e57 = bh_index;
-                let blackhole_3 = BLACKHOLES[_e57];
-                let _e61 = state.position;
-                let distance_1 = (length((blackhole_3.position - _e61)) - (max(size_1.x, size_1.y) / 2f));
-                if (distance_1 < (blackhole_3.radius * BLACKHOLE_SIZE_SCALE)) {
-                    let _e75 = f;
-                    f = (_e75 & 4294967288u);
-                    state.velocity = vec2<f32>();
-                }
-            }
-            continuing {
-                let _e80 = bh_index;
-                bh_index = (_e80 + 1u);
-            }
-        }
-    }
-    let _e83 = state.position;
-    let offset = (_e83 - initial_position);
+    let _e45 = state.position;
+    let offset = (_e45 - initial_position);
     new_aabb = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb_4.min + offset), (aabb_4.max + offset));
-    let _e94 = f;
-    integrated_flags[_e3].inner = _e94;
-    let _e97 = new_aabb;
-    integrated_aabbs[_e3] = _e97;
-    let _e102 = state.velocity;
-    integrated_velocities[_e3].inner = _e102;
+    let _e55 = new_aabb.min.y;
+    if (_e55 < -1000f) {
+        let _e60 = new_aabb.min.y;
+        let overshoot = (-1000f - _e60);
+        let _e67 = new_aabb.min.y;
+        new_aabb.min.y = (_e67 + (overshoot / 2f));
+        let _e73 = new_aabb.max.y;
+        new_aabb.max.y = (_e73 + (overshoot / 2f));
+        let _e78 = state.velocity.y;
+        state.velocity.y = (_e78 * -1f);
+    }
+    let _e82 = new_aabb.min.x;
+    if (_e82 < -1600f) {
+        let _e87 = new_aabb.min.x;
+        let overshoot_1 = (-1600f - _e87);
+        let _e94 = new_aabb.min.x;
+        new_aabb.min.x = (_e94 + (overshoot_1 / 2f));
+        let _e100 = new_aabb.max.x;
+        new_aabb.max.x = (_e100 + (overshoot_1 / 2f));
+        let _e105 = state.velocity.x;
+        state.velocity.x = (_e105 * -1f);
+    }
+    let _e109 = new_aabb.max.x;
+    if (_e109 > 1600f) {
+        let _e114 = new_aabb.max.x;
+        let overshoot_2 = (_e114 - 1600f);
+        let _e121 = new_aabb.min.x;
+        new_aabb.min.x = (_e121 - (overshoot_2 / 2f));
+        let _e127 = new_aabb.max.x;
+        new_aabb.max.x = (_e127 - (overshoot_2 / 2f));
+        let _e132 = state.velocity.x;
+        state.velocity.x = (_e132 * -1f);
+    }
+    let _e137 = f;
+    integrated_flags[_e2].inner = _e137;
+    let _e140 = new_aabb;
+    integrated_aabbs[_e2] = _e140;
+    let _e145 = state.velocity;
+    integrated_velocities[_e2].inner = _e145;
     return;
 }
 "#;

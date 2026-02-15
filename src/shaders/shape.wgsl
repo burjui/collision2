@@ -18,8 +18,8 @@ const SHAPE_CIRCLE: u32 = 1;
 @group(0) @binding(5) var<storage, read> shapes: array<Shape>;
 @group(0) @binding(6) var<storage, read> velocities: array<Velocity>;
 
-const COLORING_SPEED_MIN: f32 = 500;
-const COLORING_SPEED_MAX: f32 = 6000;
+const COLORING_SPEED_MIN: f32 = 0;
+const COLORING_SPEED_MAX: f32 = 4000;
 
 @vertex
 fn vs_main(

@@ -38,7 +38,12 @@ const BLACKHOLE_SIZE_SCALE: f32 = 10;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
 const GRAVITATIONAL_CONSTANT: f32 = 1 * 100000;
 
-const GLOBAL_FORCE = vec2f();
+const GLOBAL_FORCE = vec2f(0, -10000);
+
+const STIFFNESS: f32 = 1000000;
+const RESTITUTION: f32 = 0.5;
+const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(5.0) * sqrt(STIFFNESS);
+const EPSILON: f32 = 0.000001;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn cs_main(
@@ -62,19 +67,37 @@ fn cs_main(
     }
 
     let size = aabb.max - aabb.min;
-    if BLACKHOLE_DESTROY_MATTER {
-        for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT && (f & FLAG_PHYSICAL) != 0; bh_index++) {
-            let blackhole = BLACKHOLES[bh_index];
-            let distance = length(blackhole.position - state.position) - max(size.x, size.y) / 2;
-            if distance < blackhole.radius * BLACKHOLE_SIZE_SCALE {
-                f &= ~(FLAG_PHYSICAL | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
-                state.velocity = vec2f();
-            }
-        }
-    }
+    // if BLACKHOLE_DESTROY_MATTER {
+    //     for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT && (f & FLAG_PHYSICAL) != 0; bh_index++) {
+    //         let blackhole = BLACKHOLES[bh_index];
+    //         let distance = length(blackhole.position - state.position) - max(size.x, size.y) / 2;
+    //         if distance < blackhole.radius * BLACKHOLE_SIZE_SCALE {
+    //             f &= ~(FLAG_PHYSICAL | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
+    //             state.velocity = vec2f();
+    //         }
+    //     }
+    // }
 
     let offset = state.position - initial_position;
     var new_aabb = AABB(aabb.min + offset, aabb.max + offset);
+    if new_aabb.min.y < -1000 {
+        let overshoot = -1000 - new_aabb.min.y;
+        new_aabb.min.y += overshoot / 2;
+        new_aabb.max.y += overshoot / 2;
+        state.velocity.y *= -1;
+    }
+    if new_aabb.min.x < -1600 {
+        let overshoot = -1600 - new_aabb.min.x;
+        new_aabb.min.x += overshoot / 2;
+        new_aabb.max.x += overshoot / 2;
+        state.velocity.x *= -1;
+    }
+    if new_aabb.max.x > 1600 {
+        let overshoot = new_aabb.max.x - 1600;
+        new_aabb.min.x -= overshoot / 2;
+        new_aabb.max.x -= overshoot / 2;
+        state.velocity.x *= -1;
+    }
     integrated_flags[i].inner = f;
     integrated_aabbs[i] = new_aabb;
     integrated_velocities[i].inner = state.velocity;
@@ -93,15 +116,20 @@ fn integrate_euler_symplectic(state: State, index: u32, aabb: AABB, mass: f32) -
     return new_state;
 }
 
+struct InteractionResult {
+    force: vec2f,
+    collision_count: u32
+}
+
 fn forces(state: State, index: u32, aabb: AABB, mass: f32) -> vec2f {
-    var f = GLOBAL_FORCE;
-    for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT; bh_index += 1) {
-        var blackhole = BLACKHOLES[bh_index];
-        f += blackhole_gravity(blackhole, state.position, mass);
-        f += frame_dragging(blackhole, state);
-    }
-    f += collision_repulsion(index, aabb, state.velocity, mass);
-    return f;
+    var total_force = GLOBAL_FORCE;
+    // for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT; bh_index += 1) {
+    //     var blackhole = BLACKHOLES[bh_index];
+    //     total_force += blackhole_gravity(blackhole, state.position, mass);
+    //     total_force += frame_dragging(blackhole, state);
+    // }
+    total_force += collision_repulsion(index, aabb, state.velocity, mass);
+    return total_force;
 }
 
 fn blackhole_gravity(blackhole: BlackHole, position: vec2f, mass: f32) -> vec2f {
@@ -125,8 +153,8 @@ fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> ve
     const MAX_STACK_DEPTH: u32 = 64; // 2 * max tree depth
 
     var stack: array<u32, MAX_STACK_DEPTH>;
-    var sp = 0u;
-    var f = vec2f();
+    var sp: u32 = 0;
+    var total_force = vec2f();
 
     stack[sp] = node_count - 1; // root
     sp++;
@@ -150,20 +178,13 @@ fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> ve
             let other_aabb = aabbs[other_index];
             if aabb_overlaps(aabb, other_aabb) {
                 // TODO: pairwise force accumulation for precision
-                f += collision_repulsion_pair(aabb, other_aabb, velocity, mass, other_index);
+                total_force += collision_repulsion_pair(aabb, other_aabb, velocity, mass, other_index);
             }
         }
     }
 
-    return f;
+    return total_force;
 }
-
-const stiffness = 100000.0;
-const restitution: f32 = 0.9;
-const gamma_coeff: f32 =
-    (3.0 / 2.0) *
-    (1.0 - restitution * restitution) / sqrt(5.0) *
-    sqrt(stiffness);
 
 fn collision_repulsion_pair(aabb: AABB, other_aabb: AABB, velocity: vec2f, mass: f32, other_index: u32) -> vec2f {
     let size = aabb.max - aabb.min;
@@ -171,22 +192,28 @@ fn collision_repulsion_pair(aabb: AABB, other_aabb: AABB, velocity: vec2f, mass:
     let position = (aabb.min + aabb.max) / 2;
     let other_position = (other_aabb.min + other_aabb.max) / 2;
     let separation_vector = position - other_position;
-    let distance_squared = separation_vector.x * separation_vector.x + separation_vector.y * separation_vector.y;
+    let distance = length(separation_vector);
     let r1 = 0.5 * size.x;
     let r2 = 0.5 * other_size.x;
     let interaction_distance = r1 + r2;
-    let interaction_distance_squared = interaction_distance * interaction_distance;
-    if distance_squared >= interaction_distance_squared {
+    if distance >= interaction_distance {
         return vec2f();
     }
 
-    let f_elastic = stiffness * (1 - distance_squared / interaction_distance_squared) * separation_vector;
-    let v_ij_s = dot(velocity - velocities[other_index].inner, separation_vector);
+    let penetration = interaction_distance - distance;
+    let n = normalize(separation_vector);
+    var v_ij_n = dot(velocity - velocities[other_index].inner, n);
+    if penetration <= 0 && v_ij_n > 0 {
+        v_ij_n = -RESTITUTION * v_ij_n;
+    }
     let m1 = mass;
     let m2 = masses[other_index].inner;
     let m_eff = m1 * m2 / (m1 + m2);
-    // if v_ij_s < 0 { f_damping = ... } else { f_damping = 0 }
-    var f_damping = -gamma_coeff * sqrt(m_eff) * min(v_ij_s, 0) / distance_squared * separation_vector;
+    var f_damping = vec2f();
+    if v_ij_n < 0 {
+        f_damping = -GAMMA_COEFF * sqrt(m_eff) * v_ij_n * n;
+    }
+    let f_elastic = STIFFNESS * penetration * n;
     return f_elastic + f_damping;
 }
 
