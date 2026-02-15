@@ -30,7 +30,6 @@ use crate::{
     shape_renderer::ShapeRenderer,
     util::DeviceUtil,
 };
-use crossbeam::channel::{Receiver, Sender};
 use pollster::block_on;
 use shaders::common::{Flags, Mass, Velocity};
 use std::{
@@ -45,8 +44,8 @@ use std::{
 };
 use wgpu::{
     BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCacheDescriptor, PollType, PresentMode,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, SubmissionIndex, TextureFormat,
-    TextureView, TextureViewDescriptor,
+    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, TextureFormat, TextureView,
+    TextureViewDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
@@ -106,7 +105,6 @@ struct GpuState<'a> {
     world_aabb: AABB,
     object_count: usize,
     camera: GpuBuffer<Camera>,
-    render_start_sender: Sender<SubmissionIndex>,
 
     surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
@@ -157,22 +155,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let size_factor =
             GpuBuffer::new(1, "size factor buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         size_factor.write(&queue, &[1.0]);
-
-        let node_count_buffer = GpuBuffer::new(
-            1,
-            "node count buffer",
-            BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
-            &device,
-        );
-        let aabb_renderer = AabbRenderer::new(
-            &device,
-            swapchain_format,
-            &pipeline_cache,
-            camera.clone(),
-            buffers.flags.clone(),
-            buffers.aabbs.clone(),
-            node_count_buffer.clone(),
-        );
         let shape_renderer = ShapeRenderer::new(
             &device,
             swapchain_format,
@@ -185,8 +167,21 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             buffers.shapes,
             buffers.velocities.clone(),
         );
+        let bvh_builder = BvhBuilder::new(&device, buffers.aabbs.clone(), buffers.bvh_nodes.clone(), object_count);
+        let node_count = bvh_builder.node_count();
+        let node_count_buffer =
+            GpuBuffer::new(1, "node count buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
+        node_count_buffer.write(&queue, &[node_count]);
+        let aabb_renderer = AabbRenderer::new(
+            &device,
+            swapchain_format,
+            &pipeline_cache,
+            camera.clone(),
+            buffers.flags.clone(),
+            buffers.aabbs.clone(),
+            node_count,
+        );
         let exit_requested = Arc::new(AtomicBool::new(false));
-        let (render_start_sender, render_start_receiver) = crossbeam::channel::bounded(1);
 
         spawn_simulation_thread(
             buffers.flags,
@@ -198,7 +193,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             device.clone(),
             queue.clone(),
             exit_requested.clone(),
-            render_start_receiver,
+            bvh_builder,
         );
 
         thread::spawn({
@@ -222,7 +217,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             world_aabb,
             object_count,
             camera,
-            render_start_sender,
 
             surface_config,
             queue,
@@ -253,7 +247,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
                     let surface_texture_view = surface_texture.texture.create_view(&TextureViewDescriptor::default());
                     let start = Instant::now();
-                    let sumbission_index = render_scene(
+                    render_scene(
                         surface_texture_view,
                         &self.render_parameters,
                         &mut state.shape_renderer,
@@ -262,7 +256,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &state.device,
                         &state.queue,
                     );
-                    state.render_start_sender.send(sumbission_index).unwrap();
                     println!("Render done in {:?}", start.elapsed());
 
                     state.window.pre_present_notify();
@@ -367,11 +360,9 @@ fn render_scene(
     range: Range<usize>,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-) -> SubmissionIndex {
+) {
     let pass_duration_measurer = PassDurationMeasurer::new(device);
     let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
-
-    aabb_renderer.prepare(&mut encoder, queue);
 
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,
@@ -398,11 +389,9 @@ fn render_scene(
     drop(render_pass);
 
     pass_duration_measurer.update(&mut encoder);
-    let submission_index = queue.submit([encoder.finish()]);
+    queue.submit([encoder.finish()]);
     let duration = pass_duration_measurer.duration();
     println!("Rendered {} objects in {:?}", range.len(), duration);
-
-    submission_index
 }
 
 fn orthographic_camera(zoom: f32, view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {
@@ -433,14 +422,13 @@ fn spawn_simulation_thread(
     device: wgpu::Device,
     queue: wgpu::Queue,
     exit_requested: Arc<AtomicBool>,
-    render_start_receiver: Receiver<SubmissionIndex>,
+    mut bvh_builder: BvhBuilder,
 ) {
     thread::spawn({
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         dt.write(&queue, &[0.001]);
 
         let object_count = flags.len();
-        let mut bvh_builder = BvhBuilder::new(&device, aabbs.clone(), nodes.clone(), object_count);
 
         let storage_copy_src = BufferUsages::STORAGE | BufferUsages::COPY_SRC;
         let integrated_flags =
@@ -480,10 +468,6 @@ fn spawn_simulation_thread(
         let integration_duration_measurer = PassDurationMeasurer::new(&device);
         let bvh_duration_measurer = PassDurationMeasurer::new(&device);
         let update_duration_measurer = PassDurationMeasurer::new(&device);
-
-        bvh_builder.prepare();
-        let node_count = bvh_builder.node_count();
-        node_count_buffer.write(&queue, &[node_count]);
 
         move || loop {
             if exit_requested.load(Ordering::Relaxed) {
@@ -528,9 +512,6 @@ fn spawn_simulation_thread(
             update_duration_measurer.update(&mut encoder);
 
             let command_buffer = encoder.finish();
-            if let Ok(render_submission_index) = render_start_receiver.try_recv() {
-                device.wait_for_submission(render_submission_index).unwrap();
-            }
             let submission_index = queue.submit([command_buffer]);
             device.wait_for_submission(submission_index).unwrap();
 
@@ -541,7 +522,7 @@ fn spawn_simulation_thread(
             println!("Compute done in {:?}", compute_start.elapsed());
 
             let bvh_duration = bvh_duration_measurer.duration();
-            println!("  Built BVH with {} nodes in {:?}", node_count, bvh_duration);
+            println!("  Built BVH with {} nodes in {:?}", bvh_builder.node_count(), bvh_duration);
 
             let integration_duration = integration_duration_measurer.duration();
             println!("  Integrated {} objects in {:?}", object_count, integration_duration);

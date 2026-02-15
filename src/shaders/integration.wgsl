@@ -5,16 +5,16 @@
 }
 
 @group(0) @binding(0) var<uniform> dt: f32;
-@group(0) @binding(1) var<storage, read> flags: array<Flags>;
-@group(0) @binding(2) var<storage, read> masses: array<Mass>;
-@group(0) @binding(3) var<storage, read> velocities: array<Velocity>;
-@group(0) @binding(4) var<storage, read> aabbs: array<AABB>;
-@group(0) @binding(5) var<storage, read> nodes: array<BvhNode>;
-@group(0) @binding(6) var<storage, read> node_count: u32;
-@group(1) @binding(0) var<storage, read_write> integrated_flags: array<Flags>;
-@group(1) @binding(1) var<storage, read_write> integrated_velocities: array<Velocity>;
-@group(1) @binding(2) var<storage, read_write> integrated_aabbs: array<AABB>;
-@group(1) @binding(3) var<storage, read_write> errors: atomic<u32>;
+@group(0) @binding(1) var<uniform> node_count: u32;
+@group(1) @binding(0) var<storage, read> flags: array<Flags>;
+@group(1) @binding(1) var<storage, read> masses: array<Mass>;
+@group(1) @binding(2) var<storage, read> velocities: array<Velocity>;
+@group(1) @binding(3) var<storage, read> aabbs: array<AABB>;
+@group(1) @binding(4) var<storage, read> nodes: array<BvhNode>;
+@group(2) @binding(0) var<storage, read_write> integrated_flags: array<Flags>;
+@group(2) @binding(1) var<storage, read_write> integrated_velocities: array<Velocity>;
+@group(2) @binding(2) var<storage, read_write> integrated_aabbs: array<AABB>;
+@group(2) @binding(3) var<storage, read_write> errors: atomic<u32>;
 
 const WORKGROUP_SIZE: u32 = 64;
 

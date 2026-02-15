@@ -6,15 +6,17 @@ use crate::{
         common::{AABB, BvhNode, Flags, Mass, Velocity},
         integration::{
             WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
-            WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, compute::create_cs_main_pipeline_embed_source,
+            WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries,
+            WgpuBindGroup2EntriesParams, compute::create_cs_main_pipeline_embed_source,
         },
     },
 };
 
 pub struct GpuIntegrator {
     pipeline: ComputePipeline,
-    bind_group_src: WgpuBindGroup0,
-    bind_group_dst: WgpuBindGroup1,
+    bind_group_uniform: WgpuBindGroup0,
+    bind_group_src: WgpuBindGroup1,
+    bind_group_dst: WgpuBindGroup2,
     object_count: usize,
 }
 
@@ -34,21 +36,26 @@ impl GpuIntegrator {
         errors: GpuBuffer<u32>,
     ) -> Self {
         let pipeline = create_cs_main_pipeline_embed_source(device);
-        let bind_group_src = WgpuBindGroup0::from_bindings(
+        let bind_group_uniform = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 dt: dt.buffer().as_entire_buffer_binding(),
+                node_count: node_count.buffer().as_entire_buffer_binding(),
+            }),
+        );
+        let bind_group_src = WgpuBindGroup1::from_bindings(
+            device,
+            WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
                 flags: flags.buffer().as_entire_buffer_binding(),
                 masses: masses.buffer().as_entire_buffer_binding(),
                 velocities: velocities.buffer().as_entire_buffer_binding(),
                 aabbs: aabbs.buffer().as_entire_buffer_binding(),
                 nodes: nodes.buffer().as_entire_buffer_binding(),
-                node_count: node_count.buffer().as_entire_buffer_binding(),
             }),
         );
-        let bind_group_dst = WgpuBindGroup1::from_bindings(
+        let bind_group_dst = WgpuBindGroup2::from_bindings(
             device,
-            WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
+            WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
                 integrated_flags: integrated_flags.buffer().as_entire_buffer_binding(),
                 integrated_velocities: integrated_velocities.buffer().as_entire_buffer_binding(),
                 integrated_aabbs: integrated_aabbs.buffer().as_entire_buffer_binding(),
@@ -57,6 +64,7 @@ impl GpuIntegrator {
         );
         Self {
             pipeline,
+            bind_group_uniform,
             bind_group_src,
             bind_group_dst,
             object_count: flags.len(),
@@ -65,6 +73,7 @@ impl GpuIntegrator {
 
     pub fn compute(&self, compute_pass: &mut ComputePass) {
         compute_pass.set_pipeline(&self.pipeline);
+        self.bind_group_uniform.set(compute_pass);
         self.bind_group_src.set(compute_pass);
         self.bind_group_dst.set(compute_pass);
         let total_workgroups = u32::try_from(self.object_count).unwrap().div_ceil(WORKGROUP_SIZE);

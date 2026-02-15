@@ -22,8 +22,7 @@ fn mock_bvh() {
     let mut aabbs: [usize; N * 2] = from_fn(|i| i * usize::from(i < N)); // tree nodes set to zero
     let mut nodes = [BvhNode::new_leaf(0); N * 2];
 
-    let mut passes = Vec::new();
-    calculate_passes(N, &mut passes);
+    let passes = calculate_passes(N);
     assert_eq!(
         passes.as_slice(),
         &[

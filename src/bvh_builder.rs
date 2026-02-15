@@ -14,7 +14,6 @@ use crate::{
 pub struct BvhBuilder {
     pipeline: ComputePipeline,
     bind_group: WgpuBindGroup0,
-    object_count: usize,
     passes: Vec<CombineNodePass>,
 }
 
@@ -28,17 +27,12 @@ impl BvhBuilder {
                 nodes: nodes.buffer().as_entire_buffer_binding(),
             }),
         );
+        let passes = calculate_passes(object_count);
         Self {
             pipeline,
             bind_group,
-            object_count,
-            passes: Vec::new(),
+            passes,
         }
-    }
-
-    pub fn prepare(&mut self) {
-        self.passes.clear();
-        calculate_passes(self.object_count, &mut self.passes);
     }
 
     pub fn compute(&mut self, compute_pass: &mut ComputePass) {
@@ -57,7 +51,8 @@ impl BvhBuilder {
     }
 }
 
-pub fn calculate_passes(n: usize, passes: &mut Vec<CombineNodePass>) {
+pub fn calculate_passes(n: usize) -> Vec<CombineNodePass> {
+    let mut passes = Vec::new();
     let mut src_range = 0..n;
     while src_range.len() > 1 {
         let parent_count = src_range.len() / 2;
@@ -71,4 +66,5 @@ pub fn calculate_passes(n: usize, passes: &mut Vec<CombineNodePass>) {
         let next_end = next_start + parent_count + leftovers;
         src_range = next_start..next_end;
     }
+    passes
 }
