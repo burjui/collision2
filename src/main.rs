@@ -9,6 +9,7 @@ pub mod integration;
 mod mock_bvh_test;
 pub mod objects;
 pub mod pass_duration;
+pub mod phase_state;
 pub mod scene;
 pub mod shaders;
 pub mod shape_renderer;
@@ -22,6 +23,7 @@ use crate::{
     integration::GpuIntegrator,
     objects::Objects,
     pass_duration::PassDurationMeasurer,
+    phase_state::PhaseStateBuffers,
     scene::create_scene,
     shaders::{
         bvh::CombineNodePass,
@@ -31,12 +33,13 @@ use crate::{
     util::DeviceUtil,
 };
 use pollster::block_on;
-use shaders::common::{Flags, Mass, Velocity};
+use shaders::common::Mass;
 use std::{
+    collections::VecDeque,
     mem::size_of,
     ops::Range,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     thread::{self},
@@ -44,8 +47,8 @@ use std::{
 };
 use wgpu::{
     BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCacheDescriptor, PollType, PresentMode,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, TextureFormat, TextureView,
-    TextureViewDescriptor,
+    QuerySetDescriptor, QueryType, RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions,
+    TextureFormat, TextureView, TextureViewDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
@@ -139,6 +142,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let object_count = objects.len();
         let buffers = objects.to_buffers(&device, &queue);
 
+        let phase_state_buffers = Arc::new(Mutex::new(PhaseStateBuffers::new(
+            &device,
+            buffers.aabbs.clone(),
+            buffers.velocities.clone(),
+            buffers.flags.clone(),
+        )));
+
         println!("Window size: {}x{}", window_size.width, window_size.height);
         println!("Object count: {}", object_count);
 
@@ -156,16 +166,15 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             GpuBuffer::new(1, "size factor buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         size_factor.write(&queue, &[1.0]);
         let shape_renderer = ShapeRenderer::new(
-            &device,
+            device.clone(),
             swapchain_format,
             &pipeline_cache,
             camera.clone(),
             size_factor.clone(),
             buffers.flags.clone(),
-            buffers.aabbs.clone(),
             buffers.colors,
             buffers.shapes,
-            buffers.velocities.clone(),
+            phase_state_buffers.clone(),
         );
         let bvh_builder = BvhBuilder::new(&device, buffers.aabbs.clone(), buffers.bvh_nodes.clone(), object_count);
         let node_count = bvh_builder.node_count();
@@ -184,12 +193,11 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let exit_requested = Arc::new(AtomicBool::new(false));
 
         spawn_simulation_thread(
-            buffers.flags,
+            object_count,
+            phase_state_buffers,
             buffers.masses,
-            buffers.velocities,
-            buffers.aabbs,
             buffers.bvh_nodes,
-            node_count_buffer.clone(),
+            node_count_buffer,
             device.clone(),
             queue.clone(),
             exit_requested.clone(),
@@ -388,10 +396,10 @@ fn render_scene(
     // TODO: EDF
     drop(render_pass);
 
-    pass_duration_measurer.update(&mut encoder);
+    // pass_duration_measurer.update(&mut encoder);
     queue.submit([encoder.finish()]);
-    let duration = pass_duration_measurer.duration();
-    println!("Rendered {} objects in {:?}", range.len(), duration);
+    // let duration = pass_duration_measurer.duration();
+    // println!("Rendered {} objects in {:?}", range.len(), duration);
 }
 
 fn orthographic_camera(zoom: f32, view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {
@@ -413,10 +421,9 @@ fn orthographic_camera(zoom: f32, view_size: PhysicalSize<f32>, world_height: f3
 }
 
 fn spawn_simulation_thread(
-    flags: GpuBuffer<Flags>,
+    object_count: usize,
+    phase_states_buffers: Arc<Mutex<PhaseStateBuffers>>,
     masses: GpuBuffer<Mass>,
-    velocities: GpuBuffer<Velocity>,
-    aabbs: GpuBuffer<AABB>,
     nodes: GpuBuffer<BvhNode>,
     node_count_buffer: GpuBuffer<u32>,
     device: wgpu::Device,
@@ -428,55 +435,58 @@ fn spawn_simulation_thread(
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         dt.write(&queue, &[0.001]);
 
-        let object_count = flags.len();
-
-        let storage_copy_src = BufferUsages::STORAGE | BufferUsages::COPY_SRC;
-        let integrated_flags =
-            GpuBuffer::<Flags>::new(object_count, "integrated flags buffer", storage_copy_src, &device);
-        let integrated_velocities =
-            GpuBuffer::<Velocity>::new(object_count, "integrated velocity buffer", storage_copy_src, &device);
-        let integrated_aabbs =
-            GpuBuffer::<AABB>::new(object_count, "integrated aabb buffer", storage_copy_src, &device);
         let error_count_buffer = GpuBuffer::<u32>::new(
             1,
             "error count buffer",
             BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
             &device,
         );
-        let error_count_readback_buffer = GpuBuffer::<u32>::new(
-            1,
-            "error count readback buffer",
+
+        let query_set = device.create_query_set(&QuerySetDescriptor {
+            label: Some("integrator duration query set"),
+            ty: QueryType::Timestamp,
+            count: 2,
+        });
+        let query_buffer = GpuBuffer::<u64>::new(
+            2,
+            "integrator duration query buffer",
+            BufferUsages::QUERY_RESOLVE | BufferUsages::COPY_SRC,
+            &device,
+        );
+        let query_readback_buffer = GpuBuffer::<u64>::new(
+            2,
+            "integrator duration query readback buffer",
             BufferUsages::MAP_READ | BufferUsages::COPY_DST,
             &device,
         );
 
+        let guard = phase_states_buffers.lock().unwrap();
+        let frames_in_flight = guard.len();
+        drop(guard);
+
         let integrator = GpuIntegrator::new(
-            &device,
+            device.clone(),
+            phase_states_buffers,
             dt,
-            flags.clone(),
             masses,
-            velocities.clone(),
-            aabbs.clone(),
             nodes,
             node_count_buffer.clone(),
-            integrated_flags.clone(),
-            integrated_velocities.clone(),
-            integrated_aabbs.clone(),
-            error_count_buffer.clone(),
+            object_count,
         );
 
         let integration_duration_measurer = PassDurationMeasurer::new(&device);
         let bvh_duration_measurer = PassDurationMeasurer::new(&device);
         let update_duration_measurer = PassDurationMeasurer::new(&device);
 
+        let mut frame_queue = VecDeque::new();
+
         move || loop {
             if exit_requested.load(Ordering::Relaxed) {
                 break;
             }
 
-            let compute_start = Instant::now();
-
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
+            encoder.write_timestamp(&query_set, 0);
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("bvh pass"),
@@ -493,42 +503,21 @@ fn spawn_simulation_thread(
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
 
-            update_duration_measurer.measure(&mut encoder, |encoder| {
-                encoder.copy_buffer_to_buffer(integrated_flags.buffer(), 0, flags.buffer(), 0, None);
-                encoder.copy_buffer_to_buffer(integrated_velocities.buffer(), 0, velocities.buffer(), 0, None);
-                // Only copying object AABBs here
-                encoder.copy_buffer_to_buffer(integrated_aabbs.buffer(), 0, aabbs.buffer(), 0, None);
-                encoder.copy_buffer_to_buffer(
-                    error_count_buffer.buffer(),
-                    0,
-                    error_count_readback_buffer.buffer(),
-                    0,
-                    None,
-                );
-            });
-
             bvh_duration_measurer.update(&mut encoder);
             integration_duration_measurer.update(&mut encoder);
             update_duration_measurer.update(&mut encoder);
 
+            encoder.write_timestamp(&query_set, 1);
+            encoder.resolve_query_set(&query_set, 0..2, query_buffer.buffer(), 0);
+            encoder.copy_buffer_to_buffer(query_buffer.buffer(), 0, query_readback_buffer.buffer(), 0, None);
+
             let command_buffer = encoder.finish();
             let submission_index = queue.submit([command_buffer]);
-            device.wait_for_submission(submission_index).unwrap();
-
-            let mut errors = [0; 1];
-            error_count_readback_buffer.read(&device, &mut errors);
-            assert!(errors[0] == 0);
-
-            println!("Compute done in {:?}", compute_start.elapsed());
-
-            let bvh_duration = bvh_duration_measurer.duration();
-            println!("  Built BVH with {} nodes in {:?}", bvh_builder.node_count(), bvh_duration);
-
-            let integration_duration = integration_duration_measurer.duration();
-            println!("  Integrated {} objects in {:?}", object_count, integration_duration);
-
-            let update_duration = update_duration_measurer.duration();
-            println!("  Updated {} objects in {:?}", object_count, update_duration);
+            if frame_queue.len() >= frames_in_flight {
+                let old = frame_queue.pop_front().unwrap();
+                device.wait_for_submission(old).unwrap();
+            }
+            frame_queue.push_back(submission_index);
         }
     });
 }

@@ -14,7 +14,6 @@
 @group(2) @binding(0) var<storage, read_write> integrated_flags: array<Flags>;
 @group(2) @binding(1) var<storage, read_write> integrated_velocities: array<Velocity>;
 @group(2) @binding(2) var<storage, read_write> integrated_aabbs: array<AABB>;
-@group(2) @binding(3) var<storage, read_write> errors: atomic<u32>;
 
 const WORKGROUP_SIZE: u32 = 64;
 
@@ -62,7 +61,7 @@ fn cs_main(
     var f = flags[i].inner;
 
     let mass = masses[i].inner;
-    var state = State(initial_position, velocities[i].inner);
+    var state = PhaseState(initial_position, velocities[i].inner);
     if (f & FLAG_PHYSICAL) != 0 {
         state = integrate_euler_symplectic(state, i, aabb, mass);
     }
@@ -104,12 +103,12 @@ fn cs_main(
     integrated_velocities[i].inner = state.velocity;
 }
 
-struct State {
+struct PhaseState {
     position: vec2f,
     velocity: vec2f
 }
 
-fn integrate_euler_symplectic(state: State, index: u32, aabb: AABB, mass: f32) -> State {
+fn integrate_euler_symplectic(state: PhaseState, index: u32, aabb: AABB, mass: f32) -> PhaseState {
     let a = forces(state, index, aabb, mass) / mass;
     var new_state = state;
     new_state.velocity += a * dt;
@@ -122,7 +121,7 @@ struct InteractionResult {
     collision_count: u32
 }
 
-fn forces(state: State, index: u32, aabb: AABB, mass: f32) -> vec2f {
+fn forces(state: PhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
     var total_force = GLOBAL_FORCE;
     // for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT; bh_index += 1) {
     //     var blackhole = BLACKHOLES[bh_index];
@@ -142,7 +141,7 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2f, mass: f32) -> vec2f 
 
 // Lense–Thirring formula for 2D
 // NOTE: some terms are missing and have to be reintroduced for 3D
-fn frame_dragging(blackhole: BlackHole, state: State) -> vec2f {
+fn frame_dragging(blackhole: BlackHole, state: PhaseState) -> vec2f {
     let r_vec = blackhole.position - state.position;
     let r = length(r_vec);
     let J = blackhole.spin; // scalar angular momentum (Jz)
@@ -167,7 +166,6 @@ fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> ve
         let other_index = nodes[node_index].index;
         if (other_index & BVH_NODE_TREE_FLAG) != 0 {
             if sp >= MAX_STACK_DEPTH - 2 {
-                atomicAdd(&errors, 1);
                 break;
             }
 

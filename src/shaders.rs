@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 36456b77e15d1913ed58840ed38df7ae8d6cae38169d860773c996627e9ab037
+// SourceHash: 5a2a2a9f31c4be27a49122dda04464b1f68bd0611e8347dd57e9eac6e9613513
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1433,14 +1433,12 @@ pub mod integration {
         pub integrated_flags: wgpu::BufferBinding<'a>,
         pub integrated_velocities: wgpu::BufferBinding<'a>,
         pub integrated_aabbs: wgpu::BufferBinding<'a>,
-        pub errors: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup2Entries<'a> {
         pub integrated_flags: wgpu::BindGroupEntry<'a>,
         pub integrated_velocities: wgpu::BindGroupEntry<'a>,
         pub integrated_aabbs: wgpu::BindGroupEntry<'a>,
-        pub errors: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup2Entries<'a> {
         pub fn new(params: WgpuBindGroup2EntriesParams<'a>) -> Self {
@@ -1457,19 +1455,10 @@ pub mod integration {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.integrated_aabbs),
                 },
-                errors: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.errors),
-                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
-            [
-                self.integrated_flags,
-                self.integrated_velocities,
-                self.integrated_aabbs,
-                self.errors,
-            ]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
+            [self.integrated_flags, self.integrated_velocities, self.integrated_aabbs]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -1511,17 +1500,6 @@ pub mod integration {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
                         min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(3): \"errors\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -1617,7 +1595,7 @@ struct BlackHole {
     spin: f32,
 }
 
-struct State {
+struct PhaseState {
     position: vec2<f32>,
     velocity: vec2<f32>,
 }
@@ -1662,8 +1640,6 @@ var<storage, read_write> integrated_flags: array<FlagsX_naga_oil_mod_XMNXW23LPNY
 var<storage, read_write> integrated_velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 @group(2) @binding(2) 
 var<storage, read_write> integrated_aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(2) @binding(3) 
-var<storage, read_write> errors: atomic<u32>;
 
 fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return (gid_1.x + ((gid_1.y * nwg_1.x) * workgroup_size));
@@ -1735,35 +1711,34 @@ fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velo
             if ((other_index_1 & BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
                 let _e32 = sp;
                 if (_e32 >= 62u) {
-                    let _e37 = atomicAdd((&errors), 1u);
                     break;
                 }
                 let i = (other_index_1 & 2147483647u);
-                let _e40 = sp;
-                stack[_e40] = i;
-                let _e42 = sp;
-                stack[(_e42 + 1u)] = (i + 1u);
-                let _e49 = sp;
-                sp = (_e49 + 2u);
+                let _e37 = sp;
+                stack[_e37] = i;
+                let _e39 = sp;
+                stack[(_e39 + 1u)] = (i + 1u);
+                let _e46 = sp;
+                sp = (_e46 + 2u);
             } else {
-                let _e56 = flags[other_index_1].inner;
-                if ((other_index_1 != index) && ((_e56 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
+                let _e53 = flags[other_index_1].inner;
+                if ((other_index_1 != index) && ((_e53 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
                     let other_aabb_1 = aabbs[other_index_1];
-                    let _e66 = aabb_overlaps(aabb_1, other_aabb_1);
-                    if _e66 {
-                        let _e69 = collision_repulsion_pair(aabb_1, other_aabb_1, velocity_1, mass_1, other_index_1);
-                        let _e71 = total_force;
-                        total_force = (_e71 + _e69);
+                    let _e63 = aabb_overlaps(aabb_1, other_aabb_1);
+                    if _e63 {
+                        let _e66 = collision_repulsion_pair(aabb_1, other_aabb_1, velocity_1, mass_1, other_index_1);
+                        let _e68 = total_force;
+                        total_force = (_e68 + _e66);
                     }
                 }
             }
         }
     }
-    let _e73 = total_force;
-    return _e73;
+    let _e70 = total_force;
+    return _e70;
 }
 
-fn forces(state_1: State, index_1: u32, aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_2: f32) -> vec2<f32> {
+fn forces(state_1: PhaseState, index_1: u32, aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_2: f32) -> vec2<f32> {
     var total_force_1: vec2<f32> = GLOBAL_FORCE;
 
     let _e6 = collision_repulsion(index_1, aabb_2, state_1.velocity, mass_2);
@@ -1773,8 +1748,8 @@ fn forces(state_1: State, index_1: u32, aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX,
     return _e10;
 }
 
-fn integrate_euler_symplectic(state_2: State, index_2: u32, aabb_3: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_3: f32) -> State {
-    var new_state: State;
+fn integrate_euler_symplectic(state_2: PhaseState, index_2: u32, aabb_3: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_3: f32) -> PhaseState {
+    var new_state: PhaseState;
 
     let _e4 = forces(state_2, index_2, aabb_3, mass_3);
     let a_1 = (_e4 / vec2(mass_3));
@@ -1797,7 +1772,7 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>, mass_4: f32) -> 
     return (((((direction * GRAVITATIONAL_CONSTANT) * mass_4) * blackhole.mass) * BLACKHOLE_MASS_SCALE) / vec2((distance_1 * distance_1)));
 }
 
-fn frame_dragging(blackhole_1: BlackHole, state_3: State) -> vec2<f32> {
+fn frame_dragging(blackhole_1: BlackHole, state_3: PhaseState) -> vec2<f32> {
     let r_vec = (blackhole_1.position - state_3.position);
     let r = length(r_vec);
     let J = blackhole_1.spin;
@@ -1808,7 +1783,7 @@ fn frame_dragging(blackhole_1: BlackHole, state_3: State) -> vec2<f32> {
 @compute @workgroup_size(64, 1, 1) 
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
     var f: u32;
-    var state: State;
+    var state: PhaseState;
     var new_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX;
 
     let _e3 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
@@ -1822,7 +1797,7 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroup
     f = _e23;
     let mass_5 = masses[_e3].inner;
     let _e32 = velocities[_e3].inner;
-    state = State(initial_position, _e32);
+    state = PhaseState(initial_position, _e32);
     let _e35 = f;
     if ((_e35 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
         let _e40 = state;
