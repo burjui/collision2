@@ -22,7 +22,6 @@ use crate::{
     gpu_buffer::GpuBuffer,
     integration::GpuIntegrator,
     objects::Objects,
-    pass_duration::PassDurationMeasurer,
     phase_state::PhaseStateBuffers,
     scene::create_scene,
     shaders::{
@@ -30,12 +29,11 @@ use crate::{
         common::{AABB, BvhNode, Camera},
     },
     shape_renderer::ShapeRenderer,
-    util::DeviceUtil,
 };
+use crossbeam::channel;
 use pollster::block_on;
 use shaders::common::Mass;
 use std::{
-    collections::VecDeque,
     mem::size_of,
     ops::Range,
     sync::{
@@ -47,8 +45,8 @@ use std::{
 };
 use wgpu::{
     BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCacheDescriptor, PollType, PresentMode,
-    QuerySetDescriptor, QueryType, RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions,
-    TextureFormat, TextureView, TextureViewDescriptor,
+    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, TextureFormat, TextureView,
+    TextureViewDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
@@ -369,9 +367,7 @@ fn render_scene(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
 ) {
-    let pass_duration_measurer = PassDurationMeasurer::new(device);
     let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
-
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(RenderPassColorAttachment {
@@ -384,7 +380,7 @@ fn render_scene(
             },
         })],
         depth_stencil_attachment: None,
-        timestamp_writes: Some(pass_duration_measurer.render_pass_timestamp_writes()),
+        timestamp_writes: None,
         occlusion_query_set: None,
     });
     if render_parameters.enabled {
@@ -393,13 +389,8 @@ fn render_scene(
     if render_parameters.draw_aabbs {
         aabb_renderer.render(&mut render_pass);
     }
-    // TODO: EDF
     drop(render_pass);
-
-    // pass_duration_measurer.update(&mut encoder);
     queue.submit([encoder.finish()]);
-    // let duration = pass_duration_measurer.duration();
-    // println!("Rendered {} objects in {:?}", range.len(), duration);
 }
 
 fn orthographic_camera(zoom: f32, view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {
@@ -435,33 +426,8 @@ fn spawn_simulation_thread(
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         dt.write(&queue, &[0.001]);
 
-        let error_count_buffer = GpuBuffer::<u32>::new(
-            1,
-            "error count buffer",
-            BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
-            &device,
-        );
-
-        let query_set = device.create_query_set(&QuerySetDescriptor {
-            label: Some("integrator duration query set"),
-            ty: QueryType::Timestamp,
-            count: 2,
-        });
-        let query_buffer = GpuBuffer::<u64>::new(
-            2,
-            "integrator duration query buffer",
-            BufferUsages::QUERY_RESOLVE | BufferUsages::COPY_SRC,
-            &device,
-        );
-        let query_readback_buffer = GpuBuffer::<u64>::new(
-            2,
-            "integrator duration query readback buffer",
-            BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-            &device,
-        );
-
         let guard = phase_states_buffers.lock().unwrap();
-        let frames_in_flight = guard.len();
+        let frames_in_flight = guard.pair_count();
         drop(guard);
 
         let integrator = GpuIntegrator::new(
@@ -474,11 +440,8 @@ fn spawn_simulation_thread(
             object_count,
         );
 
-        let integration_duration_measurer = PassDurationMeasurer::new(&device);
-        let bvh_duration_measurer = PassDurationMeasurer::new(&device);
-        let update_duration_measurer = PassDurationMeasurer::new(&device);
-
-        let mut frame_queue = VecDeque::new();
+        let (tx, rx) = channel::bounded(frames_in_flight);
+        let mut frames_submitted = 0usize;
 
         move || loop {
             if exit_requested.load(Ordering::Relaxed) {
@@ -486,38 +449,30 @@ fn spawn_simulation_thread(
             }
 
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
-            encoder.write_timestamp(&query_set, 0);
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("bvh pass"),
-                timestamp_writes: Some(bvh_duration_measurer.compute_pass_timestamp_writes()),
+                timestamp_writes: None,
             });
             bvh_builder.compute(&mut compute_pass);
-            drop(compute_pass);
-
-            error_count_buffer.write(&queue, &[0]);
-            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some("integration pass"),
-                timestamp_writes: Some(integration_duration_measurer.compute_pass_timestamp_writes()),
-            });
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
 
-            bvh_duration_measurer.update(&mut encoder);
-            integration_duration_measurer.update(&mut encoder);
-            update_duration_measurer.update(&mut encoder);
-
-            encoder.write_timestamp(&query_set, 1);
-            encoder.resolve_query_set(&query_set, 0..2, query_buffer.buffer(), 0);
-            encoder.copy_buffer_to_buffer(query_buffer.buffer(), 0, query_readback_buffer.buffer(), 0, None);
-
             let command_buffer = encoder.finish();
-            let submission_index = queue.submit([command_buffer]);
-            if frame_queue.len() >= frames_in_flight {
-                let old = frame_queue.pop_front().unwrap();
-                device.wait_for_submission(old).unwrap();
+            queue.submit([command_buffer]);
+
+            queue.on_submitted_work_done({
+                let tx = tx.clone();
+                move || tx.send(()).unwrap()
+            });
+
+            frames_submitted += 1;
+            device.poll(PollType::Poll).unwrap();
+
+            if frames_submitted >= frames_in_flight {
+                rx.recv().unwrap();
+                frames_submitted -= 1;
             }
-            frame_queue.push_back(submission_index);
         }
     });
 }

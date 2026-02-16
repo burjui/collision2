@@ -68,7 +68,7 @@ impl PhaseStates {
     }
 }
 
-const N_PHASE_STATES: usize = 2;
+const N_PHASE_STATES: usize = 3;
 
 pub struct PhaseStateBuffers {
     states: [PhaseStates; N_PHASE_STATES],
@@ -109,7 +109,7 @@ impl PhaseStateBuffers {
         (src, dst)
     }
 
-    pub fn len(&self) -> usize {
+    pub fn pair_count(&self) -> usize {
         self.states.len() - 1
     }
 }
