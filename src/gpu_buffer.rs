@@ -6,7 +6,7 @@ use std::{
 
 use bytemuck::{NoUninit, Pod};
 use crossbeam::sync::WaitGroup;
-use wgpu::{Buffer, BufferSlice, COPY_BUFFER_ALIGNMENT, Device, MapMode, PollType, Queue};
+use wgpu::{Buffer, BufferSlice, COPY_BUFFER_ALIGNMENT, Device, MapMode, PollType, Queue, util::DeviceExt};
 
 #[derive(Clone)]
 pub struct GpuBuffer<T> {
@@ -23,6 +23,21 @@ impl<T> GpuBuffer<T> {
             size: padded_size,
             usage,
             mapped_at_creation: false,
+        });
+        Self {
+            buffer,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn from_data(data: &[T], label: &str, usage: wgpu::BufferUsages, device: &Device) -> Self
+    where
+        T: NoUninit,
+    {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(label),
+            contents: bytemuck::cast_slice(data),
+            usage,
         });
         Self {
             buffer,

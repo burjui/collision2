@@ -6,11 +6,14 @@
 
 @group(0) @binding(0) var<uniform> dt: f32;
 @group(0) @binding(1) var<uniform> node_count: u32;
+
 @group(1) @binding(0) var<storage, read> flags: array<Flags>;
 @group(1) @binding(1) var<storage, read> masses: array<Mass>;
 @group(1) @binding(2) var<storage, read> velocities: array<Velocity>;
 @group(1) @binding(3) var<storage, read> aabbs: array<AABB>;
 @group(1) @binding(4) var<storage, read> nodes: array<BvhNode>;
+@group(1) @binding(5) var<storage, read> blackholes: array<BlackHole>;
+
 @group(2) @binding(0) var<storage, read_write> integrated_flags: array<Flags>;
 @group(2) @binding(1) var<storage, read_write> integrated_velocities: array<Velocity>;
 @group(2) @binding(2) var<storage, read_write> integrated_aabbs: array<AABB>;
@@ -21,17 +24,9 @@ struct BlackHole {
     position: vec2f,
     radius: f32,
     mass: f32,
-    spin: f32
+    spin: f32,
 }
 
-const BLACKHOLE_COUNT: u32 = 1;
-const BLACKHOLES = array<BlackHole, BLACKHOLE_COUNT>(
-    // BlackHole(vec2f(-200, 500),     2,  10,  0 * -50),
-    // BlackHole(vec2f(500, 200),      1,  10,  0 * -50),
-    BlackHole(vec2f(),              2,  20,  3 * 100),
-    // BlackHole(vec2f(-600, -300),    1,  20,  0 * -50),
-    // BlackHole(vec2f(600, -700),     1,  10,  0 * -50),
-);
 const BLACKHOLE_MASS_SCALE: f32 = 1 * 1000;
 const BLACKHOLE_SIZE_SCALE: f32 = 10;
 const BLACKHOLE_DESTROY_MATTER: bool = true;
@@ -67,16 +62,16 @@ fn cs_main(
     }
 
     let size = aabb.max - aabb.min;
-    // if BLACKHOLE_DESTROY_MATTER {
-    //     for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT && (f & FLAG_PHYSICAL) != 0; bh_index++) {
-    //         let blackhole = BLACKHOLES[bh_index];
-    //         let distance = length(blackhole.position - state.position) - max(size.x, size.y) / 2;
-    //         if distance < blackhole.radius * BLACKHOLE_SIZE_SCALE {
-    //             f &= ~(FLAG_PHYSICAL | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
-    //             state.velocity = vec2f();
-    //         }
-    //     }
-    // }
+    if BLACKHOLE_DESTROY_MATTER {
+        for (var bh_index: u32 = 0; bh_index < arrayLength(&blackholes) && (f & FLAG_PHYSICAL) != 0; bh_index++) {
+            let blackhole = blackholes[bh_index];
+            let distance = length(blackhole.position - state.position) - max(size.x, size.y) / 2;
+            if distance < blackhole.radius * BLACKHOLE_SIZE_SCALE {
+                f &= ~(FLAG_PHYSICAL | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
+                state.velocity = vec2f();
+            }
+        }
+    }
 
     let offset = state.position - initial_position;
     var new_aabb = AABB(aabb.min + offset, aabb.max + offset);
@@ -123,12 +118,12 @@ struct InteractionResult {
 
 fn forces(state: PhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
     var total_force = GLOBAL_FORCE;
-    // for (var bh_index: u32 = 0; bh_index < BLACKHOLE_COUNT; bh_index += 1) {
-    //     var blackhole = BLACKHOLES[bh_index];
-    //     total_force += blackhole_gravity(blackhole, state.position, mass);
-    //     total_force += frame_dragging(blackhole, state);
-    // }
-    total_force += collision_repulsion(index, aabb, state.velocity, mass);
+    for (var bh_index: u32 = 0; bh_index < arrayLength(&blackholes); bh_index += 1) {
+        var blackhole = blackholes[bh_index];
+        total_force += blackhole_gravity(blackhole, state.position, mass);
+        total_force += frame_dragging(blackhole, state);
+    }
+    // total_force += collision_repulsion(index, aabb, state.velocity, mass);
     return total_force;
 }
 

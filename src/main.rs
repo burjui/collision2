@@ -41,7 +41,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread::{self},
-    time::{Duration, Instant},
+    time::Duration,
 };
 use wgpu::{
     BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCacheDescriptor, PollType, PresentMode,
@@ -252,7 +252,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     let surface_texture =
                         state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
                     let surface_texture_view = surface_texture.texture.create_view(&TextureViewDescriptor::default());
-                    let start = Instant::now();
                     render_scene(
                         surface_texture_view,
                         &self.render_parameters,
@@ -262,8 +261,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &state.device,
                         &state.queue,
                     );
-                    println!("Render done in {:?}", start.elapsed());
-
                     state.window.pre_present_notify();
                     surface_texture.present();
                 }
@@ -424,7 +421,7 @@ fn spawn_simulation_thread(
 ) {
     thread::spawn({
         let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt.write(&queue, &[0.001]);
+        dt.write(&queue, &[0.0003]);
 
         let guard = phase_states_buffers.lock().unwrap();
         let frames_in_flight = guard.pair_count();
