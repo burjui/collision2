@@ -177,8 +177,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let bvh_builder = BvhBuilder::new(&device, buffers.aabbs.clone(), buffers.bvh_nodes.clone(), object_count);
         let node_count = bvh_builder.node_count();
         let node_count_buffer =
-            GpuBuffer::new(1, "node count buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        node_count_buffer.write(&queue, &[node_count]);
+            GpuBuffer::from_data(&[node_count], "node count buffer", BufferUsages::UNIFORM, &device);
         let aabb_renderer = AabbRenderer::new(
             &device,
             swapchain_format,
@@ -420,8 +419,7 @@ fn spawn_simulation_thread(
     mut bvh_builder: BvhBuilder,
 ) {
     thread::spawn({
-        let dt = GpuBuffer::new(1, "dt buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        dt.write(&queue, &[0.0003]);
+        let dt = GpuBuffer::from_data(&[0.001], "dt buffer", BufferUsages::UNIFORM, &device);
 
         let guard = phase_states_buffers.lock().unwrap();
         let frames_in_flight = guard.pair_count();
@@ -450,6 +448,7 @@ fn spawn_simulation_thread(
                 label: Some("bvh pass"),
                 timestamp_writes: None,
             });
+            // TODO: batch updates
             bvh_builder.compute(&mut compute_pass);
             integrator.compute(&mut compute_pass);
             drop(compute_pass);

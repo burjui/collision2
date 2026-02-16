@@ -6,6 +6,11 @@
 
 @group(0) @binding(0) var<uniform> dt: f32;
 @group(0) @binding(1) var<uniform> node_count: u32;
+@group(0) @binding(2) var<uniform> blackhole_count: u32;
+@group(0) @binding(3) var<uniform> blackhole_mass_scale: f32;
+@group(0) @binding(4) var<uniform> blackhole_size_scale: f32;
+@group(0) @binding(5) var<uniform> gravitational_constant: f32;
+@group(0) @binding(6) var<uniform> global_force: vec2f;
 
 @group(1) @binding(0) var<storage, read> flags: array<Flags>;
 @group(1) @binding(1) var<storage, read> masses: array<Mass>;
@@ -27,17 +32,9 @@ struct BlackHole {
     spin: f32,
 }
 
-const BLACKHOLE_MASS_SCALE: f32 = 1 * 1000;
-const BLACKHOLE_SIZE_SCALE: f32 = 10;
-const BLACKHOLE_DESTROY_MATTER: bool = true;
-const GRAVITATIONAL_CONSTANT: f32 = 1 * 100000;
-
-const GLOBAL_FORCE = vec2f(0, -10000);
-
 const STIFFNESS: f32 = 1000000;
-const RESTITUTION: f32 = 0.5;
+const RESTITUTION: f32 = 0.85;
 const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(5.0) * sqrt(STIFFNESS);
-const EPSILON: f32 = 0.000001;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn cs_main(
@@ -62,14 +59,12 @@ fn cs_main(
     }
 
     let size = aabb.max - aabb.min;
-    if BLACKHOLE_DESTROY_MATTER {
-        for (var bh_index: u32 = 0; bh_index < arrayLength(&blackholes) && (f & FLAG_PHYSICAL) != 0; bh_index++) {
-            let blackhole = blackholes[bh_index];
-            let distance = length(blackhole.position - state.position) - max(size.x, size.y) / 2;
-            if distance < blackhole.radius * BLACKHOLE_SIZE_SCALE {
-                f &= ~(FLAG_PHYSICAL | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
-                state.velocity = vec2f();
-            }
+    for (var bh_index: u32 = 0; bh_index < blackhole_count && (f & FLAG_PHYSICAL) != 0; bh_index++) {
+        let blackhole = blackholes[bh_index];
+        let distance = length(blackhole.position - state.position) - max(size.x, size.y) / 2;
+        if distance < blackhole.radius * blackhole_size_scale {
+            f &= ~(FLAG_PHYSICAL | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
+            state.velocity = vec2f();
         }
     }
 
@@ -79,6 +74,12 @@ fn cs_main(
         let overshoot = -1000 - new_aabb.min.y;
         new_aabb.min.y += overshoot / 2;
         new_aabb.max.y += overshoot / 2;
+        state.velocity.y *= -1;
+    }
+    if new_aabb.max.y > 1000 {
+        let overshoot = new_aabb.max.y - 1000;
+        new_aabb.min.y -= overshoot / 2;
+        new_aabb.max.y -= overshoot / 2;
         state.velocity.y *= -1;
     }
     if new_aabb.min.x < -1600 {
@@ -117,13 +118,13 @@ struct InteractionResult {
 }
 
 fn forces(state: PhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
-    var total_force = GLOBAL_FORCE;
-    for (var bh_index: u32 = 0; bh_index < arrayLength(&blackholes); bh_index += 1) {
+    var total_force = global_force;
+    for (var bh_index: u32 = 0; bh_index < blackhole_count; bh_index += 1) {
         var blackhole = blackholes[bh_index];
         total_force += blackhole_gravity(blackhole, state.position, mass);
         total_force += frame_dragging(blackhole, state);
     }
-    // total_force += collision_repulsion(index, aabb, state.velocity, mass);
+    total_force += collision_repulsion(index, aabb, state.velocity, mass);
     return total_force;
 }
 
@@ -131,7 +132,7 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2f, mass: f32) -> vec2f 
     let to_blackhole = blackhole.position - position;
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    return direction * GRAVITATIONAL_CONSTANT * mass * blackhole.mass * BLACKHOLE_MASS_SCALE / (distance * distance);
+    return direction * gravitational_constant * mass * blackhole.mass * blackhole_mass_scale / (distance * distance);
 }
 
 // Lense–Thirring formula for 2D
@@ -141,7 +142,7 @@ fn frame_dragging(blackhole: BlackHole, state: PhaseState) -> vec2f {
     let r = length(r_vec);
     let J = blackhole.spin; // scalar angular momentum (Jz)
     let v_perp = vec2f(-state.velocity.y, state.velocity.x); // v rotated by +90 degrees
-    return (2.0 * GRAVITATIONAL_CONSTANT * J / pow(r, 3.0)) * v_perp;
+    return (2.0 * gravitational_constant * J / pow(r, 3.0)) * v_perp;
 }
 
 fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> vec2f {

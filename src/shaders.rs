@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 5a0db5a723dcba02b7917ac33480636720067cf92ba2818c1fd0e4171b899728
+// SourceHash: cc6547f3ecc91d82cdf7990868b7145de5dc4661461e25423ba7df3bccbb24e4
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1254,14 +1254,9 @@ pub mod integration {
         }
     }
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const BLACKHOLE_MASS_SCALE: f32 = 1000f32;
-    pub const BLACKHOLE_SIZE_SCALE: f32 = 10f32;
-    pub const BLACKHOLE_DESTROY_MATTER: bool = true;
-    pub const GRAVITATIONAL_CONSTANT: f32 = 100000f32;
     pub const STIFFNESS: f32 = 1000000f32;
-    pub const RESTITUTION: f32 = 0.5f32;
-    pub const GAMMA_COEFF: f32 = 503.1153f32;
-    pub const EPSILON: f32 = 0.000001f32;
+    pub const RESTITUTION: f32 = 0.85f32;
+    pub const GAMMA_COEFF: f32 = 186.15263f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CS_MAIN_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1283,11 +1278,21 @@ pub mod integration {
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub dt: wgpu::BufferBinding<'a>,
         pub node_count: wgpu::BufferBinding<'a>,
+        pub blackhole_count: wgpu::BufferBinding<'a>,
+        pub blackhole_mass_scale: wgpu::BufferBinding<'a>,
+        pub blackhole_size_scale: wgpu::BufferBinding<'a>,
+        pub gravitational_constant: wgpu::BufferBinding<'a>,
+        pub global_force: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub dt: wgpu::BindGroupEntry<'a>,
         pub node_count: wgpu::BindGroupEntry<'a>,
+        pub blackhole_count: wgpu::BindGroupEntry<'a>,
+        pub blackhole_mass_scale: wgpu::BindGroupEntry<'a>,
+        pub blackhole_size_scale: wgpu::BindGroupEntry<'a>,
+        pub gravitational_constant: wgpu::BindGroupEntry<'a>,
+        pub global_force: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -1300,10 +1305,38 @@ pub mod integration {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.node_count),
                 },
+                blackhole_count: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.blackhole_count),
+                },
+                blackhole_mass_scale: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.blackhole_mass_scale),
+                },
+                blackhole_size_scale: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.blackhole_size_scale),
+                },
+                gravitational_constant: wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Buffer(params.gravitational_constant),
+                },
+                global_force: wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Buffer(params.global_force),
+                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
-            [self.dt, self.node_count]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 7] {
+            [
+                self.dt,
+                self.node_count,
+                self.blackhole_count,
+                self.blackhole_mass_scale,
+                self.blackhole_size_scale,
+                self.gravitational_constant,
+                self.global_force,
+            ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -1334,6 +1367,61 @@ pub mod integration {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
                         min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"blackhole_count\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"blackhole_mass_scale\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(4): \"blackhole_size_scale\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(5): \"gravitational_constant\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(6): \"global_force\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<[f32; 2]>() as _),
                     },
                     count: None,
                 },
@@ -1690,20 +1778,24 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
-const BLACKHOLE_MASS_SCALE: f32 = 1000f;
-const BLACKHOLE_SIZE_SCALE: f32 = 10f;
-const BLACKHOLE_DESTROY_MATTER: bool = true;
-const GRAVITATIONAL_CONSTANT: f32 = 100000f;
-const GLOBAL_FORCE: vec2<f32> = vec2<f32>(0f, -10000f);
 const STIFFNESS: f32 = 1000000f;
-const RESTITUTION: f32 = 0.5f;
-const GAMMA_COEFF: f32 = 503.1153f;
-const EPSILON: f32 = 0.000001f;
+const RESTITUTION: f32 = 0.85f;
+const GAMMA_COEFF: f32 = 186.15263f;
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
 @group(0) @binding(1) 
 var<uniform> node_count: u32;
+@group(0) @binding(2) 
+var<uniform> blackhole_count: u32;
+@group(0) @binding(3) 
+var<uniform> blackhole_mass_scale: f32;
+@group(0) @binding(4) 
+var<uniform> blackhole_size_scale: f32;
+@group(0) @binding(5) 
+var<uniform> gravitational_constant: f32;
+@group(0) @binding(6) 
+var<uniform> global_force: vec2<f32>;
 @group(1) @binding(0) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(1) 
@@ -1731,7 +1823,9 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>, mass: f32) -> ve
     let to_blackhole = (blackhole.position - position);
     let direction = normalize(to_blackhole);
     let distance = length(to_blackhole);
-    return (((((direction * GRAVITATIONAL_CONSTANT) * mass) * blackhole.mass) * BLACKHOLE_MASS_SCALE) / vec2((distance * distance)));
+    let _e8 = gravitational_constant;
+    let _e14 = blackhole_mass_scale;
+    return (((((direction * _e8) * mass) * blackhole.mass) * _e14) / vec2((distance * distance)));
 }
 
 fn frame_dragging(blackhole_1: BlackHole, state_1: PhaseState) -> vec2<f32> {
@@ -1739,70 +1833,21 @@ fn frame_dragging(blackhole_1: BlackHole, state_1: PhaseState) -> vec2<f32> {
     let r = length(r_vec);
     let J = blackhole_1.spin;
     let v_perp = vec2<f32>(-(state_1.velocity.y), state_1.velocity.x);
-    return (((200000f * J) / pow(r, 3f)) * v_perp);
-}
-
-fn forces(state_2: PhaseState, index: u32, aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_1: f32) -> vec2<f32> {
-    var total_force: vec2<f32> = GLOBAL_FORCE;
-    var bh_index_1: u32 = 0u;
-    var blackhole_2: BlackHole;
-
-    loop {
-        let _e3 = bh_index_1;
-        if (_e3 < arrayLength((&blackholes))) {
-        } else {
-            break;
-        }
-        {
-            let _e8 = bh_index_1;
-            let _e10 = blackholes[_e8];
-            blackhole_2 = _e10;
-            let _e13 = blackhole_2;
-            let _e16 = blackhole_gravity(_e13, state_2.position, mass_1);
-            let _e18 = total_force;
-            total_force = (_e18 + _e16);
-            let _e20 = blackhole_2;
-            let _e21 = frame_dragging(_e20, state_2);
-            let _e22 = total_force;
-            total_force = (_e22 + _e21);
-        }
-        continuing {
-            let _e25 = bh_index_1;
-            bh_index_1 = (_e25 + 1u);
-        }
-    }
-    let _e27 = total_force;
-    return _e27;
-}
-
-fn integrate_euler_symplectic(state_3: PhaseState, index_1: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_2: f32) -> PhaseState {
-    var new_state: PhaseState;
-
-    let _e4 = forces(state_3, index_1, aabb_1, mass_2);
-    let a_1 = (_e4 / vec2(mass_2));
-    new_state = state_3;
-    let _e10 = dt;
-    let _e12 = new_state.velocity;
-    new_state.velocity = (_e12 + (a_1 * _e10));
-    let _e16 = new_state.velocity;
-    let _e18 = dt;
-    let _e20 = new_state.position;
-    new_state.position = (_e20 + (_e16 * _e18));
-    let _e22 = new_state;
-    return _e22;
+    let _e14 = gravitational_constant;
+    return ((((2f * _e14) * J) / pow(r, 3f)) * v_perp);
 }
 
 fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW23LPNYX) -> bool {
     return ((((a.min.x < b.max.x) && (a.max.x > b.min.x)) && (a.min.y < b.max.y)) && (a.max.y > b.min.y));
 }
 
-fn collision_repulsion_pair(aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity: vec2<f32>, mass_3: f32, other_index: u32) -> vec2<f32> {
+fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity: vec2<f32>, mass_1: f32, other_index: u32) -> vec2<f32> {
     var v_ij_n: f32;
     var f_damping: vec2<f32> = vec2<f32>();
 
-    let size = (aabb_2.max - aabb_2.min);
+    let size = (aabb.max - aabb.min);
     let other_size = (other_aabb.max - other_aabb.min);
-    let position_1 = ((aabb_2.min + aabb_2.max) / vec2(2f));
+    let position_1 = ((aabb.min + aabb.max) / vec2(2f));
     let other_position = ((other_aabb.min + other_aabb.max) / vec2(2f));
     let separation_vector = (position_1 - other_position);
     let distance_1 = length(separation_vector);
@@ -1819,24 +1864,24 @@ fn collision_repulsion_pair(aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb:
     let _e45 = v_ij_n;
     if ((penetration <= 0f) && (_e45 > 0f)) {
         let _e50 = v_ij_n;
-        v_ij_n = (-0.5f * _e50);
+        v_ij_n = (-0.85f * _e50);
     }
     let m2_ = masses[other_index].inner;
-    let m_eff = ((mass_3 * m2_) / (mass_3 + m2_));
+    let m_eff = ((mass_1 * m2_) / (mass_1 + m2_));
     let _e60 = v_ij_n;
     if (_e60 < 0f) {
         let _e66 = v_ij_n;
-        f_damping = (((-503.1153f * sqrt(m_eff)) * _e66) * n);
+        f_damping = (((-186.15263f * sqrt(m_eff)) * _e66) * n);
     }
     let f_elastic = ((STIFFNESS * penetration) * n);
     let _e73 = f_damping;
     return (f_elastic + _e73);
 }
 
-fn collision_repulsion(index_2: u32, aabb_3: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity_1: vec2<f32>, mass_4: f32) -> vec2<f32> {
+fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity_1: vec2<f32>, mass_2: f32) -> vec2<f32> {
     var stack: array<u32, 64>;
     var sp: u32 = 0u;
-    var total_force_1: vec2<f32> = vec2<f32>();
+    var total_force: vec2<f32> = vec2<f32>();
 
     let _e4 = sp;
     let _e7 = node_count;
@@ -1869,20 +1914,76 @@ fn collision_repulsion(index_2: u32, aabb_3: AABBX_naga_oil_mod_XMNXW23LPNYX, ve
                 sp = (_e46 + 2u);
             } else {
                 let _e53 = flags[other_index_1].inner;
-                if ((other_index_1 != index_2) && ((_e53 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
+                if ((other_index_1 != index) && ((_e53 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
                     let other_aabb_1 = aabbs[other_index_1];
-                    let _e63 = aabb_overlaps(aabb_3, other_aabb_1);
+                    let _e63 = aabb_overlaps(aabb_1, other_aabb_1);
                     if _e63 {
-                        let _e66 = collision_repulsion_pair(aabb_3, other_aabb_1, velocity_1, mass_4, other_index_1);
-                        let _e68 = total_force_1;
-                        total_force_1 = (_e68 + _e66);
+                        let _e66 = collision_repulsion_pair(aabb_1, other_aabb_1, velocity_1, mass_2, other_index_1);
+                        let _e68 = total_force;
+                        total_force = (_e68 + _e66);
                     }
                 }
             }
         }
     }
-    let _e70 = total_force_1;
+    let _e70 = total_force;
     return _e70;
+}
+
+fn forces(state_2: PhaseState, index_1: u32, aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_3: f32) -> vec2<f32> {
+    var total_force_1: vec2<f32>;
+    var bh_index_1: u32 = 0u;
+    var blackhole_2: BlackHole;
+
+    let _e2 = global_force;
+    total_force_1 = _e2;
+    loop {
+        let _e5 = bh_index_1;
+        let _e7 = blackhole_count;
+        if (_e5 < _e7) {
+        } else {
+            break;
+        }
+        {
+            let _e10 = bh_index_1;
+            let _e12 = blackholes[_e10];
+            blackhole_2 = _e12;
+            let _e15 = blackhole_2;
+            let _e18 = blackhole_gravity(_e15, state_2.position, mass_3);
+            let _e19 = total_force_1;
+            total_force_1 = (_e19 + _e18);
+            let _e21 = blackhole_2;
+            let _e22 = frame_dragging(_e21, state_2);
+            let _e23 = total_force_1;
+            total_force_1 = (_e23 + _e22);
+        }
+        continuing {
+            let _e26 = bh_index_1;
+            bh_index_1 = (_e26 + 1u);
+        }
+    }
+    let _e31 = collision_repulsion(index_1, aabb_2, state_2.velocity, mass_3);
+    let _e32 = total_force_1;
+    total_force_1 = (_e32 + _e31);
+    let _e34 = total_force_1;
+    return _e34;
+}
+
+fn integrate_euler_symplectic(state_3: PhaseState, index_2: u32, aabb_3: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_4: f32) -> PhaseState {
+    var new_state: PhaseState;
+
+    let _e4 = forces(state_3, index_2, aabb_3, mass_4);
+    let a_1 = (_e4 / vec2(mass_4));
+    new_state = state_3;
+    let _e10 = dt;
+    let _e12 = new_state.velocity;
+    new_state.velocity = (_e12 + (a_1 * _e10));
+    let _e16 = new_state.velocity;
+    let _e18 = dt;
+    let _e20 = new_state.position;
+    new_state.position = (_e20 + (_e16 * _e18));
+    let _e22 = new_state;
+    return _e22;
 }
 
 @compute @workgroup_size(64, 1, 1) 
@@ -1911,29 +2012,29 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroup
         state = _e42;
     }
     let size_1 = (aabb_4.max - aabb_4.min);
-    if BLACKHOLE_DESTROY_MATTER {
-        loop {
-            let _e48 = bh_index;
-            let _e52 = f;
-            if ((_e48 < arrayLength((&blackholes))) && ((_e52 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
-            } else {
-                break;
+    loop {
+        let _e47 = bh_index;
+        let _e49 = blackhole_count;
+        let _e51 = f;
+        if ((_e47 < _e49) && ((_e51 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
+        } else {
+            break;
+        }
+        {
+            let _e58 = bh_index;
+            let blackhole_3 = blackholes[_e58];
+            let _e63 = state.position;
+            let distance_2 = (length((blackhole_3.position - _e63)) - (max(size_1.x, size_1.y) / 2f));
+            let _e74 = blackhole_size_scale;
+            if (distance_2 < (blackhole_3.radius * _e74)) {
+                let _e78 = f;
+                f = (_e78 & 4294967288u);
+                state.velocity = vec2<f32>();
             }
-            {
-                let _e59 = bh_index;
-                let blackhole_3 = blackholes[_e59];
-                let _e64 = state.position;
-                let distance_2 = (length((blackhole_3.position - _e64)) - (max(size_1.x, size_1.y) / 2f));
-                if (distance_2 < (blackhole_3.radius * BLACKHOLE_SIZE_SCALE)) {
-                    let _e78 = f;
-                    f = (_e78 & 4294967288u);
-                    state.velocity = vec2<f32>();
-                }
-            }
-            continuing {
-                let _e83 = bh_index;
-                bh_index = (_e83 + 1u);
-            }
+        }
+        continuing {
+            let _e83 = bh_index;
+            bh_index = (_e83 + 1u);
         }
     }
     let _e86 = state.position;
@@ -1950,34 +2051,45 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroup
         let _e119 = state.velocity.y;
         state.velocity.y = (_e119 * -1f);
     }
-    let _e123 = new_aabb.min.x;
-    if (_e123 < -1600f) {
-        let _e128 = new_aabb.min.x;
-        let overshoot_1 = (-1600f - _e128);
-        let _e135 = new_aabb.min.x;
-        new_aabb.min.x = (_e135 + (overshoot_1 / 2f));
-        let _e141 = new_aabb.max.x;
-        new_aabb.max.x = (_e141 + (overshoot_1 / 2f));
-        let _e146 = state.velocity.x;
-        state.velocity.x = (_e146 * -1f);
+    let _e123 = new_aabb.max.y;
+    if (_e123 > 1000f) {
+        let _e128 = new_aabb.max.y;
+        let overshoot_1 = (_e128 - 1000f);
+        let _e135 = new_aabb.min.y;
+        new_aabb.min.y = (_e135 - (overshoot_1 / 2f));
+        let _e141 = new_aabb.max.y;
+        new_aabb.max.y = (_e141 - (overshoot_1 / 2f));
+        let _e146 = state.velocity.y;
+        state.velocity.y = (_e146 * -1f);
     }
-    let _e150 = new_aabb.max.x;
-    if (_e150 > 1600f) {
-        let _e155 = new_aabb.max.x;
-        let overshoot_2 = (_e155 - 1600f);
+    let _e150 = new_aabb.min.x;
+    if (_e150 < -1600f) {
+        let _e155 = new_aabb.min.x;
+        let overshoot_2 = (-1600f - _e155);
         let _e162 = new_aabb.min.x;
-        new_aabb.min.x = (_e162 - (overshoot_2 / 2f));
+        new_aabb.min.x = (_e162 + (overshoot_2 / 2f));
         let _e168 = new_aabb.max.x;
-        new_aabb.max.x = (_e168 - (overshoot_2 / 2f));
+        new_aabb.max.x = (_e168 + (overshoot_2 / 2f));
         let _e173 = state.velocity.x;
         state.velocity.x = (_e173 * -1f);
     }
-    let _e178 = f;
-    integrated_flags[_e4].inner = _e178;
-    let _e181 = new_aabb;
-    integrated_aabbs[_e4] = _e181;
-    let _e186 = state.velocity;
-    integrated_velocities[_e4].inner = _e186;
+    let _e177 = new_aabb.max.x;
+    if (_e177 > 1600f) {
+        let _e182 = new_aabb.max.x;
+        let overshoot_3 = (_e182 - 1600f);
+        let _e189 = new_aabb.min.x;
+        new_aabb.min.x = (_e189 - (overshoot_3 / 2f));
+        let _e195 = new_aabb.max.x;
+        new_aabb.max.x = (_e195 - (overshoot_3 / 2f));
+        let _e200 = state.velocity.x;
+        state.velocity.x = (_e200 * -1f);
+    }
+    let _e205 = f;
+    integrated_flags[_e4].inner = _e205;
+    let _e208 = new_aabb;
+    integrated_aabbs[_e4] = _e208;
+    let _e213 = state.velocity;
+    integrated_velocities[_e4].inner = _e213;
     return;
 }
 "#;

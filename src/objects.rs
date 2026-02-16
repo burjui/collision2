@@ -69,26 +69,20 @@ impl Objects {
         let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
 
         // These are twice the size to hold the BVH AABBs and nodes
-        // TODO: come up with a scheme that saves memory
+        // TODO: split AABBs of objects and nodes
         let aabbs = GpuBuffer::new(self.len() * 2, "aabb buffer", storage_copy_dst, device);
-        let bvh_nodes = GpuBuffer::new(self.len() * 2, "bvh node buffer", storage_copy_dst, device);
-
-        let flags = GpuBuffer::new(self.len(), "flags buffer", storage_copy_dst, device);
-        let velocities = GpuBuffer::new(self.len(), "velocity buffer", storage_copy_dst, device);
-        let masses = GpuBuffer::new(self.len(), "mass buffer", storage_copy_dst, device);
-        let colors = GpuBuffer::new(self.len(), "color buffer", storage_copy_dst, device);
-        let shapes = GpuBuffer::new(self.len(), "shape buffer", storage_copy_dst, device);
-
         aabbs.write(queue, &self.aabbs);
 
+        // TODO: don't store leaves
+        let bvh_nodes = GpuBuffer::new(self.len() * 2, "bvh node buffer", storage_copy_dst, device);
         let bvh_leaves = (0..u32::try_from(self.len()).unwrap()).map(BvhNode::new).collect_vec();
         bvh_nodes.write(queue, &bvh_leaves);
 
-        flags.write(queue, &self.flags);
-        velocities.write(queue, &self.velocities);
-        masses.write(queue, &self.masses);
-        colors.write(queue, &self.colors);
-        shapes.write(queue, &self.shapes);
+        let flags = GpuBuffer::from_data(&self.flags, "flags buffer", storage_copy_dst, device);
+        let velocities = GpuBuffer::from_data(&self.velocities, "velocity buffer", storage_copy_dst, device);
+        let masses = GpuBuffer::from_data(&self.masses, "mass buffer", storage_copy_dst, device);
+        let colors = GpuBuffer::from_data(&self.colors, "color buffer", storage_copy_dst, device);
+        let shapes = GpuBuffer::from_data(&self.shapes, "shape buffer", storage_copy_dst, device);
 
         ObjectBuffers {
             flags,

@@ -68,7 +68,8 @@ impl PhaseStates {
     }
 }
 
-const N_PHASE_STATES: usize = 3;
+const N_PHASE_STATES: usize = 2;
+const _: () = assert!(N_PHASE_STATES > 1);
 
 pub struct PhaseStateBuffers {
     states: [PhaseStates; N_PHASE_STATES],
