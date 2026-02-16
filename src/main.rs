@@ -449,7 +449,6 @@ fn spawn_simulation_thread(
             }
 
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
-
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("bvh pass"),
                 timestamp_writes: None,
@@ -457,18 +456,15 @@ fn spawn_simulation_thread(
             bvh_builder.compute(&mut compute_pass);
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
-
             let command_buffer = encoder.finish();
             queue.submit([command_buffer]);
-
             queue.on_submitted_work_done({
                 let tx = tx.clone();
                 move || tx.send(()).unwrap()
             });
-
-            frames_submitted += 1;
             device.poll(PollType::Poll).unwrap();
 
+            frames_submitted += 1;
             if frames_submitted >= frames_in_flight {
                 rx.recv().unwrap();
                 frames_submitted -= 1;
