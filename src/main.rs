@@ -70,11 +70,11 @@ struct App<'a> {
 }
 
 impl App<'_> {
-    fn new(event_loop_proxy: EventLoopProxy<AppEvent>) -> Self {
+    fn new(_event_loop_proxy: EventLoopProxy<AppEvent>) -> Self {
         Self {
             render_parameters: RenderParameters::default(),
             gpu_state: None,
-            _event_loop_proxy: event_loop_proxy,
+            _event_loop_proxy,
         }
     }
 }
@@ -129,6 +129,12 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         create_scene(&mut objects, world_aabb);
 
         let object_count = objects.flags.len();
+        println!("Object count: {}", object_count);
+        let window_size = window.inner_size();
+        println!("Window size: {}x{}", window_size.width, window_size.height);
+        let world_size = world_aabb.size();
+        println!("World size: {}x{}", world_size.x, world_size.y);
+
         let bvh_build_params = BvhBuildParameters::new(object_count);
         // TODO: don't store leaves
         let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
@@ -150,10 +156,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             node_count,
         )));
 
-        let window_size = window.inner_size();
-        println!("Window size: {}x{}", window_size.width, window_size.height);
-        println!("Object count: {}", object_count);
-
         let camera =
             GpuBuffer::<Camera>::new(1, "camera buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         let shape_renderer = ShapeRenderer::new(&device, swapchain_format, camera.clone(), colors, shapes);
@@ -162,13 +164,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
         spawn_simulation_thread(
             object_count,
+            device.clone(),
+            queue.clone(),
             phase_state_ring.clone(),
             masses,
             nodes,
-            device.clone(),
-            queue.clone(),
-            exit_requested.clone(),
             bvh_builder,
+            exit_requested.clone(),
         );
 
         thread::spawn({
@@ -314,6 +316,7 @@ fn init_wgpu(
     let window_size = window.inner_size();
     let surface_config = wgpu::SurfaceConfiguration {
         present_mode: PresentMode::AutoVsync,
+        desired_maximum_frame_latency: 4,
         ..surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap()
     };
     surface.configure(&device, &surface_config);
@@ -387,13 +390,13 @@ fn orthographic_camera(zoom: f32, view_size: PhysicalSize<f32>, world_height: f3
 
 fn spawn_simulation_thread(
     object_count: usize,
+    device: Device,
+    queue: Queue,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: GpuBuffer<Mass>,
     nodes: GpuBuffer<BvhNode>,
-    device: Device,
-    queue: Queue,
-    exit_requested: Arc<AtomicBool>,
     mut bvh_builder: BvhBuilder,
+    exit_requested: Arc<AtomicBool>,
 ) {
     thread::spawn({
         // let device = device.clone();
