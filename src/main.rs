@@ -18,11 +18,11 @@ pub mod util;
 
 use crate::{
     aabb_renderer::AabbRenderer,
-    bvh_builder::BvhBuilder,
+    bvh_builder::{BvhBuildParameters, BvhBuilder},
     gpu_buffer::GpuBuffer,
     integration::GpuIntegrator,
     objects::Objects,
-    phase_state::PhaseStateBuffers,
+    phase_state::PhaseStateRing,
     scene::create_scene,
     shaders::{
         bvh::CombineNodePass,
@@ -106,6 +106,7 @@ struct GpuState<'a> {
     world_aabb: AABB,
     object_count: usize,
     camera: GpuBuffer<Camera>,
+    phase_state_ring: Arc<Mutex<PhaseStateRing>>,
 
     surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
@@ -121,6 +122,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         window_attributes.fullscreen = Some(Fullscreen::Borderless(None));
         let window = Arc::new(event_loop.create_window(window_attributes).expect("Failed to create window"));
         let wgpu = wgpu::Instance::new(&wgpu::InstanceDescriptor::from_env_or_default());
+        // TODO: refactor, too much noise
         let surface = wgpu.create_surface(window.clone()).unwrap();
         let (adapter, device, queue, swapchain_format) = init_wgpu(&wgpu, &surface);
         let window_size = window.inner_size();
@@ -137,15 +139,25 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
         let mut objects = Objects::default();
         create_scene(&mut objects, world_aabb);
-        let object_count = objects.len();
-        let buffers = objects.to_buffers(&device, &queue);
+        let object_count = objects.flags.len();
+        let bvh_build_params = BvhBuildParameters::new(object_count);
+        // TODO: don't store leaves
+        let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
+        let nodes = GpuBuffer::new(bvh_build_params.node_count(), "bvh node buffer", storage_copy_dst, &device);
+        nodes.write_iter(&queue, (0..u32::try_from(object_count).unwrap()).map(BvhNode::new));
+        let bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
+        let node_count = bvh_builder.node_count();
 
-        let phase_state_buffers = Arc::new(Mutex::new(PhaseStateBuffers::new(
-            &device,
-            buffers.aabbs.clone(),
-            buffers.velocities.clone(),
-            buffers.flags.clone(),
-        )));
+        // TODO: split AABBs of objects and nodes
+        let aabbs = GpuBuffer::new(node_count, "aabb buffer", storage_copy_dst, &device);
+        aabbs.write(&queue, &objects.aabbs);
+
+        let masses = GpuBuffer::from_data(&objects.masses, "mass buffer", storage_copy_dst, &device);
+        let colors = GpuBuffer::from_data(&objects.colors, "color buffer", storage_copy_dst, &device);
+        let shapes = GpuBuffer::from_data(&objects.shapes, "shape buffer", storage_copy_dst, &device);
+
+        let phase_state_ring =
+            Arc::new(Mutex::new(PhaseStateRing::new(&device, &objects.flags, &objects.aabbs, &objects.velocities)));
 
         println!("Window size: {}x{}", window_size.width, window_size.height);
         println!("Object count: {}", object_count);
@@ -164,36 +176,25 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             GpuBuffer::new(1, "size factor buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         size_factor.write(&queue, &[1.0]);
         let shape_renderer = ShapeRenderer::new(
-            device.clone(),
-            swapchain_format,
-            &pipeline_cache,
-            camera.clone(),
-            size_factor.clone(),
-            buffers.flags.clone(),
-            buffers.colors,
-            buffers.shapes,
-            phase_state_buffers.clone(),
-        );
-        let bvh_builder = BvhBuilder::new(&device, buffers.aabbs.clone(), buffers.bvh_nodes.clone(), object_count);
-        let node_count = bvh_builder.node_count();
-        let node_count_buffer =
-            GpuBuffer::from_data(&[node_count], "node count buffer", BufferUsages::UNIFORM, &device);
-        let aabb_renderer = AabbRenderer::new(
             &device,
             swapchain_format,
             &pipeline_cache,
             camera.clone(),
-            buffers.flags.clone(),
-            buffers.aabbs.clone(),
-            node_count,
+            size_factor.clone(),
+            colors,
+            shapes,
         );
+        let node_count = u32::try_from(node_count).unwrap();
+        let node_count_buffer =
+            GpuBuffer::from_data(&[node_count], "node count buffer", BufferUsages::UNIFORM, &device);
+        let aabb_renderer = AabbRenderer::new(&device, swapchain_format, &pipeline_cache, camera.clone(), node_count);
         let exit_requested = Arc::new(AtomicBool::new(false));
 
         spawn_simulation_thread(
             object_count,
-            phase_state_buffers,
-            buffers.masses,
-            buffers.bvh_nodes,
+            phase_state_ring.clone(),
+            masses,
+            nodes,
             node_count_buffer,
             device.clone(),
             queue.clone(),
@@ -222,6 +223,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             world_aabb,
             object_count,
             camera,
+            phase_state_ring,
 
             surface_config,
             queue,
@@ -256,6 +258,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &self.render_parameters,
                         &mut state.shape_renderer,
                         &mut state.aabb_renderer,
+                        &state.phase_state_ring,
                         0..state.object_count,
                         &state.device,
                         &state.queue,
@@ -359,6 +362,7 @@ fn render_scene(
     render_parameters: &RenderParameters,
     shape_renderer: &mut ShapeRenderer,
     aabb_renderer: &mut AabbRenderer,
+    phase_state_ring: &Arc<Mutex<PhaseStateRing>>,
     range: Range<usize>,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -379,12 +383,21 @@ fn render_scene(
         timestamp_writes: None,
         occlusion_query_set: None,
     });
+
+    let phase_state_ring_guard = phase_state_ring.lock().unwrap();
+    let phase_state_index = phase_state_ring_guard.current_index();
+    let phase_state = phase_state_ring_guard.current().clone();
+    drop(phase_state_ring_guard);
+
     if render_parameters.enabled {
+        shape_renderer.prepare(phase_state_index, device, &phase_state);
         shape_renderer.render(&mut render_pass, range.clone());
     }
     if render_parameters.draw_aabbs {
+        aabb_renderer.prepare(phase_state_index, device, &phase_state);
         aabb_renderer.render(&mut render_pass);
     }
+
     drop(render_pass);
     queue.submit([encoder.finish()]);
 }
@@ -409,7 +422,7 @@ fn orthographic_camera(zoom: f32, view_size: PhysicalSize<f32>, world_height: f3
 
 fn spawn_simulation_thread(
     object_count: usize,
-    phase_states_buffers: Arc<Mutex<PhaseStateBuffers>>,
+    phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: GpuBuffer<Mass>,
     nodes: GpuBuffer<BvhNode>,
     node_count_buffer: GpuBuffer<u32>,
@@ -419,23 +432,11 @@ fn spawn_simulation_thread(
     mut bvh_builder: BvhBuilder,
 ) {
     thread::spawn({
+        // let device = device.clone();
         let dt = GpuBuffer::from_data(&[0.001], "dt buffer", BufferUsages::UNIFORM, &device);
+        let mut integrator = GpuIntegrator::new(&device, dt, masses, nodes, node_count_buffer.clone(), object_count);
 
-        let guard = phase_states_buffers.lock().unwrap();
-        let frames_in_flight = guard.pair_count();
-        drop(guard);
-
-        let integrator = GpuIntegrator::new(
-            device.clone(),
-            phase_states_buffers,
-            dt,
-            masses,
-            nodes,
-            node_count_buffer.clone(),
-            object_count,
-        );
-
-        let (tx, rx) = channel::bounded(frames_in_flight);
+        let (tx, rx) = channel::bounded(PhaseStateRing::CAPACITY);
         let mut frames_submitted = 0usize;
 
         move || loop {
@@ -443,12 +444,22 @@ fn spawn_simulation_thread(
                 break;
             }
 
+            let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
+            let phase_state_index = phase_state_ring_guard.current_index();
+            let current_phase_state = phase_state_ring_guard.current().clone();
+            let next_phase_state = phase_state_ring_guard.next().clone();
+            phase_state_ring_guard.advance();
+            drop(phase_state_ring_guard);
+
+            bvh_builder.prepare(phase_state_index, &device, &current_phase_state);
+            integrator.prepare(phase_state_index, &device, &current_phase_state, &next_phase_state);
+
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("bvh pass"),
                 timestamp_writes: None,
             });
-            // TODO: batch updates
+            // TODO: batch updates?
             bvh_builder.compute(&mut compute_pass);
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
@@ -461,7 +472,7 @@ fn spawn_simulation_thread(
             device.poll(PollType::Poll).unwrap();
 
             frames_submitted += 1;
-            if frames_submitted >= frames_in_flight {
+            if frames_submitted >= PhaseStateRing::CAPACITY {
                 rx.recv().unwrap();
                 frames_submitted -= 1;
             }

@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: cc6547f3ecc91d82cdf7990868b7145de5dc4661461e25423ba7df3bccbb24e4
+// SourceHash: 7bc18b0af242ae78192f8bb855c2b6eda767eab9bb09208cd32b83d1501e770c
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -356,21 +356,15 @@ pub mod shape {
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub camera: wgpu::BufferBinding<'a>,
         pub size_factor: wgpu::BufferBinding<'a>,
-        pub flags: wgpu::BufferBinding<'a>,
-        pub aabbs: wgpu::BufferBinding<'a>,
         pub colors: wgpu::BufferBinding<'a>,
         pub shapes: wgpu::BufferBinding<'a>,
-        pub velocities: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub camera: wgpu::BindGroupEntry<'a>,
         pub size_factor: wgpu::BindGroupEntry<'a>,
-        pub flags: wgpu::BindGroupEntry<'a>,
-        pub aabbs: wgpu::BindGroupEntry<'a>,
         pub colors: wgpu::BindGroupEntry<'a>,
         pub shapes: wgpu::BindGroupEntry<'a>,
-        pub velocities: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -383,38 +377,18 @@ pub mod shape {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.size_factor),
                 },
-                flags: wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.flags),
-                },
-                aabbs: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.aabbs),
-                },
                 colors: wgpu::BindGroupEntry {
-                    binding: 4,
+                    binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.colors),
                 },
                 shapes: wgpu::BindGroupEntry {
-                    binding: 5,
+                    binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.shapes),
-                },
-                velocities: wgpu::BindGroupEntry {
-                    binding: 6,
-                    resource: wgpu::BindingResource::Buffer(params.velocities),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 7] {
-            [
-                self.camera,
-                self.size_factor,
-                self.flags,
-                self.aabbs,
-                self.colors,
-                self.shapes,
-                self.velocities,
-            ]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
+            [self.camera, self.size_factor, self.colors, self.shapes]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -448,7 +422,7 @@ pub mod shape {
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"flags\""]
+                #[doc = " @binding(2): \"colors\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
@@ -459,42 +433,9 @@ pub mod shape {
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"aabbs\""]
+                #[doc = " @binding(3): \"shapes\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(4): \"colors\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(5): \"shapes\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(6): \"velocities\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 6,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -522,6 +463,100 @@ pub mod shape {
             pass.set_bind_group(0, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1EntriesParams<'a> {
+        pub flags: wgpu::BufferBinding<'a>,
+        pub aabbs: wgpu::BufferBinding<'a>,
+        pub velocities: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup1Entries<'a> {
+        pub flags: wgpu::BindGroupEntry<'a>,
+        pub aabbs: wgpu::BindGroupEntry<'a>,
+        pub velocities: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup1Entries<'a> {
+        pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
+            Self {
+                flags: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.flags),
+                },
+                aabbs: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.aabbs),
+                },
+                velocities: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.velocities),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
+            [self.flags, self.aabbs, self.velocities]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1(wgpu::BindGroup);
+    impl WgpuBindGroup1 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("Shape::BindGroup1::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"aabbs\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"velocities\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup1Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Shape::BindGroup1"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(1, &self.0, &[]);
+        }
+    }
     #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
     #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
     #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
@@ -531,23 +566,28 @@ pub mod shape {
     #[derive(Debug, Copy, Clone)]
     pub struct WgpuBindGroups<'a> {
         pub bind_group0: &'a WgpuBindGroup0,
+        pub bind_group1: &'a WgpuBindGroup1,
     }
     impl<'a> WgpuBindGroups<'a> {
         pub fn set(&self, pass: &mut impl SetBindGroup) {
             self.bind_group0.set(pass);
+            self.bind_group1.set(pass);
         }
     }
     #[derive(Debug)]
     pub struct WgpuPipelineLayout;
     impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 2]) -> [wgpu::BindGroupLayout; 2] {
             entries
         }
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Shape::PipelineLayout"),
-            bind_group_layouts: &[&WgpuBindGroup0::get_bind_group_layout(device)],
+            bind_group_layouts: &[
+                &WgpuBindGroup0::get_bind_group_layout(device),
+                &WgpuBindGroup1::get_bind_group_layout(device),
+            ],
             push_constant_ranges: &[],
         })
     }
@@ -608,14 +648,14 @@ var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(1) 
 var<uniform> size_factor: f32;
 @group(0) @binding(2) 
-var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(3) 
-var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(4) 
 var<storage> colors: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(5) 
+@group(0) @binding(3) 
 var<storage> shapes: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(6) 
+@group(1) @binding(0) 
+var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+@group(1) @binding(1) 
+var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
+@group(1) @binding(2) 
 var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 
 fn wavelength_to_rgb(lambda: f32) -> vec3<f32> {
@@ -797,14 +837,10 @@ pub mod aabb_frame {
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub camera: wgpu::BufferBinding<'a>,
-        pub flags: wgpu::BufferBinding<'a>,
-        pub aabbs: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub camera: wgpu::BindGroupEntry<'a>,
-        pub flags: wgpu::BindGroupEntry<'a>,
-        pub aabbs: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -813,18 +849,10 @@ pub mod aabb_frame {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.camera),
                 },
-                flags: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.flags),
-                },
-                aabbs: wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.aabbs),
-                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
-            [self.camera, self.flags, self.aabbs]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 1] {
+            [self.camera]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -847,28 +875,6 @@ pub mod aabb_frame {
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"flags\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(2): \"aabbs\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
             ],
         };
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -888,6 +894,83 @@ pub mod aabb_frame {
             pass.set_bind_group(0, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1EntriesParams<'a> {
+        pub flags: wgpu::BufferBinding<'a>,
+        pub aabbs: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup1Entries<'a> {
+        pub flags: wgpu::BindGroupEntry<'a>,
+        pub aabbs: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup1Entries<'a> {
+        pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
+            Self {
+                flags: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.flags),
+                },
+                aabbs: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.aabbs),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
+            [self.flags, self.aabbs]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1(wgpu::BindGroup);
+    impl WgpuBindGroup1 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("AabbFrame::BindGroup1::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"aabbs\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup1Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("AabbFrame::BindGroup1"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(1, &self.0, &[]);
+        }
+    }
     #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
     #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
     #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
@@ -897,23 +980,28 @@ pub mod aabb_frame {
     #[derive(Debug, Copy, Clone)]
     pub struct WgpuBindGroups<'a> {
         pub bind_group0: &'a WgpuBindGroup0,
+        pub bind_group1: &'a WgpuBindGroup1,
     }
     impl<'a> WgpuBindGroups<'a> {
         pub fn set(&self, pass: &mut impl SetBindGroup) {
             self.bind_group0.set(pass);
+            self.bind_group1.set(pass);
         }
     }
     #[derive(Debug)]
     pub struct WgpuPipelineLayout;
     impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 2]) -> [wgpu::BindGroupLayout; 2] {
             entries
         }
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("AabbFrame::PipelineLayout"),
-            bind_group_layouts: &[&WgpuBindGroup0::get_bind_group_layout(device)],
+            bind_group_layouts: &[
+                &WgpuBindGroup0::get_bind_group_layout(device),
+                &WgpuBindGroup1::get_bind_group_layout(device),
+            ],
             push_constant_ranges: &[],
         })
     }
@@ -954,9 +1042,9 @@ const UNIT_QUAD_VERTICES: array<vec2<f32>, 5> = array<vec2<f32>, 5>(vec2<f32>(0.
 
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
-@group(0) @binding(1) 
+@group(1) @binding(0) 
 var<storage> flags_1: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(2) 
+@group(1) @binding(1) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
 @vertex 
@@ -1039,29 +1127,23 @@ pub mod bvh {
     pub const ENTRY_COMBINE_NODES: &str = "combine_nodes";
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub aabbs: wgpu::BufferBinding<'a>,
         pub nodes: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
-        pub aabbs: wgpu::BindGroupEntry<'a>,
         pub nodes: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
             Self {
-                aabbs: wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.aabbs),
-                },
                 nodes: wgpu::BindGroupEntry {
-                    binding: 1,
+                    binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.nodes),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
-            [self.aabbs, self.nodes]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 1] {
+            [self.nodes]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -1073,20 +1155,9 @@ pub mod bvh {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("Bvh::BindGroup0::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(0): \"aabbs\""]
+                #[doc = " @binding(0): \"nodes\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(1): \"nodes\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -1114,6 +1185,66 @@ pub mod bvh {
             pass.set_bind_group(0, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1EntriesParams<'a> {
+        pub aabbs: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup1Entries<'a> {
+        pub aabbs: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup1Entries<'a> {
+        pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
+            Self {
+                aabbs: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.aabbs),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 1] {
+            [self.aabbs]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1(wgpu::BindGroup);
+    impl WgpuBindGroup1 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("Bvh::BindGroup1::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"aabbs\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup1Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bvh::BindGroup1"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(1, &self.0, &[]);
+        }
+    }
     #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
     #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
     #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
@@ -1123,23 +1254,28 @@ pub mod bvh {
     #[derive(Debug, Copy, Clone)]
     pub struct WgpuBindGroups<'a> {
         pub bind_group0: &'a WgpuBindGroup0,
+        pub bind_group1: &'a WgpuBindGroup1,
     }
     impl<'a> WgpuBindGroups<'a> {
         pub fn set(&self, pass: &mut impl SetBindGroup) {
             self.bind_group0.set(pass);
+            self.bind_group1.set(pass);
         }
     }
     #[derive(Debug)]
     pub struct WgpuPipelineLayout;
     impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 2]) -> [wgpu::BindGroupLayout; 2] {
             entries
         }
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Bvh::PipelineLayout"),
-            bind_group_layouts: &[&WgpuBindGroup0::get_bind_group_layout(device)],
+            bind_group_layouts: &[
+                &WgpuBindGroup0::get_bind_group_layout(device),
+                &WgpuBindGroup1::get_bind_group_layout(device),
+            ],
             push_constant_ranges: &[wgpu::PushConstantRange {
                 stages: wgpu::ShaderStages::COMPUTE,
                 range: 0..12,
@@ -1174,9 +1310,9 @@ const WORKGROUP_SIZE: u32 = 64u;
 
 var<push_constant> params: CombineNodePass;
 @group(0) @binding(0) 
-var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(1) 
 var<storage, read_write> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
+@group(1) @binding(0) 
+var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
 fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return (gid_1.x + ((gid_1.y * nwg_1.x) * workgroup_size));
@@ -1278,21 +1414,19 @@ pub mod integration {
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub dt: wgpu::BufferBinding<'a>,
         pub node_count: wgpu::BufferBinding<'a>,
-        pub blackhole_count: wgpu::BufferBinding<'a>,
-        pub blackhole_mass_scale: wgpu::BufferBinding<'a>,
-        pub blackhole_size_scale: wgpu::BufferBinding<'a>,
         pub gravitational_constant: wgpu::BufferBinding<'a>,
         pub global_force: wgpu::BufferBinding<'a>,
+        pub masses: wgpu::BufferBinding<'a>,
+        pub nodes: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub dt: wgpu::BindGroupEntry<'a>,
         pub node_count: wgpu::BindGroupEntry<'a>,
-        pub blackhole_count: wgpu::BindGroupEntry<'a>,
-        pub blackhole_mass_scale: wgpu::BindGroupEntry<'a>,
-        pub blackhole_size_scale: wgpu::BindGroupEntry<'a>,
         pub gravitational_constant: wgpu::BindGroupEntry<'a>,
         pub global_force: wgpu::BindGroupEntry<'a>,
+        pub masses: wgpu::BindGroupEntry<'a>,
+        pub nodes: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -1305,37 +1439,32 @@ pub mod integration {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.node_count),
                 },
-                blackhole_count: wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.blackhole_count),
-                },
-                blackhole_mass_scale: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.blackhole_mass_scale),
-                },
-                blackhole_size_scale: wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.blackhole_size_scale),
-                },
                 gravitational_constant: wgpu::BindGroupEntry {
-                    binding: 5,
+                    binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.gravitational_constant),
                 },
                 global_force: wgpu::BindGroupEntry {
-                    binding: 6,
+                    binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.global_force),
+                },
+                masses: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.masses),
+                },
+                nodes: wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Buffer(params.nodes),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 7] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
             [
                 self.dt,
                 self.node_count,
-                self.blackhole_count,
-                self.blackhole_mass_scale,
-                self.blackhole_size_scale,
                 self.gravitational_constant,
                 self.global_force,
+                self.masses,
+                self.nodes,
             ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
@@ -1370,58 +1499,47 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"blackhole_count\""]
+                #[doc = " @binding(2): \"gravitational_constant\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"blackhole_mass_scale\""]
+                #[doc = " @binding(3): \"global_force\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<[f32; 2]>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(4): \"blackhole_size_scale\""]
+                #[doc = " @binding(4): \"masses\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: None,
                     },
                     count: None,
                 },
-                #[doc = " @binding(5): \"gravitational_constant\""]
+                #[doc = " @binding(5): \"nodes\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 5,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(6): \"global_force\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<[f32; 2]>() as _),
+                        min_binding_size: None,
                     },
                     count: None,
                 },
@@ -1446,58 +1564,44 @@ pub mod integration {
     }
     #[derive(Debug)]
     pub struct WgpuBindGroup1EntriesParams<'a> {
-        pub flags: wgpu::BufferBinding<'a>,
-        pub masses: wgpu::BufferBinding<'a>,
-        pub velocities: wgpu::BufferBinding<'a>,
-        pub aabbs: wgpu::BufferBinding<'a>,
-        pub nodes: wgpu::BufferBinding<'a>,
+        pub blackhole_count: wgpu::BufferBinding<'a>,
+        pub blackhole_mass_scale: wgpu::BufferBinding<'a>,
+        pub blackhole_size_scale: wgpu::BufferBinding<'a>,
         pub blackholes: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup1Entries<'a> {
-        pub flags: wgpu::BindGroupEntry<'a>,
-        pub masses: wgpu::BindGroupEntry<'a>,
-        pub velocities: wgpu::BindGroupEntry<'a>,
-        pub aabbs: wgpu::BindGroupEntry<'a>,
-        pub nodes: wgpu::BindGroupEntry<'a>,
+        pub blackhole_count: wgpu::BindGroupEntry<'a>,
+        pub blackhole_mass_scale: wgpu::BindGroupEntry<'a>,
+        pub blackhole_size_scale: wgpu::BindGroupEntry<'a>,
         pub blackholes: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup1Entries<'a> {
         pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
             Self {
-                flags: wgpu::BindGroupEntry {
+                blackhole_count: wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.flags),
+                    resource: wgpu::BindingResource::Buffer(params.blackhole_count),
                 },
-                masses: wgpu::BindGroupEntry {
+                blackhole_mass_scale: wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.masses),
+                    resource: wgpu::BindingResource::Buffer(params.blackhole_mass_scale),
                 },
-                velocities: wgpu::BindGroupEntry {
+                blackhole_size_scale: wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.velocities),
-                },
-                aabbs: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.aabbs),
-                },
-                nodes: wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.nodes),
+                    resource: wgpu::BindingResource::Buffer(params.blackhole_size_scale),
                 },
                 blackholes: wgpu::BindGroupEntry {
-                    binding: 5,
+                    binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.blackholes),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
             [
-                self.flags,
-                self.masses,
-                self.velocities,
-                self.aabbs,
-                self.nodes,
+                self.blackhole_count,
+                self.blackhole_mass_scale,
+                self.blackhole_size_scale,
                 self.blackholes,
             ]
         }
@@ -1511,64 +1615,42 @@ pub mod integration {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("Integration::BindGroup1::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(0): \"flags\""]
+                #[doc = " @binding(0): \"blackhole_count\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"masses\""]
+                #[doc = " @binding(1): \"blackhole_mass_scale\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"velocities\""]
+                #[doc = " @binding(2): \"blackhole_size_scale\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"aabbs\""]
+                #[doc = " @binding(3): \"blackholes\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(4): \"nodes\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(5): \"blackholes\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -1598,35 +1680,60 @@ pub mod integration {
     }
     #[derive(Debug)]
     pub struct WgpuBindGroup2EntriesParams<'a> {
+        pub flags: wgpu::BufferBinding<'a>,
+        pub aabbs: wgpu::BufferBinding<'a>,
+        pub velocities: wgpu::BufferBinding<'a>,
         pub integrated_flags: wgpu::BufferBinding<'a>,
-        pub integrated_velocities: wgpu::BufferBinding<'a>,
         pub integrated_aabbs: wgpu::BufferBinding<'a>,
+        pub integrated_velocities: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup2Entries<'a> {
+        pub flags: wgpu::BindGroupEntry<'a>,
+        pub aabbs: wgpu::BindGroupEntry<'a>,
+        pub velocities: wgpu::BindGroupEntry<'a>,
         pub integrated_flags: wgpu::BindGroupEntry<'a>,
-        pub integrated_velocities: wgpu::BindGroupEntry<'a>,
         pub integrated_aabbs: wgpu::BindGroupEntry<'a>,
+        pub integrated_velocities: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup2Entries<'a> {
         pub fn new(params: WgpuBindGroup2EntriesParams<'a>) -> Self {
             Self {
-                integrated_flags: wgpu::BindGroupEntry {
+                flags: wgpu::BindGroupEntry {
                     binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.flags),
+                },
+                aabbs: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.aabbs),
+                },
+                velocities: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.velocities),
+                },
+                integrated_flags: wgpu::BindGroupEntry {
+                    binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.integrated_flags),
                 },
-                integrated_velocities: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.integrated_velocities),
-                },
                 integrated_aabbs: wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 4,
                     resource: wgpu::BindingResource::Buffer(params.integrated_aabbs),
+                },
+                integrated_velocities: wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Buffer(params.integrated_velocities),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
-            [self.integrated_flags, self.integrated_velocities, self.integrated_aabbs]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
+            [
+                self.flags,
+                self.aabbs,
+                self.velocities,
+                self.integrated_flags,
+                self.integrated_aabbs,
+                self.integrated_velocities,
+            ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -1638,20 +1745,42 @@ pub mod integration {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("Integration::BindGroup2::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(0): \"integrated_flags\""]
+                #[doc = " @binding(0): \"flags\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"integrated_velocities\""]
+                #[doc = " @binding(1): \"aabbs\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"velocities\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"integrated_flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -1660,9 +1789,20 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"integrated_aabbs\""]
+                #[doc = " @binding(4): \"integrated_aabbs\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 2,
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(5): \"integrated_velocities\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -1763,7 +1903,7 @@ struct BlackHole {
     spin: f32,
 }
 
-struct PhaseState {
+struct ObjectPhaseState {
     position: vec2<f32>,
     velocity: vec2<f32>,
 }
@@ -1787,33 +1927,33 @@ var<uniform> dt: f32;
 @group(0) @binding(1) 
 var<uniform> node_count: u32;
 @group(0) @binding(2) 
-var<uniform> blackhole_count: u32;
-@group(0) @binding(3) 
-var<uniform> blackhole_mass_scale: f32;
-@group(0) @binding(4) 
-var<uniform> blackhole_size_scale: f32;
-@group(0) @binding(5) 
 var<uniform> gravitational_constant: f32;
-@group(0) @binding(6) 
+@group(0) @binding(3) 
 var<uniform> global_force: vec2<f32>;
-@group(1) @binding(0) 
-var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(1) 
+@group(0) @binding(4) 
 var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(2) 
-var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(3) 
-var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(4) 
+@group(0) @binding(5) 
 var<storage> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(5) 
+@group(1) @binding(0) 
+var<uniform> blackhole_count: u32;
+@group(1) @binding(1) 
+var<uniform> blackhole_mass_scale: f32;
+@group(1) @binding(2) 
+var<uniform> blackhole_size_scale: f32;
+@group(1) @binding(3) 
 var<storage> blackholes: array<BlackHole>;
 @group(2) @binding(0) 
-var<storage, read_write> integrated_flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 @group(2) @binding(1) 
-var<storage, read_write> integrated_velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(2) @binding(2) 
+var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
+@group(2) @binding(3) 
+var<storage, read_write> integrated_flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+@group(2) @binding(4) 
 var<storage, read_write> integrated_aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
+@group(2) @binding(5) 
+var<storage, read_write> integrated_velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 
 fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return (gid_1.x + ((gid_1.y * nwg_1.x) * workgroup_size));
@@ -1828,7 +1968,7 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>, mass: f32) -> ve
     return (((((direction * _e8) * mass) * blackhole.mass) * _e14) / vec2((distance * distance)));
 }
 
-fn frame_dragging(blackhole_1: BlackHole, state_1: PhaseState) -> vec2<f32> {
+fn frame_dragging(blackhole_1: BlackHole, state_1: ObjectPhaseState) -> vec2<f32> {
     let r_vec = (blackhole_1.position - state_1.position);
     let r = length(r_vec);
     let J = blackhole_1.spin;
@@ -1930,7 +2070,7 @@ fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velo
     return _e70;
 }
 
-fn forces(state_2: PhaseState, index_1: u32, aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_3: f32) -> vec2<f32> {
+fn forces(state_2: ObjectPhaseState, index_1: u32, aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_3: f32) -> vec2<f32> {
     var total_force_1: vec2<f32>;
     var bh_index_1: u32 = 0u;
     var blackhole_2: BlackHole;
@@ -1969,8 +2109,8 @@ fn forces(state_2: PhaseState, index_1: u32, aabb_2: AABBX_naga_oil_mod_XMNXW23L
     return _e34;
 }
 
-fn integrate_euler_symplectic(state_3: PhaseState, index_2: u32, aabb_3: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_4: f32) -> PhaseState {
-    var new_state: PhaseState;
+fn integrate_euler_symplectic(state_3: ObjectPhaseState, index_2: u32, aabb_3: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_4: f32) -> ObjectPhaseState {
+    var new_state: ObjectPhaseState;
 
     let _e4 = forces(state_3, index_2, aabb_3, mass_4);
     let a_1 = (_e4 / vec2(mass_4));
@@ -1989,7 +2129,7 @@ fn integrate_euler_symplectic(state_3: PhaseState, index_2: u32, aabb_3: AABBX_n
 @compute @workgroup_size(64, 1, 1) 
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
     var f: u32;
-    var state: PhaseState;
+    var state: ObjectPhaseState;
     var bh_index: u32 = 0u;
     var new_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX;
 
@@ -2004,7 +2144,7 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroup
     f = _e24;
     let mass_5 = masses[_e4].inner;
     let _e33 = velocities[_e4].inner;
-    state = PhaseState(initial_position, _e33);
+    state = ObjectPhaseState(initial_position, _e33);
     let _e36 = f;
     if ((_e36 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
         let _e41 = state;

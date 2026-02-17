@@ -4,10 +4,11 @@ use std::{
     ops::{Bound, RangeBounds},
 };
 
-use bytemuck::{NoUninit, Pod};
+use bytemuck::{AnyBitPattern, NoUninit, Pod};
 use crossbeam::sync::WaitGroup;
 use wgpu::{Buffer, BufferSlice, COPY_BUFFER_ALIGNMENT, Device, MapMode, PollType, Queue, util::DeviceExt};
 
+/// Typesafe handle to a wgpu buffer
 #[derive(Clone)]
 pub struct GpuBuffer<T> {
     buffer: Buffer,
@@ -79,14 +80,21 @@ impl<T> GpuBuffer<T> {
         self.buffer.slice(slice_start..slice_end)
     }
 
-    pub fn write(&self, queue: &Queue, src: &[T])
+    pub fn write(&self, queue: &Queue, data: &[T])
     where
         T: NoUninit,
     {
-        let data_size = u64::try_from(size_of_val(src)).unwrap();
-        assert!(data_size <= self.buffer.size());
+        let data_size = u64::try_from(size_of_val(data)).unwrap();
         let mut view = queue.write_buffer_with(&self.buffer, 0, data_size.try_into().unwrap()).unwrap();
-        view.as_mut().copy_from_slice(bytemuck::cast_slice(src));
+        view.as_mut().copy_from_slice(bytemuck::cast_slice(data));
+    }
+
+    pub fn write_iter(&self, queue: &Queue, data: impl Iterator<Item = T>)
+    where
+        T: NoUninit + AnyBitPattern,
+    {
+        let mut view = queue.write_buffer_with(&self.buffer, 0, self.buffer.size().try_into().unwrap()).unwrap();
+        data.zip(bytemuck::cast_slice_mut(view.as_mut()).iter_mut()).for_each(|(src, dst)| *dst = src);
     }
 
     fn size(&self) -> usize {

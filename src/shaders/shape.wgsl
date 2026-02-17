@@ -11,12 +11,13 @@ const SHAPE_RECT: u32 = 0;
 const SHAPE_CIRCLE: u32 = 1;
 
 @group(0) @binding(0) var<uniform> camera: Camera;
-@group(0) @binding(1) var<uniform> size_factor: f32;
-@group(0) @binding(2) var<storage, read> flags: array<Flags>;
-@group(0) @binding(3) var<storage, read> aabbs: array<AABB>;
-@group(0) @binding(4) var<storage, read> colors: array<Color>;
-@group(0) @binding(5) var<storage, read> shapes: array<Shape>;
-@group(0) @binding(6) var<storage, read> velocities: array<Velocity>;
+@group(0) @binding(1) var<uniform> size_factor: f32; // TODO: rename to scale
+@group(0) @binding(2) var<storage, read> colors: array<Color>;
+@group(0) @binding(3) var<storage, read> shapes: array<Shape>;
+
+@group(1) @binding(0) var<storage, read> flags: array<Flags>;
+@group(1) @binding(1) var<storage, read> aabbs: array<AABB>;
+@group(1) @binding(2) var<storage, read> velocities: array<Velocity>;
 
 const COLORING_SPEED_MIN: f32 = 0;
 const COLORING_SPEED_MAX: f32 = 4000;

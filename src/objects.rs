@@ -1,12 +1,7 @@
 use color::{AlphaColor, Srgb};
-use itertools::Itertools;
 use nalgebra::Vector2;
-use wgpu::BufferUsages;
 
-use crate::{
-    gpu_buffer::GpuBuffer,
-    shaders::common::{AABB, BvhNode, Color, Flags, Mass, Shape, Velocity},
-};
+use crate::shaders::common::{AABB, Color, Flags, Mass, Shape, Velocity};
 
 pub struct ObjectPrototype {
     pub flags: u32,
@@ -56,52 +51,4 @@ impl Objects {
         self.colors.reserve(additional);
         self.shapes.reserve(additional);
     }
-
-    pub fn len(&self) -> usize {
-        self.flags.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn to_buffers(self, device: &wgpu::Device, queue: &wgpu::Queue) -> ObjectBuffers {
-        let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
-
-        // These are twice the size to hold the BVH AABBs and nodes
-        // TODO: split AABBs of objects and nodes
-        let aabbs = GpuBuffer::new(self.len() * 2, "aabb buffer", storage_copy_dst, device);
-        aabbs.write(queue, &self.aabbs);
-
-        // TODO: don't store leaves
-        let bvh_nodes = GpuBuffer::new(self.len() * 2, "bvh node buffer", storage_copy_dst, device);
-        let bvh_leaves = (0..u32::try_from(self.len()).unwrap()).map(BvhNode::new).collect_vec();
-        bvh_nodes.write(queue, &bvh_leaves);
-
-        let flags = GpuBuffer::from_data(&self.flags, "flags buffer", storage_copy_dst, device);
-        let velocities = GpuBuffer::from_data(&self.velocities, "velocity buffer", storage_copy_dst, device);
-        let masses = GpuBuffer::from_data(&self.masses, "mass buffer", storage_copy_dst, device);
-        let colors = GpuBuffer::from_data(&self.colors, "color buffer", storage_copy_dst, device);
-        let shapes = GpuBuffer::from_data(&self.shapes, "shape buffer", storage_copy_dst, device);
-
-        ObjectBuffers {
-            flags,
-            aabbs,
-            bvh_nodes,
-            velocities,
-            masses,
-            colors,
-            shapes,
-        }
-    }
-}
-
-pub struct ObjectBuffers {
-    pub flags: GpuBuffer<Flags>,
-    pub aabbs: GpuBuffer<AABB>,
-    pub bvh_nodes: GpuBuffer<BvhNode>,
-    pub velocities: GpuBuffer<Velocity>,
-    pub masses: GpuBuffer<Mass>,
-    pub colors: GpuBuffer<Color>,
-    pub shapes: GpuBuffer<Shape>,
 }

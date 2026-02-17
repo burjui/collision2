@@ -9,8 +9,8 @@ struct CombineNodePass {
 }
 
 var<push_constant> params: CombineNodePass;
-@group(0) @binding(0) var<storage, read_write> aabbs: array<AABB>;
-@group(0) @binding(1) var<storage, read_write> nodes: array<BvhNode>;
+@group(0) @binding(0) var<storage, read_write> nodes: array<BvhNode>;
+@group(1) @binding(0) var<storage, read_write> aabbs: array<AABB>;
 
 const WORKGROUP_SIZE: u32 = 64;
 

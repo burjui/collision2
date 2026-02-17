@@ -1,54 +1,40 @@
-use std::iter::{once, repeat_with};
+use std::array::from_fn;
 
-use itertools::Itertools as _;
-use wgpu::BufferUsages;
+use wgpu::{BufferUsages, Device};
 
 use crate::{
     gpu_buffer::GpuBuffer,
     shaders::common::{AABB, Flags, Velocity},
 };
 
+/// Set of object phase states (change every frame)
+/// NOTE: it doesn't contain BVH nodes because these are not used by the renderer
 #[derive(Clone)]
-pub struct PhaseStates {
-    id: usize,
-    device: wgpu::Device,
+pub struct PhaseState {
     aabbs: GpuBuffer<AABB>,
     velocities: GpuBuffer<Velocity>,
     flags: GpuBuffer<Flags>,
 }
 
-impl PhaseStates {
-    fn new(
-        device: &wgpu::Device,
-        aabbs: GpuBuffer<AABB>,
-        velocities: GpuBuffer<Velocity>,
-        flags: GpuBuffer<Flags>,
-    ) -> Self {
+impl PhaseState {
+    fn new(index: usize, device: &Device, aabbs: &[AABB], velocities: &[Velocity], flags: &[Flags]) -> Self {
+        let aabbs_name = format!("aabb buffer #{index}");
+        let velocities_name = format!("velocity buffer #{index}");
+        let flags_name = format!("flags buffer #{index}");
+        let (aabbs, velocities, flags) = if index == 0 {
+            (
+                GpuBuffer::from_data(aabbs, &aabbs_name, BufferUsages::STORAGE, device),
+                GpuBuffer::from_data(velocities, &velocities_name, BufferUsages::STORAGE, device),
+                GpuBuffer::from_data(flags, &flags_name, BufferUsages::STORAGE, device),
+            )
+        } else {
+            (
+                GpuBuffer::new(aabbs.len(), &aabbs_name, BufferUsages::STORAGE, device),
+                GpuBuffer::new(velocities.len(), &velocities_name, BufferUsages::STORAGE, device),
+                GpuBuffer::new(flags.len(), &flags_name, BufferUsages::STORAGE, device),
+            )
+        };
         Self {
-            id: 0,
-            device: device.clone(),
-            aabbs,
-            velocities,
-            flags,
-        }
-    }
-
-    fn duplicate(&self) -> Self {
-        let id = self.id + 1;
-        let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
-
-        let aabbs_name = format!("aabb buffer #{id}");
-        let aabbs = GpuBuffer::new(self.aabbs.len(), &aabbs_name, storage_copy_dst, &self.device);
-
-        let velocities_name = format!("velocity buffer #{id}");
-        let velocities = GpuBuffer::new(self.velocities.len(), &velocities_name, storage_copy_dst, &self.device);
-
-        let flags_name = format!("flags buffer #{id}");
-        let flags = GpuBuffer::new(self.flags.len(), &flags_name, storage_copy_dst, &self.device);
-
-        Self {
-            id,
-            device: self.device.clone(),
             aabbs,
             velocities,
             flags,
@@ -71,46 +57,52 @@ impl PhaseStates {
 const N_PHASE_STATES: usize = 2;
 const _: () = assert!(N_PHASE_STATES > 1);
 
-pub struct PhaseStateBuffers {
-    states: [PhaseStates; N_PHASE_STATES],
-    oldest: usize,
-    latest: usize,
+fn next_index(index: usize) -> usize {
+    (index + 1) % N_PHASE_STATES
 }
 
-impl PhaseStateBuffers {
+pub struct PhaseStateRing {
+    states: [PhaseState; N_PHASE_STATES],
+    oldest_index: usize,
+    current_index: usize,
+}
+
+impl PhaseStateRing {
+    pub const CAPACITY: usize = N_PHASE_STATES;
+
     pub fn new(
-        device: &wgpu::Device,
-        aabbs: GpuBuffer<AABB>,
-        velocities: GpuBuffer<Velocity>,
-        flags: GpuBuffer<Flags>,
+        device: &Device,
+        initial_flags: &[Flags],
+        initial_aabbs: &[AABB],
+        initial_velocities: &[Velocity],
     ) -> Self {
-        let first = PhaseStates::new(device, aabbs, velocities, flags);
         Self {
-            states: once(first.clone())
-                .chain(repeat_with(|| first.duplicate()))
-                .take(N_PHASE_STATES)
-                .collect_array()
-                .unwrap(),
-            oldest: 0,
-            latest: 0,
+            states: from_fn(|i| PhaseState::new(i, device, initial_aabbs, initial_velocities, initial_flags)),
+            oldest_index: 0,
+            current_index: 0,
         }
     }
 
-    pub fn oldest(&self) -> PhaseStates {
-        self.states[self.oldest].clone()
+    pub fn oldest(&self) -> &PhaseState {
+        &self.states[self.oldest_index]
     }
 
-    pub fn next_pair(&mut self) -> (PhaseStates, PhaseStates) {
-        let src = self.states[self.latest].clone();
-        self.latest = (self.latest + 1) % self.states.len();
-        let dst = self.states[self.latest].clone();
-        if self.latest == self.oldest {
-            self.oldest = (self.oldest + 1) % self.states.len();
+    pub fn current(&self) -> &PhaseState {
+        &self.states[self.current_index]
+    }
+
+    pub fn next(&self) -> &PhaseState {
+        &self.states[next_index(self.current_index)]
+    }
+
+    pub fn current_index(&self) -> usize {
+        self.current_index
+    }
+
+    pub fn advance(&mut self) {
+        self.current_index = next_index(self.current_index);
+        if self.current_index == self.oldest_index {
+            self.oldest_index = next_index(self.oldest_index);
         }
-        (src, dst)
-    }
-
-    pub fn pair_count(&self) -> usize {
-        self.states.len() - 1
     }
 }

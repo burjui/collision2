@@ -3,7 +3,7 @@
 use std::array::from_fn;
 
 use crate::{
-    bvh_builder::calculate_passes,
+    bvh_builder::BvhBuildParameters,
     shaders::{
         bvh::CombineNodePass,
         common::{BVH_NODE_TREE_FLAG, BvhNode},
@@ -22,9 +22,9 @@ fn mock_bvh() {
     let mut aabbs: [usize; N * 2] = from_fn(|i| i * usize::from(i < N)); // tree nodes set to zero
     let mut nodes = [BvhNode::new_leaf(0); N * 2];
 
-    let passes = calculate_passes(N);
+    let build_params = BvhBuildParameters::new(N);
     assert_eq!(
-        passes.as_slice(),
+        build_params.passes(),
         &[
             CombineNodePass {
                 src_start: 0,
@@ -52,7 +52,7 @@ fn mock_bvh() {
         src_start,
         dst_start,
         parent_count,
-    } in &passes
+    } in build_params.passes()
     {
         for i in 0..parent_count {
             let src = src_start + i * 2;
@@ -62,9 +62,8 @@ fn mock_bvh() {
         }
     }
 
-    let node_count = usize::try_from(passes.last().unwrap().dst_start).unwrap();
     assert_eq!(
-        &nodes[0..=node_count],
+        &nodes[0..build_params.node_count()],
         &[
             // Leaves
             BvhNode::new_leaf(0),
@@ -88,7 +87,7 @@ fn mock_bvh() {
     assert_eq!(aabbs.as_slice(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0]);
 
     assert!(nodes[0..=6].iter().all(|node| !node.is_tree()));
-    assert!(nodes[7..node_count].iter().all(|node| node.is_tree()));
+    assert!(nodes[7..build_params.node_count()].iter().all(|node| node.is_tree()));
 }
 
 impl BvhNode {

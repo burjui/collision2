@@ -5,23 +5,23 @@
 }
 
 @group(0) @binding(0) var<uniform> dt: f32;
-@group(0) @binding(1) var<uniform> node_count: u32;
-@group(0) @binding(2) var<uniform> blackhole_count: u32;
-@group(0) @binding(3) var<uniform> blackhole_mass_scale: f32;
-@group(0) @binding(4) var<uniform> blackhole_size_scale: f32;
-@group(0) @binding(5) var<uniform> gravitational_constant: f32;
-@group(0) @binding(6) var<uniform> global_force: vec2f;
+@group(0) @binding(1) var<uniform> node_count: u32; // TODO: remove
+@group(0) @binding(2) var<uniform> gravitational_constant: f32;
+@group(0) @binding(3) var<uniform> global_force: vec2f;
+@group(0) @binding(4) var<storage, read> masses: array<Mass>;
+@group(0) @binding(5) var<storage, read> nodes: array<BvhNode>;
 
-@group(1) @binding(0) var<storage, read> flags: array<Flags>;
-@group(1) @binding(1) var<storage, read> masses: array<Mass>;
-@group(1) @binding(2) var<storage, read> velocities: array<Velocity>;
-@group(1) @binding(3) var<storage, read> aabbs: array<AABB>;
-@group(1) @binding(4) var<storage, read> nodes: array<BvhNode>;
-@group(1) @binding(5) var<storage, read> blackholes: array<BlackHole>;
+@group(1) @binding(0) var<uniform> blackhole_count: u32;
+@group(1) @binding(1) var<uniform> blackhole_mass_scale: f32;
+@group(1) @binding(2) var<uniform> blackhole_size_scale: f32;
+@group(1) @binding(3) var<storage, read> blackholes: array<BlackHole>;
 
-@group(2) @binding(0) var<storage, read_write> integrated_flags: array<Flags>;
-@group(2) @binding(1) var<storage, read_write> integrated_velocities: array<Velocity>;
-@group(2) @binding(2) var<storage, read_write> integrated_aabbs: array<AABB>;
+@group(2) @binding(0) var<storage, read> flags: array<Flags>;
+@group(2) @binding(1) var<storage, read> aabbs: array<AABB>;
+@group(2) @binding(2) var<storage, read> velocities: array<Velocity>;
+@group(2) @binding(3) var<storage, read_write> integrated_flags: array<Flags>;
+@group(2) @binding(4) var<storage, read_write> integrated_aabbs: array<AABB>;
+@group(2) @binding(5) var<storage, read_write> integrated_velocities: array<Velocity>;
 
 const WORKGROUP_SIZE: u32 = 64;
 
@@ -53,7 +53,7 @@ fn cs_main(
     var f = flags[i].inner;
 
     let mass = masses[i].inner;
-    var state = PhaseState(initial_position, velocities[i].inner);
+    var state = ObjectPhaseState(initial_position, velocities[i].inner);
     if (f & FLAG_PHYSICAL) != 0 {
         state = integrate_euler_symplectic(state, i, aabb, mass);
     }
@@ -99,12 +99,12 @@ fn cs_main(
     integrated_velocities[i].inner = state.velocity;
 }
 
-struct PhaseState {
+struct ObjectPhaseState {
     position: vec2f,
     velocity: vec2f
 }
 
-fn integrate_euler_symplectic(state: PhaseState, index: u32, aabb: AABB, mass: f32) -> PhaseState {
+fn integrate_euler_symplectic(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> ObjectPhaseState {
     let a = forces(state, index, aabb, mass) / mass;
     var new_state = state;
     new_state.velocity += a * dt;
@@ -117,7 +117,7 @@ struct InteractionResult {
     collision_count: u32
 }
 
-fn forces(state: PhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
+fn forces(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
     var total_force = global_force;
     for (var bh_index: u32 = 0; bh_index < blackhole_count; bh_index += 1) {
         var blackhole = blackholes[bh_index];
@@ -137,7 +137,7 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2f, mass: f32) -> vec2f 
 
 // Lense–Thirring formula for 2D
 // NOTE: some terms are missing and have to be reintroduced for 3D
-fn frame_dragging(blackhole: BlackHole, state: PhaseState) -> vec2f {
+fn frame_dragging(blackhole: BlackHole, state: ObjectPhaseState) -> vec2f {
     let r_vec = blackhole.position - state.position;
     let r = length(r_vec);
     let J = blackhole.spin; // scalar angular momentum (Jz)

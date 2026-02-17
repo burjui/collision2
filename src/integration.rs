@@ -1,10 +1,10 @@
-use std::sync::{Arc, Mutex};
+use std::array::from_fn;
 
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 use crate::{
     gpu_buffer::GpuBuffer,
-    phase_state::PhaseStateBuffers,
+    phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         common::{BvhNode, Mass},
         integration::{
@@ -16,14 +16,12 @@ use crate::{
 };
 
 pub struct GpuIntegrator {
-    device: Device,
-    phase_states_buffers: Arc<Mutex<PhaseStateBuffers>>,
-    masses: GpuBuffer<Mass>,
-    nodes: GpuBuffer<BvhNode>,
-    blackholes: GpuBuffer<BlackHole>,
-    bind_group_uniform: WgpuBindGroup0,
+    main_bind_group: WgpuBindGroup0,
+    blackhole_bind_group: WgpuBindGroup1,
     object_count: usize,
     pipeline: ComputePipeline,
+    phase_state_bind_groups: [Option<WgpuBindGroup2>; PhaseStateRing::CAPACITY],
+    phase_state_index: Option<usize>,
 }
 
 impl GpuIntegrator {
@@ -43,84 +41,84 @@ impl GpuIntegrator {
     const GLOBAL_FORCE: [f32; 2] = [0.0, -10000.0];
 
     pub fn new(
-        device: Device,
-        phase_states_buffers: Arc<Mutex<PhaseStateBuffers>>,
+        device: &Device,
         dt: GpuBuffer<f32>,
         masses: GpuBuffer<Mass>,
         nodes: GpuBuffer<BvhNode>,
         node_count: GpuBuffer<u32>,
         object_count: usize,
     ) -> Self {
-        let blackholes = GpuBuffer::from_data(&Self::BLACKHOLES, "blackholes", BufferUsages::STORAGE, &device);
-        let pipeline = create_cs_main_pipeline_embed_source(&device);
+        let blackholes = GpuBuffer::from_data(Self::BLACKHOLES, "blackholes", BufferUsages::STORAGE, device);
+        let pipeline = create_cs_main_pipeline_embed_source(device);
         let blackhole_count = u32::try_from(Self::BLACKHOLES.len() - 1).unwrap();
         let blackhole_count =
-            GpuBuffer::from_data(&[blackhole_count], "blackhole count", BufferUsages::UNIFORM, &device);
+            GpuBuffer::from_data(&[blackhole_count], "blackhole count", BufferUsages::UNIFORM, device);
         let blackhole_mass_scale =
-            GpuBuffer::from_data(&[Self::BLACKHOLE_MASS_SCALE], "blackhole mass scale", BufferUsages::UNIFORM, &device);
+            GpuBuffer::from_data(&[Self::BLACKHOLE_MASS_SCALE], "blackhole mass scale", BufferUsages::UNIFORM, device);
         let blackhole_size_scale =
-            GpuBuffer::from_data(&[Self::BLACKHOLE_SIZE_SCALE], "blackhole size scale", BufferUsages::UNIFORM, &device);
+            GpuBuffer::from_data(&[Self::BLACKHOLE_SIZE_SCALE], "blackhole size scale", BufferUsages::UNIFORM, device);
         let gravitational_constant = GpuBuffer::from_data(
             &[Self::GRAVITATIONAL_CONSTANT],
             "gravitational constant",
             BufferUsages::UNIFORM,
-            &device,
+            device,
         );
-        let global_force = GpuBuffer::from_data(&[Self::GLOBAL_FORCE], "global force", BufferUsages::UNIFORM, &device);
-        let bind_group_uniform = WgpuBindGroup0::from_bindings(
-            &device,
+        let global_force = GpuBuffer::from_data(&[Self::GLOBAL_FORCE], "global force", BufferUsages::UNIFORM, device);
+        let main_bind_group = WgpuBindGroup0::from_bindings(
+            device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 dt: dt.buffer().as_entire_buffer_binding(),
                 node_count: node_count.buffer().as_entire_buffer_binding(),
+                gravitational_constant: gravitational_constant.buffer().as_entire_buffer_binding(),
+                global_force: global_force.buffer().as_entire_buffer_binding(),
+                masses: masses.buffer().as_entire_buffer_binding(),
+                nodes: nodes.buffer().as_entire_buffer_binding(),
+            }),
+        );
+        let blackhole_bind_group = WgpuBindGroup1::from_bindings(
+            device,
+            WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
                 blackhole_count: blackhole_count.buffer().as_entire_buffer_binding(),
                 blackhole_mass_scale: blackhole_mass_scale.buffer().as_entire_buffer_binding(),
                 blackhole_size_scale: blackhole_size_scale.buffer().as_entire_buffer_binding(),
-                gravitational_constant: gravitational_constant.buffer().as_entire_buffer_binding(),
-                global_force: global_force.buffer().as_entire_buffer_binding(),
+                blackholes: blackholes.buffer().as_entire_buffer_binding(),
             }),
         );
 
         Self {
-            device,
-            phase_states_buffers,
-            masses,
-            nodes,
-            blackholes,
-            bind_group_uniform,
+            main_bind_group,
+            blackhole_bind_group,
             object_count,
             pipeline,
+            phase_state_bind_groups: from_fn(|_| None),
+            phase_state_index: None,
         }
     }
 
+    pub fn prepare(&mut self, phase_state_index: usize, device: &Device, src: &PhaseState, dst: &PhaseState) {
+        self.phase_state_bind_groups[phase_state_index].get_or_insert_with(|| {
+            WgpuBindGroup2::from_bindings(
+                device,
+                WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
+                    flags: src.flags().buffer().as_entire_buffer_binding(),
+                    aabbs: src.aabbs().buffer().as_entire_buffer_binding(),
+                    velocities: src.velocities().buffer().as_entire_buffer_binding(),
+                    integrated_flags: dst.flags().buffer().as_entire_buffer_binding(),
+                    integrated_velocities: dst.velocities().buffer().as_entire_buffer_binding(),
+                    integrated_aabbs: dst.aabbs().buffer().as_entire_buffer_binding(),
+                }),
+            )
+        });
+        self.phase_state_index = Some(phase_state_index);
+    }
+
     pub fn compute(&self, compute_pass: &mut ComputePass) {
-        let mut guard = self.phase_states_buffers.lock().unwrap();
-        let (src, dst) = guard.next_pair();
-        drop(guard);
-
-        let bind_group_src = WgpuBindGroup1::from_bindings(
-            &self.device,
-            WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
-                flags: src.flags().buffer().as_entire_buffer_binding(),
-                masses: self.masses.buffer().as_entire_buffer_binding(),
-                velocities: src.velocities().buffer().as_entire_buffer_binding(),
-                aabbs: src.aabbs().buffer().as_entire_buffer_binding(),
-                nodes: self.nodes.buffer().as_entire_buffer_binding(),
-                blackholes: self.blackholes.buffer().as_entire_buffer_binding(),
-            }),
-        );
-        let bind_group_dst = WgpuBindGroup2::from_bindings(
-            &self.device,
-            WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
-                integrated_flags: dst.flags().buffer().as_entire_buffer_binding(),
-                integrated_velocities: dst.velocities().buffer().as_entire_buffer_binding(),
-                integrated_aabbs: dst.aabbs().buffer().as_entire_buffer_binding(),
-            }),
-        );
-
+        let phase_state_index = self.phase_state_index.expect("prepare() must be called every frame");
+        let phase_state_bind_group = self.phase_state_bind_groups[phase_state_index].as_ref().unwrap();
         compute_pass.set_pipeline(&self.pipeline);
-        self.bind_group_uniform.set(compute_pass);
-        bind_group_src.set(compute_pass);
-        bind_group_dst.set(compute_pass);
+        self.main_bind_group.set(compute_pass);
+        self.blackhole_bind_group.set(compute_pass);
+        phase_state_bind_group.set(compute_pass);
         let total_workgroups = u32::try_from(self.object_count).unwrap().div_ceil(WORKGROUP_SIZE);
         let x = total_workgroups.min(65535);
         let y = total_workgroups.div_ceil(65535);

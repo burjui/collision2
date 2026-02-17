@@ -1,3 +1,5 @@
+use std::array::from_fn;
+
 use wgpu::{
     BlendState, ColorTargetState, Device, MultisampleState, PipelineCache, PrimitiveState, RenderPass, RenderPipeline,
     RenderPipelineDescriptor, TextureFormat,
@@ -5,16 +7,22 @@ use wgpu::{
 
 use crate::{
     gpu_buffer::GpuBuffer,
+    phase_state::{PhaseState, PhaseStateRing},
     shaders::{
-        aabb_frame,
-        common::{AABB, Camera, Flags},
+        aabb_frame::{
+            self, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
+            WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams,
+        },
+        common::Camera,
     },
 };
 
 pub struct AabbRenderer {
-    render_pipeline: RenderPipeline,
-    bind_group: aabb_frame::WgpuBindGroup0,
     node_count: u32,
+    render_pipeline: RenderPipeline,
+    fixed_bind_group: WgpuBindGroup0,
+    phase_state_bind_groups: [Option<WgpuBindGroup1>; PhaseStateRing::CAPACITY],
+    phase_state_index: Option<usize>,
 }
 
 impl AabbRenderer {
@@ -23,8 +31,6 @@ impl AabbRenderer {
         swapchain_format: TextureFormat,
         pipeline_cache: &PipelineCache,
         camera_buffer: GpuBuffer<Camera>,
-        flags: GpuBuffer<Flags>,
-        aabbs: GpuBuffer<AABB>,
         node_count: u32,
     ) -> Self {
         let pipeline_layout = aabb_frame::create_pipeline_layout(device);
@@ -52,24 +58,40 @@ impl AabbRenderer {
             multiview: None,
             cache: Some(pipeline_cache),
         });
-        let bind_group = aabb_frame::WgpuBindGroup0::from_bindings(
+        let fixed_bind_group = WgpuBindGroup0::from_bindings(
             device,
-            aabb_frame::WgpuBindGroup0Entries::new(aabb_frame::WgpuBindGroup0EntriesParams {
+            WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 camera: camera_buffer.buffer().as_entire_buffer_binding(),
-                flags: flags.buffer().as_entire_buffer_binding(),
-                aabbs: aabbs.buffer().as_entire_buffer_binding(),
             }),
         );
         Self {
-            render_pipeline,
-            bind_group,
             node_count,
+            render_pipeline,
+            fixed_bind_group,
+            phase_state_bind_groups: from_fn(|_| None),
+            phase_state_index: None,
         }
     }
 
+    pub fn prepare(&mut self, phase_state_index: usize, device: &Device, phase_state: &PhaseState) {
+        self.phase_state_bind_groups[phase_state_index].get_or_insert_with(|| {
+            WgpuBindGroup1::from_bindings(
+                device,
+                WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
+                    flags: phase_state.flags().buffer().as_entire_buffer_binding(),
+                    aabbs: phase_state.aabbs().buffer().as_entire_buffer_binding(),
+                }),
+            )
+        });
+        self.phase_state_index = Some(phase_state_index);
+    }
+
     pub fn render(&self, render_pass: &mut RenderPass<'_>) {
+        let phase_state_index = self.phase_state_index.expect("prepare() must be called every frame");
+        let phase_state_bind_group = self.phase_state_bind_groups[phase_state_index].as_ref().unwrap();
         render_pass.set_pipeline(&self.render_pipeline);
-        self.bind_group.set(render_pass);
+        self.fixed_bind_group.set(render_pass);
+        phase_state_bind_group.set(render_pass);
         render_pass.draw(0..6, 0..self.node_count);
     }
 }
