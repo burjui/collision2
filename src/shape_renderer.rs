@@ -1,7 +1,7 @@
 use std::{array::from_fn, ops::Range};
 
 use wgpu::{
-    BlendState, ColorTargetState, Device, MultisampleState, PipelineCache, PrimitiveState, RenderPass, RenderPipeline,
+    BlendState, ColorTargetState, Device, MultisampleState, PrimitiveState, RenderPass, RenderPipeline,
     RenderPipelineDescriptor, TextureFormat,
 };
 
@@ -28,7 +28,6 @@ impl ShapeRenderer {
     pub fn new(
         device: &Device,
         swapchain_format: TextureFormat,
-        pipeline_cache: &PipelineCache,
         camera: GpuBuffer<Camera>,
         size_factor: GpuBuffer<f32>,
         colors: GpuBuffer<Color>,
@@ -56,7 +55,7 @@ impl ShapeRenderer {
             depth_stencil: None,
             multisample: MultisampleState::default(),
             multiview: None,
-            cache: Some(pipeline_cache),
+            cache: None,
         });
 
         let fixed_bind_group = WgpuBindGroup0::from_bindings(

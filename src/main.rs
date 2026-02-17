@@ -44,9 +44,8 @@ use std::{
     time::Duration,
 };
 use wgpu::{
-    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCacheDescriptor, PollType, PresentMode,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, TextureFormat, TextureView,
-    TextureViewDescriptor,
+    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PollType, PresentMode, RenderPassColorAttachment,
+    RenderPassDescriptor, RequestAdapterOptions, TextureFormat, TextureView, TextureViewDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
@@ -162,32 +161,17 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         println!("Window size: {}x{}", window_size.width, window_size.height);
         println!("Object count: {}", object_count);
 
-        let pipeline_cache = unsafe {
-            device.create_pipeline_cache(&PipelineCacheDescriptor {
-                label: None,
-                data: None,
-                fallback: true,
-            })
-        };
-
         let camera =
             GpuBuffer::<Camera>::new(1, "camera buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         let size_factor =
             GpuBuffer::new(1, "size factor buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
         size_factor.write(&queue, &[1.0]);
-        let shape_renderer = ShapeRenderer::new(
-            &device,
-            swapchain_format,
-            &pipeline_cache,
-            camera.clone(),
-            size_factor.clone(),
-            colors,
-            shapes,
-        );
+        let shape_renderer =
+            ShapeRenderer::new(&device, swapchain_format, camera.clone(), size_factor.clone(), colors, shapes);
         let node_count = u32::try_from(node_count).unwrap();
         let node_count_buffer =
             GpuBuffer::from_data(&[node_count], "node count buffer", BufferUsages::UNIFORM, &device);
-        let aabb_renderer = AabbRenderer::new(&device, swapchain_format, &pipeline_cache, camera.clone(), node_count);
+        let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), node_count);
         let exit_requested = Arc::new(AtomicBool::new(false));
 
         spawn_simulation_thread(
