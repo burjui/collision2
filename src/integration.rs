@@ -10,7 +10,7 @@ use crate::{
         integration::{
             BlackHole, WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
             WgpuBindGroup1, WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries,
-            WgpuBindGroup2EntriesParams, compute::create_cs_main_pipeline_embed_source,
+            WgpuBindGroup2EntriesParams, compute::create_integrate_pipeline_embed_source,
         },
     },
 };
@@ -48,7 +48,7 @@ impl GpuIntegrator {
         object_count: usize,
     ) -> Self {
         let blackholes = GpuBuffer::from_data(Self::BLACKHOLES, "blackholes", BufferUsages::STORAGE, device);
-        let pipeline = create_cs_main_pipeline_embed_source(device);
+        let pipeline = create_integrate_pipeline_embed_source(device);
         let blackhole_count = u32::try_from(Self::BLACKHOLES.len() - 1).unwrap();
         let blackhole_count =
             GpuBuffer::from_data(&[blackhole_count], "blackhole count", BufferUsages::UNIFORM, device);

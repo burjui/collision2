@@ -1,6 +1,5 @@
 #![allow(clippy::too_many_arguments)]
 
-pub mod aabb;
 pub mod aabb_renderer;
 pub mod bvh_builder;
 pub mod gpu_buffer;
@@ -12,8 +11,35 @@ pub mod phase_state;
 pub mod scene;
 pub mod shaders;
 pub mod shape_renderer;
-#[allow(unused)]
 pub mod util;
+
+use std::{
+    mem::size_of,
+    ops::Range,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread::{self},
+    time::Duration,
+};
+
+use crossbeam::channel;
+use pollster::block_on;
+use shaders::common::Mass;
+use wgpu::{
+    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor, InstanceDescriptor,
+    PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
+    RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureView, TextureViewDescriptor,
+};
+use winit::{
+    application::ApplicationHandler,
+    dpi::PhysicalSize,
+    event::{ElementState, KeyEvent, MouseScrollDelta, WindowEvent},
+    event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
+    keyboard::KeyCode,
+    window::{Fullscreen, Window, WindowAttributes, WindowId},
+};
 
 use crate::{
     aabb_renderer::AabbRenderer,
@@ -28,32 +54,6 @@ use crate::{
         common::{AABB, BvhNode, Camera},
     },
     shape_renderer::ShapeRenderer,
-};
-use crossbeam::channel;
-use pollster::block_on;
-use shaders::common::Mass;
-use std::{
-    mem::size_of,
-    ops::Range,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread::{self},
-    time::Duration,
-};
-use wgpu::{
-    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor, InstanceDescriptor,
-    PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
-    RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureView, TextureViewDescriptor,
-};
-use winit::{
-    application::ApplicationHandler,
-    dpi::PhysicalSize,
-    event::{ElementState, KeyEvent, MouseScrollDelta, WindowEvent},
-    event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
-    keyboard::KeyCode,
-    window::{Fullscreen, Window, WindowAttributes, WindowId},
 };
 
 fn main() {

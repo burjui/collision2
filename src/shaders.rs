@@ -2,14 +2,14 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: a15334d56dc6d8fc908166a3a81653399aca9d88c884b65c8f0e49e0331798f7
+// SourceHash: 3e31c9feb2bbcfa69778569bfa40f55efec3d6c829ea7bba880042345c9df06f
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
     Common,
     Shape,
-    AabbFrame,
+    Aabb,
     Bvh,
     Integration,
 }
@@ -18,7 +18,7 @@ impl ShaderEntry {
         match self {
             Self::Common => common::create_pipeline_layout(device),
             Self::Shape => shape::create_pipeline_layout(device),
-            Self::AabbFrame => aabb_frame::create_pipeline_layout(device),
+            Self::Aabb => aabb::create_pipeline_layout(device),
             Self::Bvh => bvh::create_pipeline_layout(device),
             Self::Integration => integration::create_pipeline_layout(device),
         }
@@ -27,7 +27,7 @@ impl ShaderEntry {
         match self {
             Self::Common => common::create_shader_module_embed_source(device),
             Self::Shape => shape::create_shader_module_embed_source(device),
-            Self::AabbFrame => aabb_frame::create_shader_module_embed_source(device),
+            Self::Aabb => aabb::create_shader_module_embed_source(device),
             Self::Bvh => bvh::create_shader_module_embed_source(device),
             Self::Integration => integration::create_shader_module_embed_source(device),
         }
@@ -756,7 +756,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 }
 "#;
 }
-pub mod aabb_frame {
+pub mod aabb {
     use super::{_root, _root::*};
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
@@ -842,7 +842,7 @@ pub mod aabb_frame {
     pub struct WgpuBindGroup0(wgpu::BindGroup);
     impl WgpuBindGroup0 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("AabbFrame::BindGroup0::LayoutDescriptor"),
+            label: Some("Aabb::BindGroup0::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"camera\""]
                 wgpu::BindGroupLayoutEntry {
@@ -864,7 +864,7 @@ pub mod aabb_frame {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("AabbFrame::BindGroup0"),
+                label: Some("Aabb::BindGroup0"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -908,7 +908,7 @@ pub mod aabb_frame {
     pub struct WgpuBindGroup1(wgpu::BindGroup);
     impl WgpuBindGroup1 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("AabbFrame::BindGroup1::LayoutDescriptor"),
+            label: Some("Aabb::BindGroup1::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"flags\""]
                 wgpu::BindGroupLayoutEntry {
@@ -941,7 +941,7 @@ pub mod aabb_frame {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("AabbFrame::BindGroup1"),
+                label: Some("Aabb::BindGroup1"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -977,7 +977,7 @@ pub mod aabb_frame {
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("AabbFrame::PipelineLayout"),
+            label: Some("Aabb::PipelineLayout"),
             bind_group_layouts: &[
                 &WgpuBindGroup0::get_bind_group_layout(device),
                 &WgpuBindGroup1::get_bind_group_layout(device),
@@ -988,7 +988,7 @@ pub mod aabb_frame {
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
         let source = std::borrow::Cow::Borrowed(SHADER_STRING);
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("aabb_frame.wgsl"),
+            label: Some("aabb.wgsl"),
             source: wgpu::ShaderSource::Wgsl(source),
         })
     }
@@ -1375,21 +1375,21 @@ pub mod integration {
     pub const GAMMA_COEFF: f32 = 186.15263f32;
     pub mod compute {
         use super::{_root, _root::*};
-        pub const CS_MAIN_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
-        pub fn create_cs_main_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
+        pub const INTEGRATE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
+        pub fn create_integrate_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
             let module = super::create_shader_module_embed_source(device);
             let layout = super::create_pipeline_layout(device);
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Compute Pipeline cs_main"),
+                label: Some("Compute Pipeline integrate"),
                 layout: Some(&layout),
                 module: &module,
-                entry_point: Some("cs_main"),
+                entry_point: Some("integrate"),
                 compilation_options: Default::default(),
                 cache: None,
             })
         }
     }
-    pub const ENTRY_CS_MAIN: &str = "cs_main";
+    pub const ENTRY_INTEGRATE: &str = "integrate";
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub dt: wgpu::BufferBinding<'a>,
@@ -2086,7 +2086,7 @@ fn integrate_euler_symplectic(state_3: ObjectPhaseState, index_2: u32, aabb_3: A
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
+fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
     var f: u32;
     var state: ObjectPhaseState;
     var bh_index: u32 = 0u;

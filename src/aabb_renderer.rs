@@ -9,7 +9,7 @@ use crate::{
     gpu_buffer::GpuBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
-        aabb_frame::{
+        aabb::{
             self, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
             WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams,
         },
@@ -19,8 +19,8 @@ use crate::{
 
 pub struct AabbRenderer {
     node_count: u32,
-    render_pipeline: RenderPipeline,
-    fixed_bind_group: WgpuBindGroup0,
+    pipeline: RenderPipeline,
+    main_bind_group: WgpuBindGroup0,
     phase_state_bind_groups: [Option<WgpuBindGroup1>; PhaseStateRing::CAPACITY],
     phase_state_index: Option<usize>,
 }
@@ -32,16 +32,16 @@ impl AabbRenderer {
         camera_buffer: GpuBuffer<Camera>,
         node_count: usize,
     ) -> Self {
-        let pipeline_layout = aabb_frame::create_pipeline_layout(device);
-        let shader = aabb_frame::create_shader_module_embed_source(device);
-        let vertex_entry = aabb_frame::vs_main_entry();
-        let vertex_state = aabb_frame::vertex_state(&shader, &vertex_entry);
+        let pipeline_layout = aabb::create_pipeline_layout(device);
+        let shader = aabb::create_shader_module_embed_source(device);
+        let vertex_entry = aabb::vs_main_entry();
+        let vertex_state = aabb::vertex_state(&shader, &vertex_entry);
         let color_target_state = ColorTargetState {
             blend: Some(BlendState::ALPHA_BLENDING),
             ..ColorTargetState::from(swapchain_format)
         };
-        let fragment_entry = aabb_frame::fs_main_entry([Some(color_target_state)]);
-        let fragment_state = aabb_frame::fragment_state(&shader, &fragment_entry);
+        let fragment_entry = aabb::fs_main_entry([Some(color_target_state)]);
+        let fragment_state = aabb::fragment_state(&shader, &fragment_entry);
         let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
@@ -57,7 +57,7 @@ impl AabbRenderer {
             multiview: None,
             cache: None,
         });
-        let fixed_bind_group = WgpuBindGroup0::from_bindings(
+        let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 camera: camera_buffer.buffer().as_entire_buffer_binding(),
@@ -65,8 +65,8 @@ impl AabbRenderer {
         );
         Self {
             node_count: u32::try_from(node_count).unwrap(),
-            render_pipeline,
-            fixed_bind_group,
+            pipeline: render_pipeline,
+            main_bind_group,
             phase_state_bind_groups: from_fn(|_| None),
             phase_state_index: None,
         }
@@ -88,8 +88,8 @@ impl AabbRenderer {
     pub fn render(&self, render_pass: &mut RenderPass<'_>) {
         let phase_state_index = self.phase_state_index.expect("prepare() must be called every frame");
         let phase_state_bind_group = self.phase_state_bind_groups[phase_state_index].as_ref().unwrap();
-        render_pass.set_pipeline(&self.render_pipeline);
-        self.fixed_bind_group.set(render_pass);
+        render_pass.set_pipeline(&self.pipeline);
+        self.main_bind_group.set(render_pass);
         phase_state_bind_group.set(render_pass);
         render_pass.draw(0..6, 0..self.node_count);
     }

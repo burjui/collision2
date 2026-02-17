@@ -1,14 +1,17 @@
-use wgpu::{PollError, PollStatus, PollType, SubmissionIndex};
+use nalgebra::Vector2;
 
-pub trait DeviceUtil {
-    fn wait_for_submission(&self, submission_index: SubmissionIndex) -> Result<PollStatus, PollError>;
-}
+use crate::shaders::common::AABB;
 
-impl DeviceUtil for wgpu::Device {
-    fn wait_for_submission(&self, submission_index: SubmissionIndex) -> Result<PollStatus, PollError> {
-        self.poll(PollType::Wait {
-            submission_index: Some(submission_index),
-            timeout: None,
-        })
+impl AABB {
+    pub fn min(&self) -> Vector2<f32> {
+        self.min.into()
+    }
+
+    pub fn max(&self) -> Vector2<f32> {
+        self.max.into()
+    }
+
+    pub fn size(&self) -> Vector2<f32> {
+        self.max() - self.min()
     }
 }

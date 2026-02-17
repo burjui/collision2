@@ -18,8 +18,8 @@ use crate::{
 };
 
 pub struct ShapeRenderer {
-    render_pipeline: RenderPipeline,
-    fixed_bind_group: WgpuBindGroup0,
+    pipeline: RenderPipeline,
+    main_bind_group: WgpuBindGroup0,
     phase_state_bind_groups: [Option<WgpuBindGroup1>; PhaseStateRing::CAPACITY],
     phase_state_index: Option<usize>,
 }
@@ -34,17 +34,14 @@ impl ShapeRenderer {
     ) -> Self {
         let pipeline_layout = shape::create_pipeline_layout(device);
         let shader = shape::create_shader_module_embed_source(device);
-
         let vertex_entry = shape::vs_main_entry();
         let vertex_state = shape::vertex_state(&shader, &vertex_entry);
-
         let color_target_state = ColorTargetState {
             blend: Some(BlendState::ALPHA_BLENDING),
             ..ColorTargetState::from(swapchain_format)
         };
         let fragment_entry = shape::fs_main_entry([Some(color_target_state)]);
         let fragment_state = shape::fragment_state(&shader, &fragment_entry);
-
         let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
@@ -56,8 +53,7 @@ impl ShapeRenderer {
             multiview: None,
             cache: None,
         });
-
-        let fixed_bind_group = WgpuBindGroup0::from_bindings(
+        let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 camera: camera.buffer().as_entire_buffer_binding(),
@@ -65,10 +61,9 @@ impl ShapeRenderer {
                 shapes: shapes.buffer().as_entire_buffer_binding(),
             }),
         );
-
         Self {
-            render_pipeline,
-            fixed_bind_group,
+            pipeline: render_pipeline,
+            main_bind_group,
             phase_state_bind_groups: from_fn(|_| None),
             phase_state_index: None,
         }
@@ -91,11 +86,11 @@ impl ShapeRenderer {
     pub fn render(&self, render_pass: &mut RenderPass<'_>, instances: Range<usize>) {
         let phase_state_index = self.phase_state_index.expect("prepare() must be called every frame");
         let phase_state_bind_group = self.phase_state_bind_groups[phase_state_index].as_ref().unwrap();
-        render_pass.set_pipeline(&self.render_pipeline);
-        self.fixed_bind_group.set(render_pass);
-        phase_state_bind_group.set(render_pass);
         let start = u32::try_from(instances.start).unwrap();
         let end = u32::try_from(instances.end).unwrap();
+        render_pass.set_pipeline(&self.pipeline);
+        self.main_bind_group.set(render_pass);
+        phase_state_bind_group.set(render_pass);
         render_pass.draw(0..6, start..end);
     }
 }

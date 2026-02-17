@@ -18,7 +18,7 @@ use crate::{
 pub struct BvhBuilder {
     passes: Vec<CombineNodePass>,
     pipeline: ComputePipeline,
-    fixed_bind_group: WgpuBindGroup0,
+    main_bind_group: WgpuBindGroup0,
     phase_state_bind_groups: [Option<WgpuBindGroup1>; PhaseStateRing::CAPACITY],
     phase_state_index: Option<usize>,
 }
@@ -26,7 +26,7 @@ pub struct BvhBuilder {
 impl BvhBuilder {
     pub fn new(params: BvhBuildParameters, device: &Device, nodes: GpuBuffer<BvhNode>) -> Self {
         let pipeline = create_combine_nodes_pipeline_embed_source(device);
-        let fixed_bind_group = WgpuBindGroup0::from_bindings(
+        let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 nodes: nodes.buffer().as_entire_buffer_binding(),
@@ -35,7 +35,7 @@ impl BvhBuilder {
         Self {
             passes: params.passes,
             pipeline,
-            fixed_bind_group,
+            main_bind_group,
             phase_state_bind_groups: from_fn(|_| None),
             phase_state_index: None,
         }
@@ -57,7 +57,7 @@ impl BvhBuilder {
         let phase_state_index = self.phase_state_index.expect("prepare() must be called every frame");
         let phase_state_bind_group = self.phase_state_bind_groups[phase_state_index].as_ref().unwrap();
         compute_pass.set_pipeline(&self.pipeline);
-        self.fixed_bind_group.set(compute_pass);
+        self.main_bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
         for &pass in &self.passes {
             compute_pass.set_push_constants(0, bytemuck::cast_slice(&[pass]));

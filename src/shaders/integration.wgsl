@@ -36,7 +36,7 @@ const RESTITUTION: f32 = 0.85;
 const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(5.0) * sqrt(STIFFNESS);
 
 @compute @workgroup_size(WORKGROUP_SIZE)
-fn cs_main(
+fn integrate(
     @builtin(global_invocation_id) gid: vec3u,
     @builtin(num_workgroups) nwg: vec3u,
 ) {
