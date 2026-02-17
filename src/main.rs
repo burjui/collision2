@@ -141,8 +141,14 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let colors = GpuBuffer::from_data(&objects.colors, "color buffer", storage_copy_dst, &device);
         let shapes = GpuBuffer::from_data(&objects.shapes, "shape buffer", storage_copy_dst, &device);
 
-        let phase_state_ring =
-            Arc::new(Mutex::new(PhaseStateRing::new(&device, &objects.flags, &objects.aabbs, &objects.velocities)));
+        let phase_state_ring = Arc::new(Mutex::new(PhaseStateRing::new(
+            &device,
+            &queue,
+            &objects.flags,
+            &objects.aabbs,
+            &objects.velocities,
+            node_count,
+        )));
 
         let window_size = window.inner_size();
         println!("Window size: {}x{}", window_size.width, window_size.height);

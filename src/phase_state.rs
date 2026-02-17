@@ -1,6 +1,6 @@
 use std::array::from_fn;
 
-use wgpu::{BufferUsages, Device};
+use wgpu::{BufferUsages, Device, Queue};
 
 use crate::{
     gpu_buffer::GpuBuffer,
@@ -18,25 +18,34 @@ pub struct PhaseState {
 }
 
 impl PhaseState {
-    fn new(index: usize, device: &Device, aabbs: &[AABB], velocities: &[Velocity], flags: &[Flags]) -> Self {
+    fn new(
+        index: usize,
+        device: &Device,
+        queue: &Queue,
+        aabbs: &[AABB],
+        velocities: &[Velocity],
+        flags: &[Flags],
+        node_count: usize,
+    ) -> Self {
         let aabbs_name = format!("aabb buffer #{index}");
         let velocities_name = format!("velocity buffer #{index}");
         let flags_name = format!("flags buffer #{index}");
-        let (aabbs, velocities, flags) = if index == 0 {
+        let (velocities, flags) = if index == 0 {
             (
-                GpuBuffer::from_data(aabbs, &aabbs_name, BufferUsages::STORAGE, device),
                 GpuBuffer::from_data(velocities, &velocities_name, BufferUsages::STORAGE, device),
                 GpuBuffer::from_data(flags, &flags_name, BufferUsages::STORAGE, device),
             )
         } else {
             (
-                GpuBuffer::new(aabbs.len(), &aabbs_name, BufferUsages::STORAGE, device),
                 GpuBuffer::new(velocities.len(), &velocities_name, BufferUsages::STORAGE, device),
                 GpuBuffer::new(flags.len(), &flags_name, BufferUsages::STORAGE, device),
             )
         };
+        let aabbs_buffer =
+            GpuBuffer::new(node_count, &aabbs_name, BufferUsages::STORAGE | BufferUsages::COPY_DST, device);
+        aabbs_buffer.write(queue, aabbs);
         Self {
-            aabbs,
+            aabbs: aabbs_buffer,
             velocities,
             flags,
         }
@@ -73,12 +82,16 @@ impl PhaseStateRing {
 
     pub fn new(
         device: &Device,
+        queue: &Queue,
         initial_flags: &[Flags],
         initial_aabbs: &[AABB],
         initial_velocities: &[Velocity],
+        node_count: usize,
     ) -> Self {
         Self {
-            states: from_fn(|i| PhaseState::new(i, device, initial_aabbs, initial_velocities, initial_flags)),
+            states: from_fn(|i| {
+                PhaseState::new(i, device, queue, initial_aabbs, initial_velocities, initial_flags, node_count)
+            }),
             oldest_index: 0,
             current_index: 0,
         }
