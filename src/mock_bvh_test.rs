@@ -62,8 +62,9 @@ fn mock_bvh() {
         }
     }
 
+    let node_count = build_params.node_count();
     assert_eq!(
-        &nodes[0..build_params.node_count()],
+        &nodes[0..node_count],
         &[
             // Leaves
             BvhNode::new_leaf(0),
@@ -87,7 +88,7 @@ fn mock_bvh() {
     assert_eq!(aabbs.as_slice(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0]);
 
     assert!(nodes[0..=6].iter().all(|node| !node.is_tree()));
-    assert!(nodes[7..build_params.node_count()].iter().all(|node| node.is_tree()));
+    assert!(nodes[7..node_count].iter().all(|node| node.is_tree()));
 }
 
 impl BvhNode {

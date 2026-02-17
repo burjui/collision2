@@ -5,11 +5,10 @@
 }
 
 @group(0) @binding(0) var<uniform> dt: f32;
-@group(0) @binding(1) var<uniform> node_count: u32; // TODO: remove
-@group(0) @binding(2) var<uniform> gravitational_constant: f32;
-@group(0) @binding(3) var<uniform> global_force: vec2f;
-@group(0) @binding(4) var<storage, read> masses: array<Mass>;
-@group(0) @binding(5) var<storage, read> nodes: array<BvhNode>;
+@group(0) @binding(1) var<uniform> gravitational_constant: f32;
+@group(0) @binding(2) var<uniform> global_force: vec2f;
+@group(0) @binding(3) var<storage, read> masses: array<Mass>;
+@group(0) @binding(4) var<storage, read> nodes: array<BvhNode>;
 
 @group(1) @binding(0) var<uniform> blackhole_count: u32;
 @group(1) @binding(1) var<uniform> blackhole_mass_scale: f32;
@@ -152,7 +151,7 @@ fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> ve
     var sp: u32 = 0;
     var total_force = vec2f();
 
-    stack[sp] = node_count - 1; // root
+    stack[sp] = arrayLength(&nodes) - 1; // root
     sp++;
 
     while sp > 0 {

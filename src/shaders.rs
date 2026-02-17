@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 7bc18b0af242ae78192f8bb855c2b6eda767eab9bb09208cd32b83d1501e770c
+// SourceHash: e0dac70de32da76c587d6e6cccd6396913ba7fb04708bc767c16f4aaf012ea53
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1413,7 +1413,6 @@ pub mod integration {
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub dt: wgpu::BufferBinding<'a>,
-        pub node_count: wgpu::BufferBinding<'a>,
         pub gravitational_constant: wgpu::BufferBinding<'a>,
         pub global_force: wgpu::BufferBinding<'a>,
         pub masses: wgpu::BufferBinding<'a>,
@@ -1422,7 +1421,6 @@ pub mod integration {
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub dt: wgpu::BindGroupEntry<'a>,
-        pub node_count: wgpu::BindGroupEntry<'a>,
         pub gravitational_constant: wgpu::BindGroupEntry<'a>,
         pub global_force: wgpu::BindGroupEntry<'a>,
         pub masses: wgpu::BindGroupEntry<'a>,
@@ -1435,32 +1433,27 @@ pub mod integration {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.dt),
                 },
-                node_count: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.node_count),
-                },
                 gravitational_constant: wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.gravitational_constant),
                 },
                 global_force: wgpu::BindGroupEntry {
-                    binding: 3,
+                    binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.global_force),
                 },
                 masses: wgpu::BindGroupEntry {
-                    binding: 4,
+                    binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.masses),
                 },
                 nodes: wgpu::BindGroupEntry {
-                    binding: 5,
+                    binding: 4,
                     resource: wgpu::BindingResource::Buffer(params.nodes),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
             [
                 self.dt,
-                self.node_count,
                 self.gravitational_constant,
                 self.global_force,
                 self.masses,
@@ -1488,20 +1481,9 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"node_count\""]
+                #[doc = " @binding(1): \"gravitational_constant\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(2): \"gravitational_constant\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
@@ -1510,9 +1492,9 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"global_force\""]
+                #[doc = " @binding(2): \"global_force\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 3,
+                    binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
@@ -1521,9 +1503,9 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(4): \"masses\""]
+                #[doc = " @binding(3): \"masses\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 4,
+                    binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -1532,9 +1514,9 @@ pub mod integration {
                     },
                     count: None,
                 },
-                #[doc = " @binding(5): \"nodes\""]
+                #[doc = " @binding(4): \"nodes\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 5,
+                    binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -1925,14 +1907,12 @@ const GAMMA_COEFF: f32 = 186.15263f;
 @group(0) @binding(0) 
 var<uniform> dt: f32;
 @group(0) @binding(1) 
-var<uniform> node_count: u32;
-@group(0) @binding(2) 
 var<uniform> gravitational_constant: f32;
-@group(0) @binding(3) 
+@group(0) @binding(2) 
 var<uniform> global_force: vec2<f32>;
-@group(0) @binding(4) 
+@group(0) @binding(3) 
 var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(5) 
+@group(0) @binding(4) 
 var<storage> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(0) 
 var<uniform> blackhole_count: u32;
@@ -2024,8 +2004,7 @@ fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velo
     var total_force: vec2<f32> = vec2<f32>();
 
     let _e4 = sp;
-    let _e7 = node_count;
-    stack[_e4] = (_e7 - 1u);
+    stack[_e4] = (arrayLength((&nodes)) - 1u);
     let _e11 = sp;
     sp = (_e11 + 1u);
     loop {

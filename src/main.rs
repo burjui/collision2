@@ -142,11 +142,10 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let bvh_build_params = BvhBuildParameters::new(object_count);
         // TODO: don't store leaves
         let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
-        let nodes = GpuBuffer::new(bvh_build_params.node_count(), "bvh node buffer", storage_copy_dst, &device);
+        let node_count = bvh_build_params.node_count();
+        let nodes = GpuBuffer::new(node_count, "bvh node buffer", storage_copy_dst, &device);
         nodes.write_iter(&queue, (0..u32::try_from(object_count).unwrap()).map(BvhNode::new));
         let bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
-        let node_count = bvh_builder.node_count();
-
         // TODO: split AABBs of objects and nodes
         let aabbs = GpuBuffer::new(node_count, "aabb buffer", storage_copy_dst, &device);
         aabbs.write(&queue, &objects.aabbs);
@@ -168,9 +167,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         size_factor.write(&queue, &[1.0]);
         let shape_renderer =
             ShapeRenderer::new(&device, swapchain_format, camera.clone(), size_factor.clone(), colors, shapes);
-        let node_count = u32::try_from(node_count).unwrap();
-        let node_count_buffer =
-            GpuBuffer::from_data(&[node_count], "node count buffer", BufferUsages::UNIFORM, &device);
         let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), node_count);
         let exit_requested = Arc::new(AtomicBool::new(false));
 
@@ -179,7 +175,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             phase_state_ring.clone(),
             masses,
             nodes,
-            node_count_buffer,
             device.clone(),
             queue.clone(),
             exit_requested.clone(),
@@ -409,7 +404,6 @@ fn spawn_simulation_thread(
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: GpuBuffer<Mass>,
     nodes: GpuBuffer<BvhNode>,
-    node_count_buffer: GpuBuffer<u32>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     exit_requested: Arc<AtomicBool>,
@@ -418,7 +412,7 @@ fn spawn_simulation_thread(
     thread::spawn({
         // let device = device.clone();
         let dt = GpuBuffer::from_data(&[0.001], "dt buffer", BufferUsages::UNIFORM, &device);
-        let mut integrator = GpuIntegrator::new(&device, dt, masses, nodes, node_count_buffer.clone(), object_count);
+        let mut integrator = GpuIntegrator::new(&device, dt, masses, nodes, object_count);
 
         let (tx, rx) = channel::bounded(PhaseStateRing::CAPACITY);
         let mut frames_submitted = 0usize;

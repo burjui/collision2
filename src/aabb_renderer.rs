@@ -30,7 +30,7 @@ impl AabbRenderer {
         device: &Device,
         swapchain_format: TextureFormat,
         camera_buffer: GpuBuffer<Camera>,
-        node_count: u32,
+        node_count: usize,
     ) -> Self {
         let pipeline_layout = aabb_frame::create_pipeline_layout(device);
         let shader = aabb_frame::create_shader_module_embed_source(device);
@@ -64,7 +64,7 @@ impl AabbRenderer {
             }),
         );
         Self {
-            node_count,
+            node_count: u32::try_from(node_count).unwrap(),
             render_pipeline,
             fixed_bind_group,
             phase_state_bind_groups: from_fn(|_| None),

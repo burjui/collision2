@@ -45,7 +45,6 @@ impl GpuIntegrator {
         dt: GpuBuffer<f32>,
         masses: GpuBuffer<Mass>,
         nodes: GpuBuffer<BvhNode>,
-        node_count: GpuBuffer<u32>,
         object_count: usize,
     ) -> Self {
         let blackholes = GpuBuffer::from_data(Self::BLACKHOLES, "blackholes", BufferUsages::STORAGE, device);
@@ -68,7 +67,6 @@ impl GpuIntegrator {
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 dt: dt.buffer().as_entire_buffer_binding(),
-                node_count: node_count.buffer().as_entire_buffer_binding(),
                 gravitational_constant: gravitational_constant.buffer().as_entire_buffer_binding(),
                 global_force: global_force.buffer().as_entire_buffer_binding(),
                 masses: masses.buffer().as_entire_buffer_binding(),
