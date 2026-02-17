@@ -11,9 +11,8 @@ const SHAPE_RECT: u32 = 0;
 const SHAPE_CIRCLE: u32 = 1;
 
 @group(0) @binding(0) var<uniform> camera: Camera;
-@group(0) @binding(1) var<uniform> size_factor: f32; // TODO: rename to scale
-@group(0) @binding(2) var<storage, read> colors: array<Color>;
-@group(0) @binding(3) var<storage, read> shapes: array<Shape>;
+@group(0) @binding(1) var<storage, read> colors: array<Color>;
+@group(0) @binding(2) var<storage, read> shapes: array<Shape>;
 
 @group(1) @binding(0) var<storage, read> flags: array<Flags>;
 @group(1) @binding(1) var<storage, read> aabbs: array<AABB>;
@@ -34,7 +33,6 @@ fn vs_main(
     }
 
     let aabb = aabbs[i];
-    var scale = (aabb.max - aabb.min) * size_factor;
     var v = velocities[i].inner;
     let relative_speed = clamp(max(0, length(v) - COLORING_SPEED_MIN) / COLORING_SPEED_MAX, 0, 1);
     if (f & FLAG_PHYSICAL) == 0 {
@@ -43,6 +41,7 @@ fn vs_main(
         out.color = velocity_to_color(v, sqrt(relative_speed));
     }
 
+    var scale = (aabb.max - aabb.min);
     // scale *= sqrt(sqrt(relative_speed)) * 1.5;
     let center = (aabb.min + aabb.max) / 2;
     let model = mat4x4f(

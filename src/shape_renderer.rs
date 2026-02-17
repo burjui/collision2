@@ -29,7 +29,6 @@ impl ShapeRenderer {
         device: &Device,
         swapchain_format: TextureFormat,
         camera: GpuBuffer<Camera>,
-        size_factor: GpuBuffer<f32>,
         colors: GpuBuffer<Color>,
         shapes: GpuBuffer<Shape>,
     ) -> Self {
@@ -62,7 +61,6 @@ impl ShapeRenderer {
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 camera: camera.buffer().as_entire_buffer_binding(),
-                size_factor: size_factor.buffer().as_entire_buffer_binding(),
                 colors: colors.buffer().as_entire_buffer_binding(),
                 shapes: shapes.buffer().as_entire_buffer_binding(),
             }),

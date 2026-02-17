@@ -8,7 +8,6 @@ pub mod integration;
 #[cfg(test)]
 mod mock_bvh_test;
 pub mod objects;
-pub mod pass_duration;
 pub mod phase_state;
 pub mod scene;
 pub mod shaders;
@@ -44,15 +43,16 @@ use std::{
     time::Duration,
 };
 use wgpu::{
-    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, PollType, PresentMode, RenderPassColorAttachment,
-    RenderPassDescriptor, RequestAdapterOptions, TextureFormat, TextureView, TextureViewDescriptor,
+    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor, InstanceDescriptor,
+    PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
+    RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureView, TextureViewDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
     event::{ElementState, KeyEvent, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
-    keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
+    keyboard::KeyCode,
     window::{Fullscreen, Window, WindowAttributes, WindowId},
 };
 
@@ -107,37 +107,27 @@ struct GpuState<'a> {
     camera: GpuBuffer<Camera>,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
 
-    surface_config: wgpu::SurfaceConfiguration,
-    queue: wgpu::Queue,
-    device: wgpu::Device,
-    surface: wgpu::Surface<'a>,
     window: Arc<Window>,
+    surface: wgpu::Surface<'a>,
+    surface_config: wgpu::SurfaceConfiguration,
+    device: Device,
+    queue: Queue,
 }
 
 impl ApplicationHandler<AppEvent> for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let mut window_attributes = WindowAttributes::default();
-        window_attributes.inner_size = Some(PhysicalSize::new(1600, 800).into());
-        window_attributes.fullscreen = Some(Fullscreen::Borderless(None));
-        let window = Arc::new(event_loop.create_window(window_attributes).expect("Failed to create window"));
-        let wgpu = wgpu::Instance::new(&wgpu::InstanceDescriptor::from_env_or_default());
-        // TODO: refactor, too much noise
-        let surface = wgpu.create_surface(window.clone()).unwrap();
-        let (adapter, device, queue, swapchain_format) = init_wgpu(&wgpu, &surface);
-        let window_size = window.inner_size();
-        let surface_config = wgpu::SurfaceConfiguration {
-            present_mode: PresentMode::AutoVsync,
-            ..surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap()
-        };
-        surface.configure(&device, &surface_config);
+        let window = create_window(event_loop);
+        let wgpu_instance = wgpu::Instance::new(&InstanceDescriptor::from_env_or_default());
+        let surface = wgpu_instance.create_surface(window.clone()).unwrap();
+        let (surface_config, device, queue, swapchain_format) = init_wgpu(&wgpu_instance, &window, &surface);
 
+        let mut objects = Objects::default();
         let world_aabb = AABB {
             min: [-1000.0, -1000.0],
             max: [1000.0, 1000.0],
         };
-
-        let mut objects = Objects::default();
         create_scene(&mut objects, world_aabb);
+
         let object_count = objects.flags.len();
         let bvh_build_params = BvhBuildParameters::new(object_count);
         // TODO: don't store leaves
@@ -146,9 +136,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let nodes = GpuBuffer::new(node_count, "bvh node buffer", storage_copy_dst, &device);
         nodes.write_iter(&queue, (0..u32::try_from(object_count).unwrap()).map(BvhNode::new));
         let bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
-        // TODO: split AABBs of objects and nodes
-        let aabbs = GpuBuffer::new(node_count, "aabb buffer", storage_copy_dst, &device);
-        aabbs.write(&queue, &objects.aabbs);
 
         let masses = GpuBuffer::from_data(&objects.masses, "mass buffer", storage_copy_dst, &device);
         let colors = GpuBuffer::from_data(&objects.colors, "color buffer", storage_copy_dst, &device);
@@ -157,16 +144,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let phase_state_ring =
             Arc::new(Mutex::new(PhaseStateRing::new(&device, &objects.flags, &objects.aabbs, &objects.velocities)));
 
+        let window_size = window.inner_size();
         println!("Window size: {}x{}", window_size.width, window_size.height);
         println!("Object count: {}", object_count);
 
         let camera =
             GpuBuffer::<Camera>::new(1, "camera buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        let size_factor =
-            GpuBuffer::new(1, "size factor buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        size_factor.write(&queue, &[1.0]);
-        let shape_renderer =
-            ShapeRenderer::new(&device, swapchain_format, camera.clone(), size_factor.clone(), colors, shapes);
+        let shape_renderer = ShapeRenderer::new(&device, swapchain_format, camera.clone(), colors, shapes);
         let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), node_count);
         let exit_requested = Arc::new(AtomicBool::new(false));
 
@@ -204,11 +188,11 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             camera,
             phase_state_ring,
 
-            surface_config,
-            queue,
-            device,
-            surface,
             window,
+            surface,
+            surface_config,
+            device,
+            queue,
         });
     }
 
@@ -247,38 +231,16 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 }
             }
 
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key: PhysicalKey::Code(KeyCode::KeyR),
-                        state: ElementState::Pressed,
-                        ..
-                    },
-                ..
-            } => self.render_parameters.enabled = !self.render_parameters.enabled,
-
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key: PhysicalKey::Code(KeyCode::KeyA),
-                        state: ElementState::Pressed,
-                        ..
-                    },
-                ..
-            } => {
-                self.render_parameters.draw_aabbs = !self.render_parameters.draw_aabbs;
+            WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::KeyR) => {
+                self.render_parameters.enabled = !self.render_parameters.enabled
             }
 
-            WindowEvent::CloseRequested
-            | WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        logical_key: Key::Named(NamedKey::Escape),
-                        state: ElementState::Pressed,
-                        ..
-                    },
-                ..
-            } => event_loop.exit(),
+            WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::KeyA) => {
+                self.render_parameters.draw_aabbs = !self.render_parameters.draw_aabbs
+            }
+
+            WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::Escape) => event_loop.exit(),
+            WindowEvent::CloseRequested => event_loop.exit(),
 
             WindowEvent::MouseWheel {
                 delta: MouseScrollDelta::LineDelta(_, dy),
@@ -304,36 +266,54 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     }
 }
 
+fn key_pressed(event: &KeyEvent, key: KeyCode) -> bool {
+    event.state == ElementState::Pressed && event.physical_key == key
+}
+
+fn create_window(event_loop: &ActiveEventLoop) -> Arc<Window> {
+    let mut window_attributes = WindowAttributes::default();
+    window_attributes.inner_size = Some(PhysicalSize::new(1600, 800).into());
+    window_attributes.fullscreen = Some(Fullscreen::Borderless(None));
+    let window = event_loop.create_window(window_attributes).expect("Failed to create window");
+    Arc::new(window)
+}
+
 fn init_wgpu(
-    wgpu: &wgpu::Instance,
-    surface: &wgpu::Surface<'_>,
-) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue, TextureFormat) {
-    let adapter = block_on(wgpu.request_adapter(&RequestAdapterOptions {
-        power_preference: wgpu::PowerPreference::from_env().unwrap_or(wgpu::PowerPreference::None),
+    instance: &wgpu::Instance,
+    window: &Window,
+    surface: &Surface,
+) -> (SurfaceConfiguration, Device, Queue, TextureFormat) {
+    let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
+        power_preference: PowerPreference::from_env().unwrap_or(PowerPreference::None),
         force_fallback_adapter: false,
         compatible_surface: Some(surface),
     }))
     .expect("Failed to find an appropriate adapter");
 
-    let mut required_limits = wgpu::Limits::defaults().using_resolution(adapter.limits());
-    required_limits.max_push_constant_size = u32::try_from(size_of::<CombineNodePass>()).unwrap();
-    let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+    let required_features = wgpu::Features::PUSH_CONSTANTS | wgpu::Features::POLYGON_MODE_LINE;
+    let required_limits = wgpu::Limits {
+        max_push_constant_size: u32::try_from(size_of::<CombineNodePass>()).unwrap(),
+        ..wgpu::Limits::defaults().using_resolution(adapter.limits())
+    };
+    let (device, queue) = block_on(adapter.request_device(&DeviceDescriptor {
         label: None,
-        required_features: wgpu::Features::PIPELINE_CACHE
-            | wgpu::Features::TIMESTAMP_QUERY
-            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS
-            | wgpu::Features::PUSH_CONSTANTS
-            | wgpu::Features::POLYGON_MODE_LINE,
+        required_features,
         required_limits,
         experimental_features: wgpu::ExperimentalFeatures::disabled(),
-        memory_hints: wgpu::MemoryHints::Performance,
+        memory_hints: wgpu::MemoryHints::default(),
         trace: wgpu::Trace::Off,
     }))
     .expect("Failed to create device");
 
+    let window_size = window.inner_size();
+    let surface_config = wgpu::SurfaceConfiguration {
+        present_mode: PresentMode::AutoVsync,
+        ..surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap()
+    };
+    surface.configure(&device, &surface_config);
     let swapchain_capabilities = surface.get_capabilities(&adapter);
     let swapchain_format = swapchain_capabilities.formats[0];
-    (adapter, device, queue, swapchain_format)
+    (surface_config, device, queue, swapchain_format)
 }
 
 fn render_scene(
@@ -343,8 +323,8 @@ fn render_scene(
     aabb_renderer: &mut AabbRenderer,
     phase_state_ring: &Arc<Mutex<PhaseStateRing>>,
     range: Range<usize>,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
+    device: &Device,
+    queue: &Queue,
 ) {
     let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -404,8 +384,8 @@ fn spawn_simulation_thread(
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: GpuBuffer<Mass>,
     nodes: GpuBuffer<BvhNode>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    device: Device,
+    queue: Queue,
     exit_requested: Arc<AtomicBool>,
     mut bvh_builder: BvhBuilder,
 ) {

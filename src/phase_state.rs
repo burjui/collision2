@@ -11,6 +11,7 @@ use crate::{
 /// NOTE: it doesn't contain BVH nodes because these are not used by the renderer
 #[derive(Clone)]
 pub struct PhaseState {
+    // TODO: split AABBs of objects and nodes
     aabbs: GpuBuffer<AABB>,
     velocities: GpuBuffer<Velocity>,
     flags: GpuBuffer<Flags>,

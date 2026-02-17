@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: e0dac70de32da76c587d6e6cccd6396913ba7fb04708bc767c16f4aaf012ea53
+// SourceHash: a15334d56dc6d8fc908166a3a81653399aca9d88c884b65c8f0e49e0331798f7
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -355,14 +355,12 @@ pub mod shape {
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub camera: wgpu::BufferBinding<'a>,
-        pub size_factor: wgpu::BufferBinding<'a>,
         pub colors: wgpu::BufferBinding<'a>,
         pub shapes: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub camera: wgpu::BindGroupEntry<'a>,
-        pub size_factor: wgpu::BindGroupEntry<'a>,
         pub colors: wgpu::BindGroupEntry<'a>,
         pub shapes: wgpu::BindGroupEntry<'a>,
     }
@@ -373,22 +371,18 @@ pub mod shape {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.camera),
                 },
-                size_factor: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.size_factor),
-                },
                 colors: wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.colors),
                 },
                 shapes: wgpu::BindGroupEntry {
-                    binding: 3,
+                    binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.shapes),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
-            [self.camera, self.size_factor, self.colors, self.shapes]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
+            [self.camera, self.colors, self.shapes]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -411,20 +405,9 @@ pub mod shape {
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"size_factor\""]
+                #[doc = " @binding(1): \"colors\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(2): \"colors\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -433,9 +416,9 @@ pub mod shape {
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"shapes\""]
+                #[doc = " @binding(2): \"shapes\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 3,
+                    binding: 2,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -646,10 +629,8 @@ const COLORING_SPEED_MAX: f32 = 4000f;
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(1) 
-var<uniform> size_factor: f32;
-@group(0) @binding(2) 
 var<storage> colors: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(3) 
+@group(0) @binding(2) 
 var<storage> shapes: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(0) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
@@ -722,8 +703,8 @@ fn sdf_cirle(p: vec2<f32>) -> f32 {
 @vertex 
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput = VertexOutput();
-    var scale: vec2<f32>;
     var v: vec2<f32>;
+    var scale: vec2<f32>;
 
     let f = flags[i].inner;
     if ((f & FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
@@ -731,32 +712,31 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
         return _e11;
     }
     let aabb = aabbs[i];
-    let _e19 = size_factor;
-    scale = ((aabb.max - aabb.min) * _e19);
-    let _e25 = velocities[i].inner;
-    v = _e25;
-    let _e27 = v;
-    let relative_speed_1 = clamp((max(0f, (length(_e27) - COLORING_SPEED_MIN)) / COLORING_SPEED_MAX), 0f, 1f);
+    let _e18 = velocities[i].inner;
+    v = _e18;
+    let _e20 = v;
+    let relative_speed_1 = clamp((max(0f, (length(_e20) - COLORING_SPEED_MIN)) / COLORING_SPEED_MAX), 0f, 1f);
     if ((f & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
-        let _e46 = colors[i].inner;
-        out.color = _e46;
+        let _e39 = colors[i].inner;
+        out.color = _e39;
     } else {
-        let _e48 = v;
-        let _e50 = velocity_to_color(_e48, sqrt(relative_speed_1));
-        out.color = _e50;
+        let _e41 = v;
+        let _e43 = velocity_to_color(_e41, sqrt(relative_speed_1));
+        out.color = _e43;
     }
+    scale = (aabb.max - aabb.min);
     let center = ((aabb.min + aabb.max) / vec2(2f));
-    let _e58 = scale.x;
-    let _e60 = scale.y;
-    let model = mat4x4<f32>(vec4<f32>(_e58, 0f, 0f, 0f), vec4<f32>(0f, _e60, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
+    let _e55 = scale.x;
+    let _e57 = scale.y;
+    let model = mat4x4<f32>(vec4<f32>(_e55, 0f, 0f, 0f), vec4<f32>(0f, _e57, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
     let vertex = UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX[vertex_index];
-    let _e86 = camera.inner;
-    out.clip_position = ((_e86 * model) * vec4<f32>(vertex, 0f, 1f));
+    let _e83 = camera.inner;
+    out.clip_position = ((_e83 * model) * vec4<f32>(vertex, 0f, 1f));
     out.quad_position = vertex;
-    let _e97 = shapes[i].inner;
-    out.shape = _e97;
-    let _e98 = out;
-    return _e98;
+    let _e94 = shapes[i].inner;
+    out.shape = _e94;
+    let _e95 = out;
+    return _e95;
 }
 
 @fragment 
