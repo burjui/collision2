@@ -35,11 +35,11 @@ fn vs_main(
     let aabb = aabbs[i];
     var v = velocities[i].inner;
     let relative_speed = clamp(max(0, length(v) - COLORING_SPEED_MIN) / COLORING_SPEED_MAX, 0, 1);
-    if (f & FLAG_PHYSICAL) == 0 {
+    // if (f & FLAG_PHYSICAL) == 0 {
         out.color = colors[i].inner;
-    } else {
-        out.color = velocity_to_color(v, sqrt(relative_speed));
-    }
+    // } else {
+        // out.color = velocity_to_color(v, sqrt(relative_speed));
+    // }
 
     var scale = (aabb.max - aabb.min);
     // scale *= sqrt(sqrt(relative_speed)) * 1.5;

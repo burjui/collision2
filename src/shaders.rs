@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: dcf97065926a394f4041ef7e4d4cec4c1b7b1aebadaeec3708892ec8fe400870
+// SourceHash: 04a789d2feca65b99ff011a4de59c4c6e619efb278177d516f9a32e128b4be09
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -620,7 +620,6 @@ struct FragmentOutput {
 
 const UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
-const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
 const COLORING_SPEED_MIN: f32 = 0f;
@@ -638,6 +637,10 @@ var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(2) 
 var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
+
+fn sdf_cirle(p: vec2<f32>) -> f32 {
+    return (length(p) - 0.5f);
+}
 
 fn wavelength_to_rgb(lambda: f32) -> vec3<f32> {
     var r: f32 = 0f;
@@ -696,10 +699,6 @@ fn velocity_to_color(velocity: vec2<f32>, relative_speed: f32) -> vec4<f32> {
     return vec4<f32>((_e7 * _e8), 0.1f);
 }
 
-fn sdf_cirle(p: vec2<f32>) -> f32 {
-    return (length(p) - 0.5f);
-}
-
 @vertex 
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput = VertexOutput();
@@ -716,27 +715,21 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     v = _e18;
     let _e20 = v;
     let relative_speed_1 = clamp((max(0f, (length(_e20) - COLORING_SPEED_MIN)) / COLORING_SPEED_MAX), 0f, 1f);
-    if ((f & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
-        let _e39 = colors[i].inner;
-        out.color = _e39;
-    } else {
-        let _e41 = v;
-        let _e43 = velocity_to_color(_e41, sqrt(relative_speed_1));
-        out.color = _e43;
-    }
+    let _e35 = colors[i].inner;
+    out.color = _e35;
     scale = (aabb.max - aabb.min);
     let center = ((aabb.min + aabb.max) / vec2(2f));
-    let _e55 = scale.x;
-    let _e57 = scale.y;
-    let model = mat4x4<f32>(vec4<f32>(_e55, 0f, 0f, 0f), vec4<f32>(0f, _e57, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
+    let _e47 = scale.x;
+    let _e49 = scale.y;
+    let model = mat4x4<f32>(vec4<f32>(_e47, 0f, 0f, 0f), vec4<f32>(0f, _e49, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
     let vertex = UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX[vertex_index];
-    let _e83 = camera.inner;
-    out.clip_position = ((_e83 * model) * vec4<f32>(vertex, 0f, 1f));
+    let _e75 = camera.inner;
+    out.clip_position = ((_e75 * model) * vec4<f32>(vertex, 0f, 1f));
     out.quad_position = vertex;
-    let _e94 = shapes[i].inner;
-    out.shape = _e94;
-    let _e95 = out;
-    return _e95;
+    let _e86 = shapes[i].inner;
+    out.shape = _e86;
+    let _e87 = out;
+    return _e87;
 }
 
 @fragment 

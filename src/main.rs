@@ -21,7 +21,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread::{self},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use crossbeam::channel;
@@ -68,12 +68,12 @@ struct App<'a> {
     render_parameters: RenderParameters,
     gpu_state: Option<GpuState<'a>>,
     world_aabb: AABB,
-    _event_loop_proxy: EventLoopProxy<AppEvent>,
+    event_loop_proxy: EventLoopProxy<AppEvent>,
     cursor_position: Option<Vector2<f32>>,
 }
 
 impl App<'_> {
-    fn new(_event_loop_proxy: EventLoopProxy<AppEvent>) -> Self {
+    fn new(event_loop_proxy: EventLoopProxy<AppEvent>) -> Self {
         Self {
             render_parameters: RenderParameters::default(),
             world_aabb: AABB {
@@ -81,14 +81,16 @@ impl App<'_> {
                 max: [1000.0, 1000.0],
             },
             gpu_state: None,
-            _event_loop_proxy,
+            event_loop_proxy,
             cursor_position: None,
         }
     }
 }
 
 #[derive(Copy, Clone, Debug)]
-enum AppEvent {}
+enum AppEvent {
+    RedrawRequested,
+}
 
 struct RenderParameters {
     enabled: bool,
@@ -176,6 +178,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             nodes,
             bvh_builder,
             exit_requested.clone(),
+            self.event_loop_proxy.clone(),
         );
 
         thread::spawn({
@@ -301,11 +304,21 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(state) = &self.gpu_state {
-            state.window.request_redraw();
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
+        match event {
+            AppEvent::RedrawRequested => {
+                if let Some(state) = &self.gpu_state {
+                    state.window.request_redraw();
+                }
+            }
         }
     }
+
+    // fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    //     if let Some(state) = &self.gpu_state {
+    //         state.window.request_redraw();
+    //     }
+    // }
 }
 
 fn key_pressed(event: &KeyEvent, key: KeyCode) -> bool {
@@ -349,8 +362,7 @@ fn init_wgpu(
 
     let window_size = window.inner_size();
     let surface_config = wgpu::SurfaceConfiguration {
-        present_mode: PresentMode::AutoVsync,
-        desired_maximum_frame_latency: 4,
+        present_mode: PresentMode::AutoNoVsync,
         ..surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap()
     };
     surface.configure(&device, &surface_config);
@@ -432,19 +444,31 @@ fn spawn_simulation_thread(
     nodes: GpuBuffer<BvhNode>,
     mut bvh_builder: BvhBuilder,
     exit_requested: Arc<AtomicBool>,
+    event_loop_proxy: EventLoopProxy<AppEvent>,
 ) {
     thread::spawn({
-        // let device = device.clone();
-        let dt = GpuBuffer::from_data(&[0.001], "dt buffer", BufferUsages::UNIFORM, &device);
+        const DT: f32 = 0.0002;
+
+        let dt = GpuBuffer::from_data(&[DT], "dt buffer", BufferUsages::UNIFORM, &device);
         let mut integrator = GpuIntegrator::new(&device, dt, masses, nodes, object_count);
 
         let (tx, rx) = channel::bounded(PhaseStateRing::CAPACITY);
-        let mut frames_submitted = 0usize;
+        let mut frame_count: usize = 0;
+        let mut frames_in_flight: usize = 0;
+        let mut last_frame_instant = Instant::now();
+        let start_instant = Instant::now();
 
         move || loop {
             if exit_requested.load(Ordering::Relaxed) {
                 break;
             }
+
+            if last_frame_instant.elapsed() > Duration::from_secs_f32(1.0 / 60.0) {
+                event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
+                last_frame_instant = Instant::now();
+            }
+
+            // Set up bvh and integrator buffers, advance the 2-state sliding window that the integrator uses
 
             let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
             let phase_state_index = phase_state_ring_guard.current_index();
@@ -456,29 +480,47 @@ fn spawn_simulation_thread(
             bvh_builder.prepare(phase_state_index, &device, &current_phase_state);
             integrator.prepare(phase_state_index, &device, &current_phase_state, &next_phase_state);
 
+            // Run the bvh builder and the integrator
+
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("bvh pass"),
                 timestamp_writes: None,
             });
-            // TODO: batch updates?
+
             bvh_builder.compute(&mut compute_pass);
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
-            let command_buffer = encoder.finish();
-            queue.submit([command_buffer]);
+
+            queue.submit([encoder.finish()]);
             queue.on_submitted_work_done({
                 let tx = tx.clone();
                 move || {
                     let _ = tx.send(());
                 }
             });
+
             device.poll(PollType::Poll).unwrap();
 
-            frames_submitted += 1;
-            if frames_submitted >= PhaseStateRing::CAPACITY {
+            // Keep one phase state for renderer, the rest for the integrator
+
+            frames_in_flight += 1;
+            if frames_in_flight >= PhaseStateRing::CAPACITY - 1 {
                 rx.recv().unwrap();
-                frames_submitted -= 1;
+                frames_in_flight -= 1;
+            }
+
+            // Print stats
+
+            frame_count += 1;
+            let sim_time = frame_count as f32 * DT;
+            let real_time = start_instant.elapsed().as_secs_f32();
+            println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
+
+            // Only run for a fixed duration
+
+            if sim_time > 5.0 {
+                break;
             }
         }
     });

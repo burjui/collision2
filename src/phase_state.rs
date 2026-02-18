@@ -64,21 +64,18 @@ impl PhaseState {
     }
 }
 
-const N_PHASE_STATES: usize = 2;
-const _: () = assert!(N_PHASE_STATES > 1);
-
-fn next_index(index: usize) -> usize {
-    (index + 1) % N_PHASE_STATES
-}
-
 pub struct PhaseStateRing {
-    states: [PhaseState; N_PHASE_STATES],
+    states: [PhaseState; Self::CAPACITY],
     oldest_index: usize,
     current_index: usize,
 }
 
 impl PhaseStateRing {
-    pub const CAPACITY: usize = N_PHASE_STATES;
+    pub const CAPACITY: usize = {
+        const CAPACITY: usize = 4;
+        assert!(CAPACITY > 1);
+        CAPACITY
+    };
 
     pub fn new(
         device: &Device,
@@ -119,4 +116,8 @@ impl PhaseStateRing {
             self.oldest_index = next_index(self.oldest_index);
         }
     }
+}
+
+fn next_index(index: usize) -> usize {
+    (index + 1) % PhaseStateRing::CAPACITY
 }
