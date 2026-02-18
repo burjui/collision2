@@ -32,7 +32,7 @@ struct BlackHole {
 }
 
 const STIFFNESS: f32 = 1000000;
-const RESTITUTION: f32 = 0.85;
+const RESTITUTION: f32 = 0.8;
 const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(5.0) * sqrt(STIFFNESS);
 
 @compute @workgroup_size(WORKGROUP_SIZE)
@@ -158,6 +158,11 @@ fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> ve
         let node_index = stack[sp - 1];
         sp--;
 
+        let other_aabb = aabbs[node_index];
+        if !aabb_overlaps(aabb, other_aabb) {
+            continue;
+        }
+
         let other_index = nodes[node_index].index;
         if (other_index & BVH_NODE_TREE_FLAG) != 0 {
             if sp >= MAX_STACK_DEPTH - 2 {
@@ -169,11 +174,8 @@ fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> ve
             stack[sp + 1] = i + 1;
             sp += 2;
         } else if other_index != index && (flags[other_index].inner & FLAG_PHYSICAL) != 0 {
-            let other_aabb = aabbs[other_index];
-            if aabb_overlaps(aabb, other_aabb) {
-                // TODO: pairwise force accumulation for precision
-                total_force += collision_repulsion_pair(aabb, other_aabb, velocity, mass, other_index);
-            }
+            // TODO: pairwise force accumulation for precision
+            total_force += collision_repulsion_pair(aabb, other_aabb, velocity, mass, other_index);
         }
     }
 

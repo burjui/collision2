@@ -16,7 +16,7 @@ use crate::{
 pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     let world_size = world_aabb.size();
     let circles = {
-        const RADIUS: f32 = 8.0;
+        const RADIUS: f32 = 5.0;
         const PADDING: f32 = 1.0;
         const POSITION_RAND_FACTOR: f32 = 0.1;
         const VELOCITY_RAND_MAX: f32 = 100.0;

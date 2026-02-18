@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 3e31c9feb2bbcfa69778569bfa40f55efec3d6c829ea7bba880042345c9df06f
+// SourceHash: dcf97065926a394f4041ef7e4d4cec4c1b7b1aebadaeec3708892ec8fe400870
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1371,8 +1371,8 @@ pub mod integration {
     }
     pub const WORKGROUP_SIZE: u32 = 64u32;
     pub const STIFFNESS: f32 = 1000000f32;
-    pub const RESTITUTION: f32 = 0.85f32;
-    pub const GAMMA_COEFF: f32 = 186.15263f32;
+    pub const RESTITUTION: f32 = 0.8f32;
+    pub const GAMMA_COEFF: f32 = 241.49533f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const INTEGRATE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1881,8 +1881,8 @@ const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
 const STIFFNESS: f32 = 1000000f;
-const RESTITUTION: f32 = 0.85f;
-const GAMMA_COEFF: f32 = 186.15263f;
+const RESTITUTION: f32 = 0.8f;
+const GAMMA_COEFF: f32 = 241.49533f;
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
@@ -1964,14 +1964,14 @@ fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: A
     let _e45 = v_ij_n;
     if ((penetration <= 0f) && (_e45 > 0f)) {
         let _e50 = v_ij_n;
-        v_ij_n = (-0.85f * _e50);
+        v_ij_n = (-0.8f * _e50);
     }
     let m2_ = masses[other_index].inner;
     let m_eff = ((mass_1 * m2_) / (mass_1 + m2_));
     let _e60 = v_ij_n;
     if (_e60 < 0f) {
         let _e66 = v_ij_n;
-        f_damping = (((-186.15263f * sqrt(m_eff)) * _e66) * n);
+        f_damping = (((-241.49533f * sqrt(m_eff)) * _e66) * n);
     }
     let f_elastic = ((STIFFNESS * penetration) * n);
     let _e73 = f_damping;
@@ -1998,35 +1998,36 @@ fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velo
             let node_index = stack[(_e16 - 1u)];
             let _e22 = sp;
             sp = (_e22 - 1u);
+            let other_aabb_1 = aabbs[node_index];
+            let _e28 = aabb_overlaps(aabb_1, other_aabb_1);
+            if !(_e28) {
+                continue;
+            }
             let other_index_1 = nodes[node_index].index;
             if ((other_index_1 & BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
-                let _e32 = sp;
-                if (_e32 >= 62u) {
+                let _e38 = sp;
+                if (_e38 >= 62u) {
                     break;
                 }
                 let i = (other_index_1 & 2147483647u);
-                let _e37 = sp;
-                stack[_e37] = i;
-                let _e39 = sp;
-                stack[(_e39 + 1u)] = (i + 1u);
-                let _e46 = sp;
-                sp = (_e46 + 2u);
+                let _e43 = sp;
+                stack[_e43] = i;
+                let _e45 = sp;
+                stack[(_e45 + 1u)] = (i + 1u);
+                let _e52 = sp;
+                sp = (_e52 + 2u);
             } else {
-                let _e53 = flags[other_index_1].inner;
-                if ((other_index_1 != index) && ((_e53 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
-                    let other_aabb_1 = aabbs[other_index_1];
-                    let _e63 = aabb_overlaps(aabb_1, other_aabb_1);
-                    if _e63 {
-                        let _e66 = collision_repulsion_pair(aabb_1, other_aabb_1, velocity_1, mass_2, other_index_1);
-                        let _e68 = total_force;
-                        total_force = (_e68 + _e66);
-                    }
+                let _e59 = flags[other_index_1].inner;
+                if ((other_index_1 != index) && ((_e59 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
+                    let _e67 = collision_repulsion_pair(aabb_1, other_aabb_1, velocity_1, mass_2, other_index_1);
+                    let _e69 = total_force;
+                    total_force = (_e69 + _e67);
                 }
             }
         }
     }
-    let _e70 = total_force;
-    return _e70;
+    let _e71 = total_force;
+    return _e71;
 }
 
 fn forces(state_2: ObjectPhaseState, index_1: u32, aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_3: f32) -> vec2<f32> {
