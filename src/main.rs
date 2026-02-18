@@ -469,7 +469,9 @@ fn spawn_simulation_thread(
             queue.submit([command_buffer]);
             queue.on_submitted_work_done({
                 let tx = tx.clone();
-                move || tx.send(()).unwrap()
+                move || {
+                    let _ = tx.send(());
+                }
             });
             device.poll(PollType::Poll).unwrap();
 
