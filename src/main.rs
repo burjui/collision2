@@ -25,6 +25,7 @@ use std::{
 };
 
 use crossbeam::channel;
+use nalgebra::Vector2;
 use pollster::block_on;
 use shaders::common::Mass;
 use wgpu::{
@@ -34,8 +35,8 @@ use wgpu::{
 };
 use winit::{
     application::ApplicationHandler,
-    dpi::PhysicalSize,
-    event::{ElementState, KeyEvent, MouseScrollDelta, WindowEvent},
+    dpi::{PhysicalPosition, PhysicalSize},
+    event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     keyboard::KeyCode,
     window::{Fullscreen, Window, WindowAttributes, WindowId},
@@ -66,15 +67,24 @@ fn main() {
 struct App<'a> {
     render_parameters: RenderParameters,
     gpu_state: Option<GpuState<'a>>,
+    world_aabb: AABB,
     _event_loop_proxy: EventLoopProxy<AppEvent>,
+    cursor_position: Option<PhysicalPosition<f64>>,
+    lmb_down: bool,
 }
 
 impl App<'_> {
     fn new(_event_loop_proxy: EventLoopProxy<AppEvent>) -> Self {
         Self {
             render_parameters: RenderParameters::default(),
+            world_aabb: AABB {
+                min: [-1000.0, -1000.0],
+                max: [1000.0, 1000.0],
+            },
             gpu_state: None,
             _event_loop_proxy,
+            cursor_position: None,
+            lmb_down: false,
         }
     }
 }
@@ -86,6 +96,7 @@ struct RenderParameters {
     enabled: bool,
     draw_aabbs: bool,
     zoom: f32,
+    offset: Vector2<f32>,
 }
 
 impl Default for RenderParameters {
@@ -94,6 +105,7 @@ impl Default for RenderParameters {
             enabled: true,
             draw_aabbs: false,
             zoom: 0.8,
+            offset: Vector2::new(0.0, 0.0),
         }
     }
 }
@@ -102,7 +114,6 @@ struct GpuState<'a> {
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
     exit_requested: Arc<AtomicBool>,
-    world_aabb: AABB,
     object_count: usize,
     camera: GpuBuffer<Camera>,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
@@ -122,17 +133,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let (surface_config, device, queue, swapchain_format) = init_wgpu(&wgpu_instance, &window, &surface);
 
         let mut objects = Objects::default();
-        let world_aabb = AABB {
-            min: [-1000.0, -1000.0],
-            max: [1000.0, 1000.0],
-        };
-        create_scene(&mut objects, world_aabb);
+        create_scene(&mut objects, self.world_aabb);
 
         let object_count = objects.flags.len();
         println!("Object count: {}", object_count);
         let window_size = window.inner_size();
         println!("Window size: {}x{}", window_size.width, window_size.height);
-        let world_size = world_aabb.size();
+        let world_size = self.world_aabb.size();
         println!("World size: {}x{}", world_size.x, world_size.y);
 
         let bvh_build_params = BvhBuildParameters::new(object_count);
@@ -191,7 +198,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             shape_renderer,
             aabb_renderer,
             exit_requested,
-            world_aabb,
             object_count,
             camera,
             phase_state_ring,
@@ -217,8 +223,8 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             WindowEvent::RedrawRequested => {
                 if let Some(state) = &mut self.gpu_state {
                     let view_size = state.window.inner_size();
-                    let world_height = state.world_aabb.max().y - state.world_aabb.min().y;
-                    let camera = orthographic_camera(self.render_parameters.zoom, view_size.cast(), world_height);
+                    let world_height = self.world_aabb.max().y - self.world_aabb.min().y;
+                    let camera = orthographic_camera(view_size.cast(), world_height, &self.render_parameters);
                     state.camera.write(&state.queue, &[Camera::new(camera)]);
 
                     let surface_texture =
@@ -255,6 +261,25 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 ..
             } => {
                 self.render_parameters.zoom *= 1.0 + dy * 0.1;
+            }
+
+            WindowEvent::MouseInput {
+                state,
+                button: MouseButton::Left,
+                ..
+            } => {
+                self.lmb_down = state == ElementState::Pressed;
+            }
+
+            WindowEvent::CursorMoved { position, .. } => {
+                if let Some(prev_position) = self.cursor_position
+                    && self.lmb_down
+                {
+                    let prev_position: [f64; 2] = prev_position.into();
+                    let position: [f64; 2] = position.into();
+                    self.render_parameters.offset += (Vector2::from(prev_position) - Vector2::from(position)).cast();
+                }
+                self.cursor_position = Some(position);
             }
 
             _ => (),
@@ -370,21 +395,24 @@ fn render_scene(
     queue.submit([encoder.finish()]);
 }
 
-fn orthographic_camera(zoom: f32, view_size: PhysicalSize<f32>, world_height: f32) -> [[f32; 4]; 4] {
+fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32, params: &RenderParameters) -> [[f32; 4]; 4] {
     let aspect = view_size.width / view_size.height;
     let world_width = world_height * aspect;
     let l = -world_width * 0.5;
     let r = world_width * 0.5;
     let b = -world_height * 0.5;
     let t = world_height * 0.5;
-    // TODO: implement panning
-    let sx = zoom * 2.0 / (r - l);
-    let sy = zoom * 2.0 / (t - b);
+    // Zoom: params.zoom is in world space
+    let sx = params.zoom * 2.0 / (r - l);
+    let sy = params.zoom * 2.0 / (t - b);
+    // Panning: params.offset is in screen space
+    let tx = -params.offset.x * 2.0 / (r - l);
+    let ty = params.offset.y * 2.0 / (t - b);
     [
         [sx, 0.0, 0.0, 0.0],
         [0.0, sy, 0.0, 0.0],
         [0.0, 0.0, -1.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0],
+        [tx, ty, 0.0, 1.0],
     ]
 }
 
