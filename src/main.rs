@@ -35,8 +35,8 @@ use wgpu::{
 };
 use winit::{
     application::ApplicationHandler,
-    dpi::{PhysicalPosition, PhysicalSize},
-    event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent},
+    dpi::PhysicalSize,
+    event::{ElementState, KeyEvent, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     keyboard::KeyCode,
     window::{Fullscreen, Window, WindowAttributes, WindowId},
@@ -69,8 +69,7 @@ struct App<'a> {
     gpu_state: Option<GpuState<'a>>,
     world_aabb: AABB,
     _event_loop_proxy: EventLoopProxy<AppEvent>,
-    cursor_position: Option<PhysicalPosition<f64>>,
-    lmb_down: bool,
+    cursor_position: Option<Vector2<f32>>,
 }
 
 impl App<'_> {
@@ -84,7 +83,6 @@ impl App<'_> {
             gpu_state: None,
             _event_loop_proxy,
             cursor_position: None,
-            lmb_down: false,
         }
     }
 }
@@ -260,26 +258,37 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 delta: MouseScrollDelta::LineDelta(_, dy),
                 ..
             } => {
-                self.render_parameters.zoom *= 1.0 + dy * 0.1;
-            }
-
-            WindowEvent::MouseInput {
-                state,
-                button: MouseButton::Left,
-                ..
-            } => {
-                self.lmb_down = state == ElementState::Pressed;
+                if let Some(state) = &self.gpu_state {
+                    if let Some(cursor_pos) = self.cursor_position {
+                        let zoom_old = self.render_parameters.zoom;
+                        let zoom_new = self.render_parameters.zoom * (1.0 + dy * 0.1);
+                        let view_size = state.window.inner_size();
+                        let view_center = Vector2::new(view_size.width as f32 / 2.0, view_size.height as f32 / 2.0);
+                        let cursor_relative_to_center = cursor_pos - view_center;
+                        let world_height = self.world_aabb.max().y - self.world_aabb.min().y;
+                        let aspect = view_size.width as f32 / view_size.height as f32;
+                        let world_width = world_height * aspect;
+                        let view_width = view_size.width as f32;
+                        let view_height = view_size.height as f32;
+                        let cursor_offset_world_x = cursor_relative_to_center.x * world_width / view_width;
+                        let cursor_offset_world_y = cursor_relative_to_center.y * world_height / view_height;
+                        let zoom_ratio = zoom_new / zoom_old - 1.0;
+                        self.render_parameters.zoom = zoom_new;
+                        self.render_parameters.offset.x +=
+                            (self.render_parameters.offset.x + cursor_offset_world_x) * zoom_ratio;
+                        self.render_parameters.offset.y +=
+                            (self.render_parameters.offset.y + cursor_offset_world_y) * zoom_ratio;
+                    } else {
+                        self.render_parameters.zoom *= 1.0 + dy * 0.1;
+                    }
+                } else {
+                    self.render_parameters.zoom *= 1.0 + dy * 0.1;
+                }
             }
 
             WindowEvent::CursorMoved { position, .. } => {
-                if let Some(prev_position) = self.cursor_position
-                    && self.lmb_down
-                {
-                    let prev_position: [f64; 2] = prev_position.into();
-                    let position: [f64; 2] = position.into();
-                    self.render_parameters.offset += (Vector2::from(prev_position) - Vector2::from(position)).cast();
-                }
-                self.cursor_position = Some(position);
+                let position: [f64; 2] = position.into();
+                self.cursor_position = Some(Vector2::from(position).cast());
             }
 
             _ => (),
@@ -398,16 +407,14 @@ fn render_scene(
 fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32, params: &RenderParameters) -> [[f32; 4]; 4] {
     let aspect = view_size.width / view_size.height;
     let world_width = world_height * aspect;
-    let l = -world_width * 0.5;
-    let r = world_width * 0.5;
-    let b = -world_height * 0.5;
-    let t = world_height * 0.5;
-    // Zoom: params.zoom is in world space
-    let sx = params.zoom * 2.0 / (r - l);
-    let sy = params.zoom * 2.0 / (t - b);
-    // Panning: params.offset is in screen space
-    let tx = -params.offset.x * 2.0 / (r - l);
-    let ty = params.offset.y * 2.0 / (t - b);
+    let left = -world_width * 0.5;
+    let right = world_width * 0.5;
+    let bottom = -world_height * 0.5;
+    let top = world_height * 0.5;
+    let sx = params.zoom * 2.0 / (right - left);
+    let sy = params.zoom * 2.0 / (top - bottom);
+    let tx = -params.offset.x * 2.0 / (right - left);
+    let ty = params.offset.y * 2.0 / (top - bottom);
     [
         [sx, 0.0, 0.0, 0.0],
         [0.0, sy, 0.0, 0.0],
