@@ -31,8 +31,8 @@ struct BlackHole {
     spin: f32,
 }
 
-const STIFFNESS: f32 = 1000000;
-const RESTITUTION: f32 = 0.8;
+const STIFFNESS: f32 = 100000;
+const RESTITUTION: f32 = 0.0;
 const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(5.0) * sqrt(STIFFNESS);
 
 @compute @workgroup_size(WORKGROUP_SIZE)
@@ -67,31 +67,33 @@ fn integrate(
         }
     }
 
+    const CONSTRAINTS = AABB(vec2f(-3200, -2000), vec2f(3200, 2000));
+
     let offset = state.position - initial_position;
     var new_aabb = AABB(aabb.min + offset, aabb.max + offset);
-    if new_aabb.min.y < -1000 {
-        let overshoot = -1000 - new_aabb.min.y;
-        new_aabb.min.y += overshoot / 2;
-        new_aabb.max.y += overshoot / 2;
-        state.velocity.y *= -1;
-    }
-    if new_aabb.max.y > 1000 {
-        let overshoot = new_aabb.max.y - 1000;
-        new_aabb.min.y -= overshoot / 2;
-        new_aabb.max.y -= overshoot / 2;
-        state.velocity.y *= -1;
-    }
-    if new_aabb.min.x < -1600 {
-        let overshoot = -1600 - new_aabb.min.x;
-        new_aabb.min.x += overshoot / 2;
-        new_aabb.max.x += overshoot / 2;
+    if new_aabb.min.x < CONSTRAINTS.min.x {
+        let overshoot = -new_aabb.min.x + CONSTRAINTS.min.x;
+        new_aabb.min.x += overshoot * 0.5;
+        new_aabb.max.x += overshoot * 0.5;
         state.velocity.x *= -1;
     }
-    if new_aabb.max.x > 1600 {
-        let overshoot = new_aabb.max.x - 1600;
-        new_aabb.min.x -= overshoot / 2;
-        new_aabb.max.x -= overshoot / 2;
+    if new_aabb.max.x > CONSTRAINTS.max.x {
+        let overshoot = new_aabb.max.x - CONSTRAINTS.max.x;
+        new_aabb.min.x -= overshoot * 0.5;
+        new_aabb.max.x -= overshoot * 0.5;
         state.velocity.x *= -1;
+    }
+    if new_aabb.min.y < CONSTRAINTS.min.y {
+        let overshoot = -new_aabb.min.y + CONSTRAINTS.min.y;
+        new_aabb.min.y += overshoot * 0.5;
+        new_aabb.max.y += overshoot * 0.5;
+        state.velocity.y *= -1;
+    }
+    if new_aabb.max.y > CONSTRAINTS.max.y {
+        let overshoot = new_aabb.max.y - CONSTRAINTS.max.y;
+        new_aabb.min.y -= overshoot * 0.5;
+        new_aabb.max.y -= overshoot * 0.5;
+        state.velocity.y *= -1;
     }
     integrated_flags[i].inner = f;
     integrated_aabbs[i] = new_aabb;

@@ -14,6 +14,7 @@ pub mod shape_renderer;
 pub mod util;
 
 use std::{
+    io::Write as _,
     mem::size_of,
     ops::Range,
     sync::{
@@ -77,8 +78,8 @@ impl App<'_> {
         Self {
             render_parameters: RenderParameters::default(),
             world_aabb: AABB {
-                min: [-1000.0, -1000.0],
-                max: [1000.0, 1000.0],
+                min: [-3200.0, -2000.0],
+                max: [3200.0, 2000.0],
             },
             gpu_state: None,
             event_loop_proxy,
@@ -165,7 +166,8 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
         let camera =
             GpuBuffer::<Camera>::new(1, "camera buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
-        let shape_renderer = ShapeRenderer::new(&device, swapchain_format, camera.clone(), colors, shapes);
+        let shape_renderer =
+            ShapeRenderer::new(&device, swapchain_format, camera.clone(), colors, shapes, masses.clone());
         let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), node_count);
         let exit_requested = Arc::new(AtomicBool::new(false));
 
@@ -190,7 +192,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     if exit_requested.load(Ordering::Relaxed) {
                         break;
                     }
-                    thread::sleep(Duration::from_millis(1));
                 }
             }
         });
@@ -313,12 +314,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             }
         }
     }
-
-    // fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-    //     if let Some(state) = &self.gpu_state {
-    //         state.window.request_redraw();
-    //     }
-    // }
 }
 
 fn key_pressed(event: &KeyEvent, key: KeyCode) -> bool {
@@ -362,7 +357,8 @@ fn init_wgpu(
 
     let window_size = window.inner_size();
     let surface_config = wgpu::SurfaceConfiguration {
-        present_mode: PresentMode::AutoNoVsync,
+        present_mode: PresentMode::AutoVsync,
+        desired_maximum_frame_latency: 2,
         ..surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap()
     };
     surface.configure(&device, &surface_config);
@@ -447,7 +443,7 @@ fn spawn_simulation_thread(
     event_loop_proxy: EventLoopProxy<AppEvent>,
 ) {
     thread::spawn({
-        const DT: f32 = 0.0002;
+        const DT: f32 = 0.002;
 
         let dt = GpuBuffer::from_data(&[DT], "dt buffer", BufferUsages::UNIFORM, &device);
         let mut integrator = GpuIntegrator::new(&device, dt, masses, nodes, object_count);
@@ -463,7 +459,7 @@ fn spawn_simulation_thread(
                 break;
             }
 
-            if last_frame_instant.elapsed() > Duration::from_secs_f32(1.0 / 60.0) {
+            if last_frame_instant.elapsed() > Duration::from_secs_f32(1.0 / 30.0) {
                 event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
                 last_frame_instant = Instant::now();
             }
@@ -505,7 +501,7 @@ fn spawn_simulation_thread(
             // Keep one phase state for renderer, the rest for the integrator
 
             frames_in_flight += 1;
-            if frames_in_flight >= PhaseStateRing::CAPACITY - 1 {
+            if frames_in_flight >= PhaseStateRing::CAPACITY - 2 {
                 rx.recv().unwrap();
                 frames_in_flight -= 1;
             }
@@ -519,8 +515,9 @@ fn spawn_simulation_thread(
 
             // Only run for a fixed duration
 
-            if sim_time > 5.0 {
-                break;
+            if real_time > 5.0 {
+                std::io::stdout().flush().unwrap();
+                std::process::exit(1);
             }
         }
     });

@@ -9,7 +9,7 @@ use crate::{
     gpu_buffer::GpuBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
-        common::{Camera, Color, Shape},
+        common::{Camera, Color, Mass, Shape},
         shape::{
             self, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
             WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams,
@@ -31,6 +31,7 @@ impl ShapeRenderer {
         camera: GpuBuffer<Camera>,
         colors: GpuBuffer<Color>,
         shapes: GpuBuffer<Shape>,
+        masses: GpuBuffer<Mass>,
     ) -> Self {
         let pipeline_layout = shape::create_pipeline_layout(device);
         let shader = shape::create_shader_module_embed_source(device);
@@ -59,6 +60,7 @@ impl ShapeRenderer {
                 camera: camera.buffer().as_entire_buffer_binding(),
                 colors: colors.buffer().as_entire_buffer_binding(),
                 shapes: shapes.buffer().as_entire_buffer_binding(),
+                masses: masses.buffer().as_entire_buffer_binding(),
             }),
         );
         Self {

@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 04a789d2feca65b99ff011a4de59c4c6e619efb278177d516f9a32e128b4be09
+// SourceHash: 4c20129c3d90513b954d2cf0f4321eabca6fd035567f116eda1d8f97dde5e4e1
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -65,6 +65,10 @@ pub mod layout_asserts {
         assert!(std::mem::offset_of!(common::Velocity, inner) == 0);
         assert!(std::mem::size_of::<common::Velocity>() == 8);
     };
+    const COMMON_MASS_ASSERTS: () = {
+        assert!(std::mem::offset_of!(common::Mass, inner) == 0);
+        assert!(std::mem::size_of::<common::Mass>() == 4);
+    };
     const COMMON_FLAGS_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::Flags, inner) == 0);
         assert!(std::mem::size_of::<common::Flags>() == 4);
@@ -91,10 +95,6 @@ pub mod layout_asserts {
         assert!(std::mem::offset_of!(bvh::CombineNodePass, dst_start) == 4);
         assert!(std::mem::offset_of!(bvh::CombineNodePass, parent_count) == 8);
         assert!(std::mem::size_of::<bvh::CombineNodePass>() == 12);
-    };
-    const COMMON_MASS_ASSERTS: () = {
-        assert!(std::mem::offset_of!(common::Mass, inner) == 0);
-        assert!(std::mem::size_of::<common::Mass>() == 4);
     };
     const INTEGRATION_BLACK_HOLE_ASSERTS: () = {
         assert!(std::mem::offset_of!(integration::BlackHole, position) == 0);
@@ -129,6 +129,17 @@ pub mod common {
     }
     impl Velocity {
         pub const fn new(inner: [f32; 2]) -> Self {
+            Self { inner }
+        }
+    }
+    #[repr(C, align(4))]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct Mass {
+        #[doc = "offset: 0, size: 4, type: `f32`"]
+        pub inner: f32,
+    }
+    impl Mass {
+        pub const fn new(inner: f32) -> Self {
             Self { inner }
         }
     }
@@ -187,17 +198,6 @@ pub mod common {
     impl BvhNode {
         pub const fn new(index: u32) -> Self {
             Self { index }
-        }
-    }
-    #[repr(C, align(4))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct Mass {
-        #[doc = "offset: 0, size: 4, type: `f32`"]
-        pub inner: f32,
-    }
-    impl Mass {
-        pub const fn new(inner: f32) -> Self {
-            Self { inner }
         }
     }
     #[derive(Debug)]
@@ -273,6 +273,8 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for common::Camera {}
     unsafe impl bytemuck::Zeroable for common::Velocity {}
     unsafe impl bytemuck::Pod for common::Velocity {}
+    unsafe impl bytemuck::Zeroable for common::Mass {}
+    unsafe impl bytemuck::Pod for common::Mass {}
     unsafe impl bytemuck::Zeroable for common::Flags {}
     unsafe impl bytemuck::Pod for common::Flags {}
     unsafe impl bytemuck::Zeroable for common::Color {}
@@ -285,8 +287,6 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for common::BvhNode {}
     unsafe impl bytemuck::Zeroable for bvh::CombineNodePass {}
     unsafe impl bytemuck::Pod for bvh::CombineNodePass {}
-    unsafe impl bytemuck::Zeroable for common::Mass {}
-    unsafe impl bytemuck::Pod for common::Mass {}
     unsafe impl bytemuck::Zeroable for integration::BlackHole {}
     unsafe impl bytemuck::Pod for integration::BlackHole {}
 }
@@ -295,7 +295,7 @@ pub mod shape {
     pub const SHAPE_RECT: u32 = 0u32;
     pub const SHAPE_CIRCLE: u32 = 1u32;
     pub const COLORING_SPEED_MIN: f32 = 0f32;
-    pub const COLORING_SPEED_MAX: f32 = 4000f32;
+    pub const COLORING_SPEED_MAX: f32 = 1000000f32;
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
     #[derive(Debug)]
@@ -357,12 +357,14 @@ pub mod shape {
         pub camera: wgpu::BufferBinding<'a>,
         pub colors: wgpu::BufferBinding<'a>,
         pub shapes: wgpu::BufferBinding<'a>,
+        pub masses: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub camera: wgpu::BindGroupEntry<'a>,
         pub colors: wgpu::BindGroupEntry<'a>,
         pub shapes: wgpu::BindGroupEntry<'a>,
+        pub masses: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -379,10 +381,14 @@ pub mod shape {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.shapes),
                 },
+                masses: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.masses),
+                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
-            [self.camera, self.colors, self.shapes]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
+            [self.camera, self.colors, self.shapes, self.masses]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -419,6 +425,17 @@ pub mod shape {
                 #[doc = " @binding(2): \"shapes\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"masses\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -590,6 +607,10 @@ struct VelocityX_naga_oil_mod_XMNXW23LPNYX {
     inner: vec2<f32>,
 }
 
+struct MassX_naga_oil_mod_XMNXW23LPNYX {
+    inner: f32,
+}
+
 struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
     inner: u32,
 }
@@ -620,10 +641,11 @@ struct FragmentOutput {
 
 const UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
+const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
 const COLORING_SPEED_MIN: f32 = 0f;
-const COLORING_SPEED_MAX: f32 = 4000f;
+const COLORING_SPEED_MAX: f32 = 1000000f;
 
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
@@ -631,16 +653,14 @@ var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
 var<storage> colors: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(2) 
 var<storage> shapes: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(3) 
+var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(0) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(1) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(2) 
 var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
-
-fn sdf_cirle(p: vec2<f32>) -> f32 {
-    return (length(p) - 0.5f);
-}
 
 fn wavelength_to_rgb(lambda: f32) -> vec3<f32> {
     var r: f32 = 0f;
@@ -699,6 +719,10 @@ fn velocity_to_color(velocity: vec2<f32>, relative_speed: f32) -> vec4<f32> {
     return vec4<f32>((_e7 * _e8), 0.1f);
 }
 
+fn sdf_cirle(p: vec2<f32>) -> f32 {
+    return (length(p) - 0.5f);
+}
+
 @vertex 
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput = VertexOutput();
@@ -713,23 +737,30 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     let aabb = aabbs[i];
     let _e18 = velocities[i].inner;
     v = _e18;
-    let _e20 = v;
-    let relative_speed_1 = clamp((max(0f, (length(_e20) - COLORING_SPEED_MIN)) / COLORING_SPEED_MAX), 0f, 1f);
-    let _e35 = colors[i].inner;
-    out.color = _e35;
+    let mass = masses[i].inner;
+    let _e24 = v;
+    let relative_speed_1 = clamp(((((mass * pow(length(_e24), 2f)) / 2f) - COLORING_SPEED_MIN) / 1000000f), 0f, 1f);
+    if ((f & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+        let _e46 = colors[i].inner;
+        out.color = _e46;
+    } else {
+        let _e48 = v;
+        let _e50 = velocity_to_color(_e48, sqrt(relative_speed_1));
+        out.color = _e50;
+    }
     scale = (aabb.max - aabb.min);
     let center = ((aabb.min + aabb.max) / vec2(2f));
-    let _e47 = scale.x;
-    let _e49 = scale.y;
-    let model = mat4x4<f32>(vec4<f32>(_e47, 0f, 0f, 0f), vec4<f32>(0f, _e49, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
+    let _e62 = scale.x;
+    let _e64 = scale.y;
+    let model = mat4x4<f32>(vec4<f32>(_e62, 0f, 0f, 0f), vec4<f32>(0f, _e64, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
     let vertex = UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX[vertex_index];
-    let _e75 = camera.inner;
-    out.clip_position = ((_e75 * model) * vec4<f32>(vertex, 0f, 1f));
+    let _e90 = camera.inner;
+    out.clip_position = ((_e90 * model) * vec4<f32>(vertex, 0f, 1f));
     out.quad_position = vertex;
-    let _e86 = shapes[i].inner;
-    out.shape = _e86;
-    let _e87 = out;
-    return _e87;
+    let _e101 = shapes[i].inner;
+    out.shape = _e101;
+    let _e102 = out;
+    return _e102;
 }
 
 @fragment 
@@ -1363,9 +1394,9 @@ pub mod integration {
         }
     }
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const STIFFNESS: f32 = 1000000f32;
-    pub const RESTITUTION: f32 = 0.8f32;
-    pub const GAMMA_COEFF: f32 = 241.49533f32;
+    pub const STIFFNESS: f32 = 100000f32;
+    pub const RESTITUTION: f32 = 0f32;
+    pub const GAMMA_COEFF: f32 = 212.13202f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const INTEGRATE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1873,9 +1904,9 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
-const STIFFNESS: f32 = 1000000f;
-const RESTITUTION: f32 = 0.8f;
-const GAMMA_COEFF: f32 = 241.49533f;
+const STIFFNESS: f32 = 100000f;
+const RESTITUTION: f32 = 0f;
+const GAMMA_COEFF: f32 = 212.13202f;
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
@@ -1957,14 +1988,14 @@ fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: A
     let _e45 = v_ij_n;
     if ((penetration <= 0f) && (_e45 > 0f)) {
         let _e50 = v_ij_n;
-        v_ij_n = (-0.8f * _e50);
+        v_ij_n = (-0f * _e50);
     }
     let m2_ = masses[other_index].inner;
     let m_eff = ((mass_1 * m2_) / (mass_1 + m2_));
     let _e60 = v_ij_n;
     if (_e60 < 0f) {
         let _e66 = v_ij_n;
-        f_damping = (((-241.49533f * sqrt(m_eff)) * _e66) * n);
+        f_damping = (((-212.13202f * sqrt(m_eff)) * _e66) * n);
     }
     let f_elastic = ((STIFFNESS * penetration) * n);
     let _e73 = f_damping;
@@ -2133,56 +2164,56 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
     let _e86 = state.position;
     let offset = (_e86 - initial_position);
     new_aabb = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb_4.min + offset), (aabb_4.max + offset));
-    let _e96 = new_aabb.min.y;
-    if (_e96 < -1000f) {
-        let _e101 = new_aabb.min.y;
-        let overshoot = (-1000f - _e101);
-        let _e108 = new_aabb.min.y;
-        new_aabb.min.y = (_e108 + (overshoot / 2f));
-        let _e114 = new_aabb.max.y;
-        new_aabb.max.y = (_e114 + (overshoot / 2f));
-        let _e119 = state.velocity.y;
-        state.velocity.y = (_e119 * -1f);
+    let _e97 = new_aabb.min.x;
+    if (_e97 < -3200f) {
+        let _e101 = new_aabb.min.x;
+        let overshoot = (-(_e101) + -3200f);
+        let _e108 = new_aabb.min.x;
+        new_aabb.min.x = (_e108 + (overshoot * 0.5f));
+        let _e114 = new_aabb.max.x;
+        new_aabb.max.x = (_e114 + (overshoot * 0.5f));
+        let _e119 = state.velocity.x;
+        state.velocity.x = (_e119 * -1f);
     }
-    let _e123 = new_aabb.max.y;
-    if (_e123 > 1000f) {
-        let _e128 = new_aabb.max.y;
-        let overshoot_1 = (_e128 - 1000f);
-        let _e135 = new_aabb.min.y;
-        new_aabb.min.y = (_e135 - (overshoot_1 / 2f));
-        let _e141 = new_aabb.max.y;
-        new_aabb.max.y = (_e141 - (overshoot_1 / 2f));
-        let _e146 = state.velocity.y;
-        state.velocity.y = (_e146 * -1f);
+    let _e124 = new_aabb.max.x;
+    if (_e124 > 3200f) {
+        let _e128 = new_aabb.max.x;
+        let overshoot_1 = (_e128 - 3200f);
+        let _e134 = new_aabb.min.x;
+        new_aabb.min.x = (_e134 - (overshoot_1 * 0.5f));
+        let _e140 = new_aabb.max.x;
+        new_aabb.max.x = (_e140 - (overshoot_1 * 0.5f));
+        let _e145 = state.velocity.x;
+        state.velocity.x = (_e145 * -1f);
     }
-    let _e150 = new_aabb.min.x;
-    if (_e150 < -1600f) {
-        let _e155 = new_aabb.min.x;
-        let overshoot_2 = (-1600f - _e155);
-        let _e162 = new_aabb.min.x;
-        new_aabb.min.x = (_e162 + (overshoot_2 / 2f));
-        let _e168 = new_aabb.max.x;
-        new_aabb.max.x = (_e168 + (overshoot_2 / 2f));
-        let _e173 = state.velocity.x;
-        state.velocity.x = (_e173 * -1f);
+    let _e150 = new_aabb.min.y;
+    if (_e150 < -2000f) {
+        let _e154 = new_aabb.min.y;
+        let overshoot_2 = (-(_e154) + -2000f);
+        let _e161 = new_aabb.min.y;
+        new_aabb.min.y = (_e161 + (overshoot_2 * 0.5f));
+        let _e167 = new_aabb.max.y;
+        new_aabb.max.y = (_e167 + (overshoot_2 * 0.5f));
+        let _e172 = state.velocity.y;
+        state.velocity.y = (_e172 * -1f);
     }
-    let _e177 = new_aabb.max.x;
-    if (_e177 > 1600f) {
-        let _e182 = new_aabb.max.x;
-        let overshoot_3 = (_e182 - 1600f);
-        let _e189 = new_aabb.min.x;
-        new_aabb.min.x = (_e189 - (overshoot_3 / 2f));
-        let _e195 = new_aabb.max.x;
-        new_aabb.max.x = (_e195 - (overshoot_3 / 2f));
-        let _e200 = state.velocity.x;
-        state.velocity.x = (_e200 * -1f);
+    let _e177 = new_aabb.max.y;
+    if (_e177 > 2000f) {
+        let _e181 = new_aabb.max.y;
+        let overshoot_3 = (_e181 - 2000f);
+        let _e187 = new_aabb.min.y;
+        new_aabb.min.y = (_e187 - (overshoot_3 * 0.5f));
+        let _e193 = new_aabb.max.y;
+        new_aabb.max.y = (_e193 - (overshoot_3 * 0.5f));
+        let _e198 = state.velocity.y;
+        state.velocity.y = (_e198 * -1f);
     }
-    let _e205 = f;
-    integrated_flags[_e4].inner = _e205;
-    let _e208 = new_aabb;
-    integrated_aabbs[_e4] = _e208;
-    let _e213 = state.velocity;
-    integrated_velocities[_e4].inner = _e213;
+    let _e203 = f;
+    integrated_flags[_e4].inner = _e203;
+    let _e206 = new_aabb;
+    integrated_aabbs[_e4] = _e206;
+    let _e211 = state.velocity;
+    integrated_velocities[_e4].inner = _e211;
     return;
 }
 "#;
