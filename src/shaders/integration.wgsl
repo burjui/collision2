@@ -31,8 +31,8 @@ struct BlackHole {
     spin: f32,
 }
 
-const STIFFNESS: f32 = 100000;
-const RESTITUTION: f32 = 0.0;
+const STIFFNESS: f32 = 300000;
+const RESTITUTION: f32 = 0.3;
 const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(5.0) * sqrt(STIFFNESS);
 
 @compute @workgroup_size(WORKGROUP_SIZE)

@@ -15,11 +15,11 @@ use crate::{
 
 pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     let world_aabb = AABB {
-        min: (world_aabb.min() * 0.8).into(),
-        max: (world_aabb.max() * 0.8).into(),
+        min: (world_aabb.min() * 0.6).into(),
+        max: (world_aabb.max() * 0.6).into(),
     };
     let circles = {
-        const RADIUS: f32 = 7.0;
+        const RADIUS: f32 = 8.0;
         const PADDING: f32 = 2.0;
         const POSITION_RAND_FACTOR: f32 = 0.1;
         const VELOCITY_RAND_MAX: f32 = 0.0;

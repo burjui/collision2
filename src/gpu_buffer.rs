@@ -106,7 +106,7 @@ impl<T> GpuBuffer<T> {
         T: Pod,
     {
         let dst_size = u64::try_from(size_of_val(dst)).unwrap();
-        assert!(dst_size >= self.buffer.size());
+        let size = dst_size.min(self.buffer.size());
 
         let wait_group = WaitGroup::new();
         let wg = wait_group.clone();
@@ -117,7 +117,7 @@ impl<T> GpuBuffer<T> {
         device.poll(PollType::Poll).unwrap();
         wait_group.wait();
 
-        let view = self.buffer.get_mapped_range(0..dst_size);
+        let view = self.buffer.get_mapped_range(0..size);
         dst.copy_from_slice(bytemuck::cast_slice(&view));
         drop(view);
         self.buffer.unmap();

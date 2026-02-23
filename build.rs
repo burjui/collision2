@@ -17,7 +17,7 @@ fn generate_shader_bindings() -> Result<(), Box<dyn std::error::Error>> {
         .add_entry_point("src/shaders/common.wgsl")
         .add_entry_point("src/shaders/shape.wgsl")
         .add_entry_point("src/shaders/aabb.wgsl")
-        .add_entry_point("src/shaders/bvh.wgsl")
+        .add_entry_point("src/shaders/bvh_builder.wgsl")
         .add_entry_point("src/shaders/integration.wgsl")
         .ir_capabilities(WgslShaderIrCapabilities::PUSH_CONSTANT)
         .serialization_strategy(WgslTypeSerializeStrategy::Bytemuck)

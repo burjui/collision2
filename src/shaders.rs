@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 4c20129c3d90513b954d2cf0f4321eabca6fd035567f116eda1d8f97dde5e4e1
+// SourceHash: 39efb570002ca857b7d1a284a8aa5559bd50200f6c884e6b2cf5c9f0b9b8bb49
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -10,7 +10,7 @@ pub enum ShaderEntry {
     Common,
     Shape,
     Aabb,
-    Bvh,
+    BvhBuilder,
     Integration,
 }
 impl ShaderEntry {
@@ -19,7 +19,7 @@ impl ShaderEntry {
             Self::Common => common::create_pipeline_layout(device),
             Self::Shape => shape::create_pipeline_layout(device),
             Self::Aabb => aabb::create_pipeline_layout(device),
-            Self::Bvh => bvh::create_pipeline_layout(device),
+            Self::BvhBuilder => bvh_builder::create_pipeline_layout(device),
             Self::Integration => integration::create_pipeline_layout(device),
         }
     }
@@ -28,7 +28,7 @@ impl ShaderEntry {
             Self::Common => common::create_shader_module_embed_source(device),
             Self::Shape => shape::create_shader_module_embed_source(device),
             Self::Aabb => aabb::create_shader_module_embed_source(device),
-            Self::Bvh => bvh::create_shader_module_embed_source(device),
+            Self::BvhBuilder => bvh_builder::create_shader_module_embed_source(device),
             Self::Integration => integration::create_shader_module_embed_source(device),
         }
     }
@@ -90,11 +90,11 @@ pub mod layout_asserts {
         assert!(std::mem::offset_of!(common::BvhNode, index) == 0);
         assert!(std::mem::size_of::<common::BvhNode>() == 4);
     };
-    const BVH_COMBINE_NODE_PASS_ASSERTS: () = {
-        assert!(std::mem::offset_of!(bvh::CombineNodePass, src_start) == 0);
-        assert!(std::mem::offset_of!(bvh::CombineNodePass, dst_start) == 4);
-        assert!(std::mem::offset_of!(bvh::CombineNodePass, parent_count) == 8);
-        assert!(std::mem::size_of::<bvh::CombineNodePass>() == 12);
+    const BVH_BUILDER_COMBINE_NODE_PASS_ASSERTS: () = {
+        assert!(std::mem::offset_of!(bvh_builder::CombineNodePass, src_start) == 0);
+        assert!(std::mem::offset_of!(bvh_builder::CombineNodePass, dst_start) == 4);
+        assert!(std::mem::offset_of!(bvh_builder::CombineNodePass, parent_count) == 8);
+        assert!(std::mem::size_of::<bvh_builder::CombineNodePass>() == 12);
     };
     const INTEGRATION_BLACK_HOLE_ASSERTS: () = {
         assert!(std::mem::offset_of!(integration::BlackHole, position) == 0);
@@ -285,8 +285,8 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for common::AABB {}
     unsafe impl bytemuck::Zeroable for common::BvhNode {}
     unsafe impl bytemuck::Pod for common::BvhNode {}
-    unsafe impl bytemuck::Zeroable for bvh::CombineNodePass {}
-    unsafe impl bytemuck::Pod for bvh::CombineNodePass {}
+    unsafe impl bytemuck::Zeroable for bvh_builder::CombineNodePass {}
+    unsafe impl bytemuck::Pod for bvh_builder::CombineNodePass {}
     unsafe impl bytemuck::Zeroable for integration::BlackHole {}
     unsafe impl bytemuck::Pod for integration::BlackHole {}
 }
@@ -295,7 +295,7 @@ pub mod shape {
     pub const SHAPE_RECT: u32 = 0u32;
     pub const SHAPE_CIRCLE: u32 = 1u32;
     pub const COLORING_SPEED_MIN: f32 = 0f32;
-    pub const COLORING_SPEED_MAX: f32 = 1000000f32;
+    pub const COLORING_SPEED_MAX: f32 = 10000000f32;
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
     #[derive(Debug)]
@@ -645,7 +645,7 @@ const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
 const COLORING_SPEED_MIN: f32 = 0f;
-const COLORING_SPEED_MAX: f32 = 1000000f;
+const COLORING_SPEED_MAX: f32 = 10000000f;
 
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
@@ -739,7 +739,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     v = _e18;
     let mass = masses[i].inner;
     let _e24 = v;
-    let relative_speed_1 = clamp(((((mass * pow(length(_e24), 2f)) / 2f) - COLORING_SPEED_MIN) / 1000000f), 0f, 1f);
+    let relative_speed_1 = clamp(((((mass * pow(length(_e24), 2f)) / 2f) - COLORING_SPEED_MIN) / 10000000f), 0f, 1f);
     if ((f & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         let _e46 = colors[i].inner;
         out.color = _e46;
@@ -1090,7 +1090,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 }
 "#;
 }
-pub mod bvh {
+pub mod bvh_builder {
     use super::{_root, _root::*};
     #[repr(C, align(4))]
     #[derive(Debug, PartialEq, Clone, Copy)]
@@ -1157,7 +1157,7 @@ pub mod bvh {
     pub struct WgpuBindGroup0(wgpu::BindGroup);
     impl WgpuBindGroup0 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("Bvh::BindGroup0::LayoutDescriptor"),
+            label: Some("BvhBuilder::BindGroup0::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"nodes\""]
                 wgpu::BindGroupLayoutEntry {
@@ -1179,7 +1179,7 @@ pub mod bvh {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Bvh::BindGroup0"),
+                label: Some("BvhBuilder::BindGroup0"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -1217,7 +1217,7 @@ pub mod bvh {
     pub struct WgpuBindGroup1(wgpu::BindGroup);
     impl WgpuBindGroup1 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("Bvh::BindGroup1::LayoutDescriptor"),
+            label: Some("BvhBuilder::BindGroup1::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"aabbs\""]
                 wgpu::BindGroupLayoutEntry {
@@ -1239,7 +1239,7 @@ pub mod bvh {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Bvh::BindGroup1"),
+                label: Some("BvhBuilder::BindGroup1"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -1275,7 +1275,7 @@ pub mod bvh {
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Bvh::PipelineLayout"),
+            label: Some("BvhBuilder::PipelineLayout"),
             bind_group_layouts: &[
                 &WgpuBindGroup0::get_bind_group_layout(device),
                 &WgpuBindGroup1::get_bind_group_layout(device),
@@ -1289,7 +1289,7 @@ pub mod bvh {
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
         let source = std::borrow::Cow::Borrowed(SHADER_STRING);
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("bvh.wgsl"),
+            label: Some("bvh_builder.wgsl"),
             source: wgpu::ShaderSource::Wgsl(source),
         })
     }
@@ -1394,9 +1394,9 @@ pub mod integration {
         }
     }
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const STIFFNESS: f32 = 100000f32;
-    pub const RESTITUTION: f32 = 0f32;
-    pub const GAMMA_COEFF: f32 = 212.13202f32;
+    pub const STIFFNESS: f32 = 300000f32;
+    pub const RESTITUTION: f32 = 0.3f32;
+    pub const GAMMA_COEFF: f32 = 334.35535f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const INTEGRATE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1904,9 +1904,9 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
-const STIFFNESS: f32 = 100000f;
-const RESTITUTION: f32 = 0f;
-const GAMMA_COEFF: f32 = 212.13202f;
+const STIFFNESS: f32 = 300000f;
+const RESTITUTION: f32 = 0.3f;
+const GAMMA_COEFF: f32 = 334.35535f;
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
@@ -1988,14 +1988,14 @@ fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: A
     let _e45 = v_ij_n;
     if ((penetration <= 0f) && (_e45 > 0f)) {
         let _e50 = v_ij_n;
-        v_ij_n = (-0f * _e50);
+        v_ij_n = (-0.3f * _e50);
     }
     let m2_ = masses[other_index].inner;
     let m_eff = ((mass_1 * m2_) / (mass_1 + m2_));
     let _e60 = v_ij_n;
     if (_e60 < 0f) {
         let _e66 = v_ij_n;
-        f_damping = (((-212.13202f * sqrt(m_eff)) * _e66) * n);
+        f_damping = (((-334.35535f * sqrt(m_eff)) * _e66) * n);
     }
     let f_elastic = ((STIFFNESS * penetration) * n);
     let _e73 = f_damping;

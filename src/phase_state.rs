@@ -72,7 +72,7 @@ pub struct PhaseStateRing {
 
 impl PhaseStateRing {
     pub const CAPACITY: usize = {
-        const CAPACITY: usize = 3;
+        const CAPACITY: usize = 5;
         assert!(CAPACITY > 1);
         CAPACITY
     };

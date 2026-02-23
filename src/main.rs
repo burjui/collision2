@@ -14,7 +14,6 @@ pub mod shape_renderer;
 pub mod util;
 
 use std::{
-    io::Write as _,
     mem::size_of,
     ops::Range,
     sync::{
@@ -52,7 +51,7 @@ use crate::{
     phase_state::PhaseStateRing,
     scene::create_scene,
     shaders::{
-        bvh::CombineNodePass,
+        bvh_builder::CombineNodePass,
         common::{AABB, BvhNode, Camera},
     },
     shape_renderer::ShapeRenderer,
@@ -105,7 +104,7 @@ impl Default for RenderParameters {
         Self {
             enabled: true,
             draw_aabbs: false,
-            zoom: 0.8,
+            zoom: 1.0,
             offset: Vector2::new(0.0, 0.0),
         }
     }
@@ -114,10 +113,11 @@ impl Default for RenderParameters {
 struct GpuState<'a> {
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
-    exit_requested: Arc<AtomicBool>,
     object_count: usize,
     camera: GpuBuffer<Camera>,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
+    exit_requested: Arc<AtomicBool>,
+    prioritize_compute: Arc<AtomicBool>,
 
     window: Arc<Window>,
     surface: wgpu::Surface<'a>,
@@ -149,7 +149,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let node_count = bvh_build_params.node_count();
         let nodes = GpuBuffer::new(node_count, "bvh node buffer", storage_copy_dst, &device);
         nodes.write_iter(&queue, (0..u32::try_from(object_count).unwrap()).map(BvhNode::new));
-        let bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
 
         let masses = GpuBuffer::from_data(&objects.masses, "mass buffer", storage_copy_dst, &device);
         let colors = GpuBuffer::from_data(&objects.colors, "color buffer", storage_copy_dst, &device);
@@ -170,6 +169,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             ShapeRenderer::new(&device, swapchain_format, camera.clone(), colors, shapes, masses.clone());
         let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), node_count);
         let exit_requested = Arc::new(AtomicBool::new(false));
+        let prioritize_compute = Arc::new(AtomicBool::new(false));
 
         spawn_simulation_thread(
             object_count,
@@ -178,8 +178,9 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             phase_state_ring.clone(),
             masses,
             nodes,
-            bvh_builder,
+            bvh_build_params,
             exit_requested.clone(),
+            prioritize_compute.clone(),
             self.event_loop_proxy.clone(),
         );
 
@@ -189,6 +190,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             move || {
                 loop {
                     device.poll(PollType::Poll).unwrap();
+
                     if exit_requested.load(Ordering::Relaxed) {
                         break;
                     }
@@ -199,10 +201,11 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         self.gpu_state = Some(GpuState {
             shape_renderer,
             aabb_renderer,
-            exit_requested,
             object_count,
             camera,
             phase_state_ring,
+            exit_requested,
+            prioritize_compute,
 
             window,
             surface,
@@ -253,6 +256,12 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
             WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::KeyA) => {
                 self.render_parameters.draw_aabbs = !self.render_parameters.draw_aabbs
+            }
+
+            WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::KeyC) => {
+                if let Some(state) = &self.gpu_state {
+                    state.prioritize_compute.fetch_not(Ordering::SeqCst);
+                }
             }
 
             WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::Escape) => event_loop.exit(),
@@ -311,6 +320,14 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 if let Some(state) = &self.gpu_state {
                     state.window.request_redraw();
                 }
+            }
+        }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(state) = &self.gpu_state {
+            if !state.prioritize_compute.load(Ordering::Relaxed) {
+                state.window.request_redraw();
             }
         }
     }
@@ -438,14 +455,16 @@ fn spawn_simulation_thread(
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: GpuBuffer<Mass>,
     nodes: GpuBuffer<BvhNode>,
-    mut bvh_builder: BvhBuilder,
+    bvh_build_params: BvhBuildParameters,
     exit_requested: Arc<AtomicBool>,
+    prioritize_compute: Arc<AtomicBool>,
     event_loop_proxy: EventLoopProxy<AppEvent>,
 ) {
     thread::spawn({
-        const DT: f32 = 0.002;
+        const DT: f32 = 0.001;
 
         let dt = GpuBuffer::from_data(&[DT], "dt buffer", BufferUsages::UNIFORM, &device);
+        let mut bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
         let mut integrator = GpuIntegrator::new(&device, dt, masses, nodes, object_count);
 
         let (tx, rx) = channel::bounded(PhaseStateRing::CAPACITY);
@@ -459,9 +478,11 @@ fn spawn_simulation_thread(
                 break;
             }
 
-            if last_frame_instant.elapsed() > Duration::from_secs_f32(1.0 / 30.0) {
-                event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
-                last_frame_instant = Instant::now();
+            if prioritize_compute.load(Ordering::Relaxed) {
+                if last_frame_instant.elapsed() > Duration::from_secs_f32(1.0 / 30.0) {
+                    event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
+                    last_frame_instant = Instant::now();
+                }
             }
 
             // Set up bvh and integrator buffers, advance the 2-state sliding window that the integrator uses
@@ -483,7 +504,6 @@ fn spawn_simulation_thread(
                 label: Some("bvh pass"),
                 timestamp_writes: None,
             });
-
             bvh_builder.compute(&mut compute_pass);
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
@@ -496,9 +516,7 @@ fn spawn_simulation_thread(
                 }
             });
 
-            device.poll(PollType::Poll).unwrap();
-
-            // Keep one phase state for renderer, the rest for the integrator
+            // Keep PhaseStateRing::CAPACITY - 1 frames in flight
 
             frames_in_flight += 1;
             if frames_in_flight >= PhaseStateRing::CAPACITY - 2 {
@@ -515,10 +533,10 @@ fn spawn_simulation_thread(
 
             // Only run for a fixed duration
 
-            if real_time > 5.0 {
-                std::io::stdout().flush().unwrap();
-                std::process::exit(1);
-            }
+            // if real_time > 5.0 {
+            //     std::io::stdout().flush().unwrap();
+            //     std::process::exit(1);
+            // }
         }
     });
 }

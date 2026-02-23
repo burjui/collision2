@@ -6,7 +6,7 @@ use crate::{
     gpu_buffer::GpuBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
-        bvh::{
+        bvh_builder::{
             CombineNodePass, WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
             WgpuBindGroup1, WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams,
             compute::create_combine_nodes_pipeline_embed_source,
