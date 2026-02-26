@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 903a54791de8b9783b126940d7d7669709dfadcc1f074c551850dac45bf2ffeb
+// SourceHash: 3651ae1fe33c14dceced6c0682b2a3abb56a369bc3847fcba4ca44515f6345a3
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -261,8 +261,10 @@ const FLAG_DRAW_AABB: u32 = 2u;
 const FLAG_PHYSICAL: u32 = 4u;
 const BVH_NODE_TREE_FLAG: u32 = 2147483648u;
 
-fn invocation_index(gid: vec3<u32>, nwg: vec3<u32>, workgroup_size: u32) -> u32 {
-    return (gid.x + ((gid.y * nwg.x) * workgroup_size));
+fn flat_invocation_index(gid: vec3<u32>, nwg: vec3<u32>, workgroup_size: u32) -> u32 {
+    let global_size_x = (nwg.x * workgroup_size);
+    let global_size_y = nwg.y;
+    return ((gid.x + (gid.y * global_size_x)) + ((gid.z * global_size_x) * global_size_y));
 }
 
 "#;
@@ -1318,13 +1320,15 @@ var<storage, read_write> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(0) 
 var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
-fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return (gid_1.x + ((gid_1.y * nwg_1.x) * workgroup_size));
+fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
+    let global_size_x = (nwg_1.x * workgroup_size);
+    let global_size_y = nwg_1.y;
+    return ((gid_1.x + (gid_1.y * global_size_x)) + ((gid_1.z * global_size_x) * global_size_y));
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
-    let _e3 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
+fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_index) lid: u32, @builtin(num_workgroups) nwg: vec3<u32>) {
+    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
     let _e6 = params.parent_count;
     if (_e3 >= _e6) {
         return;
@@ -1939,8 +1943,10 @@ var<storage, read_write> integrated_aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX
 @group(2) @binding(5) 
 var<storage, read_write> integrated_velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 
-fn invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return (gid_1.x + ((gid_1.y * nwg_1.x) * workgroup_size));
+fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
+    let global_size_x = (nwg_1.x * workgroup_size);
+    let global_size_y = nwg_1.y;
+    return ((gid_1.x + (gid_1.y * global_size_x)) + ((gid_1.z * global_size_x) * global_size_y));
 }
 
 fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>, mass: f32) -> vec2<f32> {
@@ -2111,13 +2117,13 @@ fn integrate_euler_symplectic(state_3: ObjectPhaseState, index_2: u32, aabb_3: A
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
+fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_index) lid: u32, @builtin(num_workgroups) nwg: vec3<u32>) {
     var f: u32;
     var state: ObjectPhaseState;
     var bh_index: u32 = 0u;
     var new_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX;
 
-    let _e4 = invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
+    let _e4 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
     if (_e4 >= arrayLength((&masses))) {
         return;
     }

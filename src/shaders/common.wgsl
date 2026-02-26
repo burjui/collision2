@@ -49,6 +49,10 @@ struct BvhNode {
     index: u32,
 }
 
-fn invocation_index(gid: vec3u, nwg: vec3u, workgroup_size: u32) -> u32 {
-    return gid.x + gid.y * nwg.x * workgroup_size;
+fn flat_invocation_index(gid: vec3u, nwg: vec3u, workgroup_size: u32) -> u32 {
+    let global_size_x = nwg.x * workgroup_size;
+    let global_size_y = nwg.y;
+    return gid.x
+         + gid.y * global_size_x
+         + gid.z * global_size_x * global_size_y;
 }

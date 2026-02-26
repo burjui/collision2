@@ -169,7 +169,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             ShapeRenderer::new(&device, swapchain_format, camera.clone(), colors, shapes, masses.clone());
         let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), node_count);
         let exit_requested = Arc::new(AtomicBool::new(false));
-        let prioritize_compute = Arc::new(AtomicBool::new(false));
+        let prioritize_compute = Arc::new(AtomicBool::new(true));
 
         spawn_simulation_thread(
             object_count,

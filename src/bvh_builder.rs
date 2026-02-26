@@ -13,6 +13,7 @@ use crate::{
         },
         common::BvhNode,
     },
+    util::dispatch_dimensions,
 };
 
 pub struct BvhBuilder {
@@ -61,8 +62,8 @@ impl BvhBuilder {
         phase_state_bind_group.set(compute_pass);
         for &pass in &self.passes {
             compute_pass.set_push_constants(0, bytemuck::cast_slice(&[pass]));
-            let total_workgroups = pass.parent_count.div_ceil(WORKGROUP_SIZE);
-            compute_pass.dispatch_workgroups(total_workgroups.min(65535), total_workgroups.div_ceil(65535), 1);
+            let (x, y, z) = dispatch_dimensions(pass.parent_count as usize, WORKGROUP_SIZE);
+            compute_pass.dispatch_workgroups(x, y, z);
         }
     }
 

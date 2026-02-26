@@ -1,4 +1,4 @@
-#import common::{ AABB, BvhNode, invocation_index, BVH_NODE_TREE_FLAG }
+#import common::{ AABB, BvhNode, BVH_NODE_TREE_FLAG, flat_invocation_index }
 
 // TODO: mini-BVHs on a grid
 
@@ -19,9 +19,10 @@ const WORKGROUP_SIZE: u32 = 64;
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn combine_nodes(
     @builtin(global_invocation_id) gid: vec3u,
+    @builtin(local_invocation_index) lid: u32,
     @builtin(num_workgroups) nwg: vec3u,
 ) {
-    let index = invocation_index(gid, nwg, WORKGROUP_SIZE);
+    let index = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
     if (index >= params.parent_count) {
         return;
     }

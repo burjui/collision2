@@ -13,6 +13,7 @@ use crate::{
             WgpuBindGroup2EntriesParams, compute::create_integrate_pipeline_embed_source,
         },
     },
+    util::dispatch_dimensions,
 };
 
 pub struct GpuIntegrator {
@@ -117,9 +118,7 @@ impl GpuIntegrator {
         self.main_bind_group.set(compute_pass);
         self.blackhole_bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
-        let total_workgroups = u32::try_from(self.object_count).unwrap().div_ceil(WORKGROUP_SIZE);
-        let x = total_workgroups.min(65535);
-        let y = total_workgroups.div_ceil(65535);
-        compute_pass.dispatch_workgroups(x, y, 1);
+        let (x, y, z) = dispatch_dimensions(self.object_count, WORKGROUP_SIZE);
+        compute_pass.dispatch_workgroups(x, y, z);
     }
 }

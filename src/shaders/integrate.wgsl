@@ -1,7 +1,7 @@
 #import common::{
     FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB, BVH_NODE_TREE_FLAG,
     AABB, Mass, Velocity, Position, Flags, BvhNode,
-    invocation_index
+    flat_invocation_index
 }
 
 @group(0) @binding(0) var<uniform> dt: f32;
@@ -38,9 +38,10 @@ const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn integrate(
     @builtin(global_invocation_id) gid: vec3u,
+    @builtin(local_invocation_index) lid: u32,
     @builtin(num_workgroups) nwg: vec3u,
 ) {
-    let i = invocation_index(gid, nwg, WORKGROUP_SIZE);
+    let i = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
     if i >= arrayLength(&masses) {
         return;
     }
