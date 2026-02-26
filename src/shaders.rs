@@ -2,34 +2,34 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 39efb570002ca857b7d1a284a8aa5559bd50200f6c884e6b2cf5c9f0b9b8bb49
+// SourceHash: 903a54791de8b9783b126940d7d7669709dfadcc1f074c551850dac45bf2ffeb
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
     Common,
-    Shape,
-    Aabb,
-    BvhBuilder,
-    Integration,
+    RenderShape,
+    RenderAabb,
+    BuildBvh,
+    Integrate,
 }
 impl ShaderEntry {
     pub fn create_pipeline_layout(&self, device: &wgpu::Device) -> wgpu::PipelineLayout {
         match self {
             Self::Common => common::create_pipeline_layout(device),
-            Self::Shape => shape::create_pipeline_layout(device),
-            Self::Aabb => aabb::create_pipeline_layout(device),
-            Self::BvhBuilder => bvh_builder::create_pipeline_layout(device),
-            Self::Integration => integration::create_pipeline_layout(device),
+            Self::RenderShape => render_shape::create_pipeline_layout(device),
+            Self::RenderAabb => render_aabb::create_pipeline_layout(device),
+            Self::BuildBvh => build_bvh::create_pipeline_layout(device),
+            Self::Integrate => integrate::create_pipeline_layout(device),
         }
     }
     pub fn create_shader_module_embed_source(&self, device: &wgpu::Device) -> wgpu::ShaderModule {
         match self {
             Self::Common => common::create_shader_module_embed_source(device),
-            Self::Shape => shape::create_shader_module_embed_source(device),
-            Self::Aabb => aabb::create_shader_module_embed_source(device),
-            Self::BvhBuilder => bvh_builder::create_shader_module_embed_source(device),
-            Self::Integration => integration::create_shader_module_embed_source(device),
+            Self::RenderShape => render_shape::create_shader_module_embed_source(device),
+            Self::RenderAabb => render_aabb::create_shader_module_embed_source(device),
+            Self::BuildBvh => build_bvh::create_shader_module_embed_source(device),
+            Self::Integrate => integrate::create_shader_module_embed_source(device),
         }
     }
 }
@@ -90,18 +90,18 @@ pub mod layout_asserts {
         assert!(std::mem::offset_of!(common::BvhNode, index) == 0);
         assert!(std::mem::size_of::<common::BvhNode>() == 4);
     };
-    const BVH_BUILDER_COMBINE_NODE_PASS_ASSERTS: () = {
-        assert!(std::mem::offset_of!(bvh_builder::CombineNodePass, src_start) == 0);
-        assert!(std::mem::offset_of!(bvh_builder::CombineNodePass, dst_start) == 4);
-        assert!(std::mem::offset_of!(bvh_builder::CombineNodePass, parent_count) == 8);
-        assert!(std::mem::size_of::<bvh_builder::CombineNodePass>() == 12);
+    const BUILD_BVH_COMBINE_NODE_PASS_ASSERTS: () = {
+        assert!(std::mem::offset_of!(build_bvh::CombineNodePass, src_start) == 0);
+        assert!(std::mem::offset_of!(build_bvh::CombineNodePass, dst_start) == 4);
+        assert!(std::mem::offset_of!(build_bvh::CombineNodePass, parent_count) == 8);
+        assert!(std::mem::size_of::<build_bvh::CombineNodePass>() == 12);
     };
-    const INTEGRATION_BLACK_HOLE_ASSERTS: () = {
-        assert!(std::mem::offset_of!(integration::BlackHole, position) == 0);
-        assert!(std::mem::offset_of!(integration::BlackHole, radius) == 8);
-        assert!(std::mem::offset_of!(integration::BlackHole, mass) == 12);
-        assert!(std::mem::offset_of!(integration::BlackHole, spin) == 16);
-        assert!(std::mem::size_of::<integration::BlackHole>() == 24);
+    const INTEGRATE_BLACK_HOLE_ASSERTS: () = {
+        assert!(std::mem::offset_of!(integrate::BlackHole, position) == 0);
+        assert!(std::mem::offset_of!(integrate::BlackHole, radius) == 8);
+        assert!(std::mem::offset_of!(integrate::BlackHole, mass) == 12);
+        assert!(std::mem::offset_of!(integrate::BlackHole, spin) == 16);
+        assert!(std::mem::size_of::<integrate::BlackHole>() == 24);
     };
 }
 pub mod common {
@@ -285,12 +285,12 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for common::AABB {}
     unsafe impl bytemuck::Zeroable for common::BvhNode {}
     unsafe impl bytemuck::Pod for common::BvhNode {}
-    unsafe impl bytemuck::Zeroable for bvh_builder::CombineNodePass {}
-    unsafe impl bytemuck::Pod for bvh_builder::CombineNodePass {}
-    unsafe impl bytemuck::Zeroable for integration::BlackHole {}
-    unsafe impl bytemuck::Pod for integration::BlackHole {}
+    unsafe impl bytemuck::Zeroable for build_bvh::CombineNodePass {}
+    unsafe impl bytemuck::Pod for build_bvh::CombineNodePass {}
+    unsafe impl bytemuck::Zeroable for integrate::BlackHole {}
+    unsafe impl bytemuck::Pod for integrate::BlackHole {}
 }
-pub mod shape {
+pub mod render_shape {
     use super::{_root, _root::*};
     pub const SHAPE_RECT: u32 = 0u32;
     pub const SHAPE_CIRCLE: u32 = 1u32;
@@ -398,7 +398,7 @@ pub mod shape {
     pub struct WgpuBindGroup0(wgpu::BindGroup);
     impl WgpuBindGroup0 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("Shape::BindGroup0::LayoutDescriptor"),
+            label: Some("RenderShape::BindGroup0::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"camera\""]
                 wgpu::BindGroupLayoutEntry {
@@ -453,7 +453,7 @@ pub mod shape {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Shape::BindGroup0"),
+                label: Some("RenderShape::BindGroup0"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -503,7 +503,7 @@ pub mod shape {
     pub struct WgpuBindGroup1(wgpu::BindGroup);
     impl WgpuBindGroup1 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("Shape::BindGroup1::LayoutDescriptor"),
+            label: Some("RenderShape::BindGroup1::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"flags\""]
                 wgpu::BindGroupLayoutEntry {
@@ -547,7 +547,7 @@ pub mod shape {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Shape::BindGroup1"),
+                label: Some("RenderShape::BindGroup1"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -583,7 +583,7 @@ pub mod shape {
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Shape::PipelineLayout"),
+            label: Some("RenderShape::PipelineLayout"),
             bind_group_layouts: &[
                 &WgpuBindGroup0::get_bind_group_layout(device),
                 &WgpuBindGroup1::get_bind_group_layout(device),
@@ -594,7 +594,7 @@ pub mod shape {
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
         let source = std::borrow::Cow::Borrowed(SHADER_STRING);
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("shape.wgsl"),
+            label: Some("render_shape.wgsl"),
             source: wgpu::ShaderSource::Wgsl(source),
         })
     }
@@ -780,7 +780,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 }
 "#;
 }
-pub mod aabb {
+pub mod render_aabb {
     use super::{_root, _root::*};
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
@@ -866,7 +866,7 @@ pub mod aabb {
     pub struct WgpuBindGroup0(wgpu::BindGroup);
     impl WgpuBindGroup0 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("Aabb::BindGroup0::LayoutDescriptor"),
+            label: Some("RenderAabb::BindGroup0::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"camera\""]
                 wgpu::BindGroupLayoutEntry {
@@ -888,7 +888,7 @@ pub mod aabb {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Aabb::BindGroup0"),
+                label: Some("RenderAabb::BindGroup0"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -932,7 +932,7 @@ pub mod aabb {
     pub struct WgpuBindGroup1(wgpu::BindGroup);
     impl WgpuBindGroup1 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("Aabb::BindGroup1::LayoutDescriptor"),
+            label: Some("RenderAabb::BindGroup1::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"flags\""]
                 wgpu::BindGroupLayoutEntry {
@@ -965,7 +965,7 @@ pub mod aabb {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Aabb::BindGroup1"),
+                label: Some("RenderAabb::BindGroup1"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -1001,7 +1001,7 @@ pub mod aabb {
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Aabb::PipelineLayout"),
+            label: Some("RenderAabb::PipelineLayout"),
             bind_group_layouts: &[
                 &WgpuBindGroup0::get_bind_group_layout(device),
                 &WgpuBindGroup1::get_bind_group_layout(device),
@@ -1012,7 +1012,7 @@ pub mod aabb {
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
         let source = std::borrow::Cow::Borrowed(SHADER_STRING);
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("aabb.wgsl"),
+            label: Some("render_aabb.wgsl"),
             source: wgpu::ShaderSource::Wgsl(source),
         })
     }
@@ -1090,7 +1090,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 }
 "#;
 }
-pub mod bvh_builder {
+pub mod build_bvh {
     use super::{_root, _root::*};
     #[repr(C, align(4))]
     #[derive(Debug, PartialEq, Clone, Copy)]
@@ -1157,7 +1157,7 @@ pub mod bvh_builder {
     pub struct WgpuBindGroup0(wgpu::BindGroup);
     impl WgpuBindGroup0 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("BvhBuilder::BindGroup0::LayoutDescriptor"),
+            label: Some("BuildBvh::BindGroup0::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"nodes\""]
                 wgpu::BindGroupLayoutEntry {
@@ -1179,7 +1179,7 @@ pub mod bvh_builder {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("BvhBuilder::BindGroup0"),
+                label: Some("BuildBvh::BindGroup0"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -1217,7 +1217,7 @@ pub mod bvh_builder {
     pub struct WgpuBindGroup1(wgpu::BindGroup);
     impl WgpuBindGroup1 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("BvhBuilder::BindGroup1::LayoutDescriptor"),
+            label: Some("BuildBvh::BindGroup1::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"aabbs\""]
                 wgpu::BindGroupLayoutEntry {
@@ -1239,7 +1239,7 @@ pub mod bvh_builder {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("BvhBuilder::BindGroup1"),
+                label: Some("BuildBvh::BindGroup1"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -1275,7 +1275,7 @@ pub mod bvh_builder {
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("BvhBuilder::PipelineLayout"),
+            label: Some("BuildBvh::PipelineLayout"),
             bind_group_layouts: &[
                 &WgpuBindGroup0::get_bind_group_layout(device),
                 &WgpuBindGroup1::get_bind_group_layout(device),
@@ -1289,7 +1289,7 @@ pub mod bvh_builder {
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
         let source = std::borrow::Cow::Borrowed(SHADER_STRING);
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("bvh_builder.wgsl"),
+            label: Some("build_bvh.wgsl"),
             source: wgpu::ShaderSource::Wgsl(source),
         })
     }
@@ -1343,7 +1343,7 @@ fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_wor
 }
 "#;
 }
-pub mod integration {
+pub mod integrate {
     use super::{_root, _root::*};
     #[repr(C, align(8))]
     #[derive(Debug, PartialEq, Clone, Copy)]
@@ -1472,7 +1472,7 @@ pub mod integration {
     pub struct WgpuBindGroup0(wgpu::BindGroup);
     impl WgpuBindGroup0 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("Integration::BindGroup0::LayoutDescriptor"),
+            label: Some("Integrate::BindGroup0::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"dt\""]
                 wgpu::BindGroupLayoutEntry {
@@ -1538,7 +1538,7 @@ pub mod integration {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Integration::BindGroup0"),
+                label: Some("Integrate::BindGroup0"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -1599,7 +1599,7 @@ pub mod integration {
     pub struct WgpuBindGroup1(wgpu::BindGroup);
     impl WgpuBindGroup1 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("Integration::BindGroup1::LayoutDescriptor"),
+            label: Some("Integrate::BindGroup1::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"blackhole_count\""]
                 wgpu::BindGroupLayoutEntry {
@@ -1654,7 +1654,7 @@ pub mod integration {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Integration::BindGroup1"),
+                label: Some("Integrate::BindGroup1"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -1729,7 +1729,7 @@ pub mod integration {
     pub struct WgpuBindGroup2(wgpu::BindGroup);
     impl WgpuBindGroup2 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("Integration::BindGroup2::LayoutDescriptor"),
+            label: Some("Integrate::BindGroup2::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"flags\""]
                 wgpu::BindGroupLayoutEntry {
@@ -1806,7 +1806,7 @@ pub mod integration {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Integration::BindGroup2"),
+                label: Some("Integrate::BindGroup2"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -1844,7 +1844,7 @@ pub mod integration {
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Integration::PipelineLayout"),
+            label: Some("Integrate::PipelineLayout"),
             bind_group_layouts: &[
                 &WgpuBindGroup0::get_bind_group_layout(device),
                 &WgpuBindGroup1::get_bind_group_layout(device),
@@ -1856,7 +1856,7 @@ pub mod integration {
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
         let source = std::borrow::Cow::Borrowed(SHADER_STRING);
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("integration.wgsl"),
+            label: Some("integrate.wgsl"),
             source: wgpu::ShaderSource::Wgsl(source),
         })
     }

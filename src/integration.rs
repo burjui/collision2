@@ -7,7 +7,7 @@ use crate::{
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         common::{BvhNode, Mass},
-        integration::{
+        integrate::{
             BlackHole, WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
             WgpuBindGroup1, WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries,
             WgpuBindGroup2EntriesParams, compute::create_integrate_pipeline_embed_source,

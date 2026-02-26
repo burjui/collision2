@@ -51,7 +51,7 @@ use crate::{
     phase_state::PhaseStateRing,
     scene::create_scene,
     shaders::{
-        bvh_builder::CombineNodePass,
+        build_bvh::CombineNodePass,
         common::{AABB, BvhNode, Camera},
     },
     shape_renderer::ShapeRenderer,

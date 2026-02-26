@@ -9,11 +9,12 @@ use crate::{
     gpu_buffer::GpuBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
-        aabb::{
-            self, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
-            WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams,
-        },
         common::Camera,
+        render_aabb::{
+            WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
+            WgpuBindGroup1EntriesParams, create_pipeline_layout, create_shader_module_embed_source, fragment_state,
+            fs_main_entry, vertex_state, vs_main_entry,
+        },
     },
 };
 
@@ -32,16 +33,16 @@ impl AabbRenderer {
         camera_buffer: GpuBuffer<Camera>,
         node_count: usize,
     ) -> Self {
-        let pipeline_layout = aabb::create_pipeline_layout(device);
-        let shader = aabb::create_shader_module_embed_source(device);
-        let vertex_entry = aabb::vs_main_entry();
-        let vertex_state = aabb::vertex_state(&shader, &vertex_entry);
+        let pipeline_layout = create_pipeline_layout(device);
+        let shader = create_shader_module_embed_source(device);
+        let vertex_entry = vs_main_entry();
+        let vertex_state = vertex_state(&shader, &vertex_entry);
         let color_target_state = ColorTargetState {
             blend: Some(BlendState::ALPHA_BLENDING),
             ..ColorTargetState::from(swapchain_format)
         };
-        let fragment_entry = aabb::fs_main_entry([Some(color_target_state)]);
-        let fragment_state = aabb::fragment_state(&shader, &fragment_entry);
+        let fragment_entry = fs_main_entry([Some(color_target_state)]);
+        let fragment_state = fragment_state(&shader, &fragment_entry);
         let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),

@@ -9,7 +9,7 @@ use crate::{
     objects::{ObjectPrototype, Objects},
     shaders::{
         common::{AABB, FLAG_DRAW_AABB, FLAG_DRAW_OBJECT, FLAG_PHYSICAL},
-        shape::{SHAPE_CIRCLE, SHAPE_RECT},
+        render_shape::{SHAPE_CIRCLE, SHAPE_RECT},
     },
 };
 

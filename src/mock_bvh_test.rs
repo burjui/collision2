@@ -5,7 +5,7 @@ use std::array::from_fn;
 use crate::{
     bvh_builder::BvhBuildParameters,
     shaders::{
-        bvh_builder::CombineNodePass,
+        build_bvh::CombineNodePass,
         common::{BVH_NODE_TREE_FLAG, BvhNode},
     },
 };

@@ -10,9 +10,10 @@ use crate::{
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         common::{Camera, Color, Mass, Shape},
-        shape::{
-            self, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
-            WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams,
+        render_shape::{
+            WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
+            WgpuBindGroup1EntriesParams, create_pipeline_layout, create_shader_module_embed_source, fragment_state,
+            fs_main_entry, vertex_state, vs_main_entry,
         },
     },
 };
@@ -33,16 +34,16 @@ impl ShapeRenderer {
         shapes: GpuBuffer<Shape>,
         masses: GpuBuffer<Mass>,
     ) -> Self {
-        let pipeline_layout = shape::create_pipeline_layout(device);
-        let shader = shape::create_shader_module_embed_source(device);
-        let vertex_entry = shape::vs_main_entry();
-        let vertex_state = shape::vertex_state(&shader, &vertex_entry);
+        let pipeline_layout = create_pipeline_layout(device);
+        let shader = create_shader_module_embed_source(device);
+        let vertex_entry = vs_main_entry();
+        let vertex_state = vertex_state(&shader, &vertex_entry);
         let color_target_state = ColorTargetState {
             blend: Some(BlendState::ALPHA_BLENDING),
             ..ColorTargetState::from(swapchain_format)
         };
-        let fragment_entry = shape::fs_main_entry([Some(color_target_state)]);
-        let fragment_state = shape::fragment_state(&shader, &fragment_entry);
+        let fragment_entry = fs_main_entry([Some(color_target_state)]);
+        let fragment_state = fragment_state(&shader, &fragment_entry);
         let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
