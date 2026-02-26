@@ -519,7 +519,7 @@ fn spawn_simulation_thread(
             // Keep PhaseStateRing::CAPACITY - 1 frames in flight
 
             frames_in_flight += 1;
-            if frames_in_flight >= PhaseStateRing::CAPACITY - 2 {
+            if frames_in_flight >= PhaseStateRing::CAPACITY - 1 {
                 rx.recv().unwrap();
                 frames_in_flight -= 1;
             }
