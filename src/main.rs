@@ -325,10 +325,10 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(state) = &self.gpu_state {
-            if !state.prioritize_compute.load(Ordering::Relaxed) {
-                state.window.request_redraw();
-            }
+        if let Some(state) = &self.gpu_state
+            && !state.prioritize_compute.load(Ordering::Relaxed)
+        {
+            state.window.request_redraw();
         }
     }
 }
@@ -478,11 +478,11 @@ fn spawn_simulation_thread(
                 break;
             }
 
-            if prioritize_compute.load(Ordering::Relaxed) {
-                if last_frame_instant.elapsed() > Duration::from_secs_f32(1.0 / 30.0) {
-                    event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
-                    last_frame_instant = Instant::now();
-                }
+            if prioritize_compute.load(Ordering::Relaxed)
+                && last_frame_instant.elapsed() > Duration::from_secs_f32(1.0 / 30.0)
+            {
+                event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
+                last_frame_instant = Instant::now();
             }
 
             // Set up bvh and integrator buffers, advance the 2-state sliding window that the integrator uses
