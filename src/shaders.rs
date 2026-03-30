@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 3651ae1fe33c14dceced6c0682b2a3abb56a369bc3847fcba4ca44515f6345a3
+// SourceHash: 235103cf49d4d2cf34d9b2f61110bf8bae200b8c843f586c124ac0064d5f076d
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -297,7 +297,7 @@ pub mod render_shape {
     pub const SHAPE_RECT: u32 = 0u32;
     pub const SHAPE_CIRCLE: u32 = 1u32;
     pub const COLORING_SPEED_MIN: f32 = 0f32;
-    pub const COLORING_SPEED_MAX: f32 = 10000000f32;
+    pub const COLORING_SPEED_MAX: f32 = 100000f32;
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
     #[derive(Debug)]
@@ -647,7 +647,7 @@ const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
 const COLORING_SPEED_MIN: f32 = 0f;
-const COLORING_SPEED_MAX: f32 = 10000000f;
+const COLORING_SPEED_MAX: f32 = 100000f;
 
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
@@ -741,7 +741,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     v = _e18;
     let mass = masses[i].inner;
     let _e24 = v;
-    let relative_speed_1 = clamp(((((mass * pow(length(_e24), 2f)) / 2f) - COLORING_SPEED_MIN) / 10000000f), 0f, 1f);
+    let relative_speed_1 = clamp(((((mass * pow(length(_e24), 2f)) / 2f) - COLORING_SPEED_MIN) / 100000f), 0f, 1f);
     if ((f & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         let _e46 = colors[i].inner;
         out.color = _e46;
@@ -1398,9 +1398,9 @@ pub mod integrate {
         }
     }
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const STIFFNESS: f32 = 300000f32;
+    pub const STIFFNESS: f32 = 30000f32;
     pub const RESTITUTION: f32 = 0.3f32;
-    pub const GAMMA_COEFF: f32 = 334.35535f32;
+    pub const GAMMA_COEFF: f32 = 105.732445f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const INTEGRATE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1908,9 +1908,9 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
-const STIFFNESS: f32 = 300000f;
+const STIFFNESS: f32 = 30000f;
 const RESTITUTION: f32 = 0.3f;
-const GAMMA_COEFF: f32 = 334.35535f;
+const GAMMA_COEFF: f32 = 105.732445f;
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
@@ -2001,7 +2001,7 @@ fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: A
     let _e60 = v_ij_n;
     if (_e60 < 0f) {
         let _e66 = v_ij_n;
-        f_damping = (((-334.35535f * sqrt(m_eff)) * _e66) * n);
+        f_damping = (((-105.732445f * sqrt(m_eff)) * _e66) * n);
     }
     let f_elastic = ((STIFFNESS * penetration) * n);
     let _e73 = f_damping;

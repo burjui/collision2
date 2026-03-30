@@ -375,7 +375,7 @@ fn init_wgpu(
     let window_size = window.inner_size();
     let surface_config = wgpu::SurfaceConfiguration {
         present_mode: PresentMode::AutoVsync,
-        desired_maximum_frame_latency: 2,
+        desired_maximum_frame_latency: u32::try_from(PhaseStateRing::N_FRAMES).unwrap(),
         ..surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap()
     };
     surface.configure(&device, &surface_config);
@@ -411,17 +411,18 @@ fn render_scene(
         occlusion_query_set: None,
     });
 
-    let phase_state_ring_guard = phase_state_ring.lock().unwrap();
-    let phase_state_index = phase_state_ring_guard.current_index();
-    let phase_state = phase_state_ring_guard.current().clone();
+    let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
+    let current_frame_index = phase_state_ring_guard.current_frame_index();
+    let current_frame = phase_state_ring_guard.current_frame().clone();
+    phase_state_ring_guard.advance_frame();
     drop(phase_state_ring_guard);
 
     if render_parameters.enabled {
-        shape_renderer.prepare(phase_state_index, device, &phase_state);
+        shape_renderer.prepare(current_frame_index, device, &current_frame);
         shape_renderer.render(&mut render_pass, range.clone());
     }
     if render_parameters.draw_aabbs {
-        aabb_renderer.prepare(phase_state_index, device, &phase_state);
+        aabb_renderer.prepare(current_frame_index, device, &current_frame);
         aabb_renderer.render(&mut render_pass);
     }
 
@@ -461,15 +462,15 @@ fn spawn_simulation_thread(
     event_loop_proxy: EventLoopProxy<AppEvent>,
 ) {
     thread::spawn({
-        const DT: f32 = 0.001;
+        const DT: f32 = 0.004;
 
         let dt = GpuBuffer::from_data(&[DT], "dt buffer", BufferUsages::UNIFORM, &device);
         let mut bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
         let mut integrator = GpuIntegrator::new(&device, dt, masses, nodes, object_count);
 
         let (tx, rx) = channel::bounded(PhaseStateRing::CAPACITY);
-        let mut frame_count: usize = 0;
-        let mut frames_in_flight: usize = 0;
+        let mut sim_step_count: usize = 0;
+        let mut compute_submitted: usize = 0;
         let mut last_frame_instant = Instant::now();
         let start_instant = Instant::now();
 
@@ -488,10 +489,10 @@ fn spawn_simulation_thread(
             // Set up bvh and integrator buffers, advance the 2-state sliding window that the integrator uses
 
             let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
-            let phase_state_index = phase_state_ring_guard.current_index();
-            let current_phase_state = phase_state_ring_guard.current().clone();
-            let next_phase_state = phase_state_ring_guard.next().clone();
-            phase_state_ring_guard.advance();
+            let phase_state_index = phase_state_ring_guard.current_compute_index();
+            let current_phase_state = phase_state_ring_guard.current_compute().clone();
+            let next_phase_state = phase_state_ring_guard.next_compute().clone();
+            phase_state_ring_guard.advance_compute();
             drop(phase_state_ring_guard);
 
             bvh_builder.prepare(phase_state_index, &device, &current_phase_state);
@@ -508,26 +509,28 @@ fn spawn_simulation_thread(
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
 
+            let start = Instant::now();
             queue.submit([encoder.finish()]);
             queue.on_submitted_work_done({
                 let tx = tx.clone();
                 move || {
                     let _ = tx.send(());
+                    println!("compute done in {:?}", start.elapsed());
                 }
             });
 
-            // Keep PhaseStateRing::CAPACITY - 1 frames in flight
+            // Max PhaseStateRing::N_COMPUTE - 1 integrations at a time
 
-            frames_in_flight += 1;
-            if frames_in_flight >= PhaseStateRing::CAPACITY - 1 {
+            compute_submitted += 1;
+            if compute_submitted >= PhaseStateRing::N_COMPUTE - 1 {
                 rx.recv().unwrap();
-                frames_in_flight -= 1;
+                compute_submitted -= 1;
             }
 
             // Print stats
 
-            frame_count += 1;
-            let sim_time = frame_count as f32 * DT;
+            sim_step_count += 1;
+            let sim_time = sim_step_count as f32 * DT;
             let real_time = start_instant.elapsed().as_secs_f32();
             println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
 

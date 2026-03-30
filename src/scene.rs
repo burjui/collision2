@@ -19,8 +19,8 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         max: (world_aabb.max() * 0.6).into(),
     };
     let circles = {
-        const RADIUS: f32 = 8.0;
-        const PADDING: f32 = 2.0;
+        const RADIUS: f32 = 6.0;
+        const PADDING: f32 = 1.0;
         const POSITION_RAND_FACTOR: f32 = 0.1;
         const VELOCITY_RAND_MAX: f32 = 0.0;
         const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;

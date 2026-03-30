@@ -1,5 +1,3 @@
-use std::array::from_fn;
-
 use wgpu::{BufferUsages, Device, Queue};
 
 use crate::{
@@ -65,16 +63,19 @@ impl PhaseState {
 }
 
 pub struct PhaseStateRing {
-    states: [PhaseState; Self::CAPACITY],
-    oldest_index: usize,
-    current_index: usize,
+    states: Vec<PhaseState>,
+    frame_index: usize,
+    compute_index: usize,
 }
 
 impl PhaseStateRing {
+    pub const N_FRAMES: usize = 2;
+    pub const N_COMPUTE: usize = 3;
+
     pub const CAPACITY: usize = {
-        const CAPACITY: usize = 5;
-        assert!(CAPACITY > 1);
-        CAPACITY
+        assert!(Self::N_FRAMES >= 1);
+        assert!(Self::N_COMPUTE >= 2);
+        Self::N_FRAMES + Self::N_COMPUTE
     };
 
     pub fn new(
@@ -86,38 +87,51 @@ impl PhaseStateRing {
         node_count: usize,
     ) -> Self {
         Self {
-            states: from_fn(|i| {
-                PhaseState::new(i, device, queue, initial_aabbs, initial_velocities, initial_flags, node_count)
-            }),
-            oldest_index: 0,
-            current_index: 0,
+            states: (0..Self::CAPACITY)
+                .map(|i| {
+                    PhaseState::new(i, device, queue, initial_aabbs, initial_velocities, initial_flags, node_count)
+                })
+                .collect(),
+            frame_index: 0,
+            compute_index: 0,
         }
     }
 
-    pub fn oldest(&self) -> &PhaseState {
-        &self.states[self.oldest_index]
+    pub fn current_frame(&self) -> &PhaseState {
+        &self.states[self.frame_index]
     }
 
-    pub fn current(&self) -> &PhaseState {
-        &self.states[self.current_index]
+    pub fn current_frame_index(&self) -> usize {
+        self.frame_index
     }
 
-    pub fn next(&self) -> &PhaseState {
-        &self.states[next_index(self.current_index)]
+    pub fn current_compute(&self) -> &PhaseState {
+        &self.states[self.compute_index]
     }
 
-    pub fn current_index(&self) -> usize {
-        self.current_index
+    pub fn next_compute(&self) -> &PhaseState {
+        &self.states[Self::next_index(self.compute_index)]
     }
 
-    pub fn advance(&mut self) {
-        self.current_index = next_index(self.current_index);
-        if self.current_index == self.oldest_index {
-            self.oldest_index = next_index(self.oldest_index);
+    pub fn current_compute_index(&self) -> usize {
+        self.compute_index
+    }
+
+    pub fn advance_frame(&mut self) {
+        let next_index = Self::next_index(self.frame_index);
+        if next_index != self.compute_index {
+            self.frame_index = next_index;
         }
     }
-}
 
-fn next_index(index: usize) -> usize {
-    (index + 1) % PhaseStateRing::CAPACITY
+    pub fn advance_compute(&mut self) {
+        self.compute_index = Self::next_index(self.compute_index);
+        if Self::next_index(self.compute_index) == self.frame_index {
+            self.frame_index = Self::next_index(self.frame_index);
+        }
+    }
+
+    fn next_index(index: usize) -> usize {
+        (index + 1) % Self::CAPACITY
+    }
 }

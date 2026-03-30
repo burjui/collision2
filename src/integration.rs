@@ -30,7 +30,7 @@ impl GpuIntegrator {
     const BLACKHOLES: &[BlackHole] = &[
         // BlackHole::new([-200.0, 500.0], 2.0, 10.0, 0.0 * -50.0),
         // BlackHole::new([500.0, 200.0], 1.0, 10.0, 0.0 * -50.0),
-        // BlackHole::new([0.0, 0.0], 7.0, 20.0, 20.0 * 100.0),
+        // BlackHole::new([0.0, 0.0], 7.0, 20.0, 50.0 * 100.0),
         // BlackHole::new([-600.0, -300.0], 1.0, 20.0, 0.0 * -50.0),
         // BlackHole::new([600.0, -700.0], 1.0, 10.0, 0.0 * -50.0),
         //-------------
@@ -39,7 +39,7 @@ impl GpuIntegrator {
     const BLACKHOLE_MASS_SCALE: f32 = 1.0 * 1000.0;
     const BLACKHOLE_SIZE_SCALE: f32 = 10.0;
     const GRAVITATIONAL_CONSTANT: f32 = 1.0 * 100000.0;
-    const GLOBAL_FORCE: [f32; 2] = [0.0, -10000.0];
+    const GLOBAL_FORCE: [f32; 2] = [0.0, -1000.0];
 
     pub fn new(
         device: &Device,
