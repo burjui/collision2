@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 235103cf49d4d2cf34d9b2f61110bf8bae200b8c843f586c124ac0064d5f076d
+// SourceHash: de78c2483782f9c70df708615209b400eb331143660e05f9d75190a3f5880e0a
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1327,7 +1327,7 @@ fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_index) lid: u32, @builtin(num_workgroups) nwg: vec3<u32>) {
+fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
     let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
     let _e6 = params.parent_count;
     if (_e3 >= _e6) {
@@ -2117,7 +2117,7 @@ fn integrate_euler_symplectic(state_3: ObjectPhaseState, index_2: u32, aabb_3: A
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_index) lid: u32, @builtin(num_workgroups) nwg: vec3<u32>) {
+fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
     var f: u32;
     var state: ObjectPhaseState;
     var bh_index: u32 = 0u;

@@ -38,7 +38,6 @@ const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn integrate(
     @builtin(global_invocation_id) gid: vec3u,
-    @builtin(local_invocation_index) lid: u32,
     @builtin(num_workgroups) nwg: vec3u,
 ) {
     let i = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);

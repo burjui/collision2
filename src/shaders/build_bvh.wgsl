@@ -19,7 +19,6 @@ const WORKGROUP_SIZE: u32 = 64;
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn combine_nodes(
     @builtin(global_invocation_id) gid: vec3u,
-    @builtin(local_invocation_index) lid: u32,
     @builtin(num_workgroups) nwg: vec3u,
 ) {
     let index = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
