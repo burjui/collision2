@@ -29,8 +29,8 @@ use nalgebra::Vector2;
 use pollster::block_on;
 use shaders::common::Mass;
 use wgpu::{
-    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor, InstanceDescriptor,
-    PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
+    BufferAddress, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor,
+    InstanceDescriptor, PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
     RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureView, TextureViewDescriptor,
 };
 use winit::{
@@ -52,7 +52,7 @@ use crate::{
     scene::create_scene,
     shaders::{
         build_bvh::CombineNodePass,
-        common::{AABB, BvhNode, Camera},
+        common::{AABB, BvhNode, Camera, Velocity},
     },
     shape_renderer::ShapeRenderer,
 };
@@ -509,6 +509,21 @@ fn spawn_simulation_thread(
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
 
+            let velocities_readback: GpuBuffer<Velocity> = GpuBuffer::new(
+                1,
+                "velocities readback buffer",
+                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+                &device,
+            );
+            let velocity_size: BufferAddress = size_of::<Velocity>().try_into().unwrap();
+            encoder.copy_buffer_to_buffer(
+                next_phase_state.velocities().buffer(),
+                0,
+                velocities_readback.buffer(),
+                0,
+                velocity_size,
+            );
+
             let start = Instant::now();
             queue.submit([encoder.finish()]);
             queue.on_submitted_work_done({
@@ -540,6 +555,11 @@ fn spawn_simulation_thread(
             //     std::io::stdout().flush().unwrap();
             //     std::process::exit(1);
             // }
+
+            velocities_readback.read(1, |result| {
+                let velocities = result.unwrap();
+                println!("velocities[0]: {:?}", velocities[0]);
+            });
         }
     });
 }

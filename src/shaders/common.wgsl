@@ -49,10 +49,14 @@ struct BvhNode {
     index: u32,
 }
 
+struct CollisionCandidate {
+    a: u32,
+    b: u32
+}
+
+// TODO: replace with global_invocation_index when supported
 fn flat_invocation_index(gid: vec3u, nwg: vec3u, workgroup_size: u32) -> u32 {
-    let global_size_x = nwg.x * workgroup_size;
-    let global_size_y = nwg.y;
-    return gid.x
-         + gid.y * global_size_x
-         + gid.z * global_size_x * global_size_y;
+    return gid.x +
+          (gid.y * workgroup_size * nwg.x) +
+          (gid.z * workgroup_size * nwg.x * workgroup_size * nwg.y);
 }

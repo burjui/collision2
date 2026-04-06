@@ -1,6 +1,6 @@
 use nalgebra::Vector2;
 
-use crate::shaders::common::AABB;
+use crate::shaders::common::{AABB, Velocity};
 
 impl AABB {
     pub fn min(&self) -> Vector2<f32> {
@@ -13,6 +13,12 @@ impl AABB {
 
     pub fn size(&self) -> Vector2<f32> {
         self.max() - self.min()
+    }
+}
+
+impl Default for Velocity {
+    fn default() -> Self {
+        Self { inner: [0.0, 0.0] }
     }
 }
 

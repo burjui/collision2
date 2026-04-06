@@ -30,12 +30,22 @@ impl PhaseState {
         let flags_name = format!("flags buffer #{index}");
         let (velocities, flags) = if index == 0 {
             (
-                GpuBuffer::from_data(velocities, &velocities_name, BufferUsages::STORAGE, device),
+                GpuBuffer::from_data(
+                    velocities,
+                    &velocities_name,
+                    BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+                    device,
+                ),
                 GpuBuffer::from_data(flags, &flags_name, BufferUsages::STORAGE, device),
             )
         } else {
             (
-                GpuBuffer::new(velocities.len(), &velocities_name, BufferUsages::STORAGE, device),
+                GpuBuffer::new(
+                    velocities.len(),
+                    &velocities_name,
+                    BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+                    device,
+                ),
                 GpuBuffer::new(flags.len(), &flags_name, BufferUsages::STORAGE, device),
             )
         };

@@ -5,8 +5,10 @@ use std::{
 };
 
 use bytemuck::{AnyBitPattern, NoUninit, Pod};
-use crossbeam::sync::WaitGroup;
-use wgpu::{Buffer, BufferSlice, COPY_BUFFER_ALIGNMENT, Device, MapMode, PollType, Queue, util::DeviceExt};
+use wgpu::{
+    Buffer, BufferAsyncError, BufferSize, BufferSlice, COPY_BUFFER_ALIGNMENT, Device, MapMode, Queue, WasmNotSend,
+    util::DeviceExt,
+};
 
 /// Typesafe handle to a wgpu buffer
 #[derive(Clone)]
@@ -84,8 +86,8 @@ impl<T> GpuBuffer<T> {
     where
         T: NoUninit,
     {
-        let data_size = u64::try_from(size_of_val(data)).unwrap();
-        let mut view = queue.write_buffer_with(&self.buffer, 0, data_size.try_into().unwrap()).unwrap();
+        let data_size: BufferSize = u64::try_from(size_of_val(data)).unwrap().try_into().unwrap();
+        let mut view = queue.write_buffer_with(&self.buffer, 0, data_size).unwrap();
         view.as_mut().copy_from_slice(bytemuck::cast_slice(data));
     }
 
@@ -93,7 +95,8 @@ impl<T> GpuBuffer<T> {
     where
         T: NoUninit + AnyBitPattern,
     {
-        let mut view = queue.write_buffer_with(&self.buffer, 0, self.buffer.size().try_into().unwrap()).unwrap();
+        let buffer_size: BufferSize = self.buffer.size().try_into().unwrap();
+        let mut view = queue.write_buffer_with(&self.buffer, 0, buffer_size).unwrap();
         data.zip(bytemuck::cast_slice_mut(view.as_mut()).iter_mut()).for_each(|(src, dst)| *dst = src);
     }
 
@@ -101,25 +104,25 @@ impl<T> GpuBuffer<T> {
         self.buffer.size().try_into().unwrap()
     }
 
-    pub fn read(&self, device: &Device, dst: &mut [T])
+    pub fn read(&self, size: usize, callback: impl FnOnce(Result<Vec<T>, BufferAsyncError>) + WasmNotSend + 'static)
     where
-        T: Pod,
+        T: Pod + Default,
     {
-        let dst_size = u64::try_from(size_of_val(dst)).unwrap();
-        let size = dst_size.min(self.buffer.size());
-
-        let wait_group = WaitGroup::new();
-        let wg = wait_group.clone();
-        self.buffer.map_async(MapMode::Read, .., |result| {
-            result.unwrap();
-            drop(wg);
+        let dst_size = u64::try_from(size * size_of::<T>()).unwrap();
+        let copy_size = dst_size.min(self.buffer.size());
+        let buffer = self.buffer.clone();
+        self.buffer.map_async(MapMode::Read, .., move |result| {
+            callback(result.map(|_| {
+                let size_in_bytes: usize = copy_size.try_into().unwrap();
+                let size = size_in_bytes / size_of::<T>();
+                let mut dst = Vec::with_capacity(size);
+                dst.resize(size, Default::default());
+                let view = buffer.get_mapped_range(0..copy_size);
+                dst.copy_from_slice(bytemuck::cast_slice(&view));
+                drop(view);
+                buffer.unmap();
+                dst
+            }));
         });
-        device.poll(PollType::Poll).unwrap();
-        wait_group.wait();
-
-        let view = self.buffer.get_mapped_range(0..size);
-        dst.copy_from_slice(bytemuck::cast_slice(&view));
-        drop(view);
-        self.buffer.unmap();
     }
 }
