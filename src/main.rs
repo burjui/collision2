@@ -30,8 +30,8 @@ use nalgebra::Vector2;
 use pollster::block_on;
 use shaders::common::Mass;
 use wgpu::{
-    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor, InstanceDescriptor,
-    PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
+    BufferAddress, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor,
+    InstanceDescriptor, PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
     RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureView, TextureViewDescriptor,
 };
 use winit::{
@@ -46,6 +46,7 @@ use winit::{
 use crate::{
     aabb_renderer::AabbRenderer,
     bvh_builder::{BvhBuildParameters, BvhBuilder},
+    collision_broad_phase::BroadPhase,
     gpu_buffer::TypedBuffer,
     integration::GpuIntegrator,
     objects::Objects,
@@ -467,7 +468,16 @@ fn spawn_simulation_thread(
 
         let dt = TypedBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
         let mut bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
-        let mut integrator = GpuIntegrator::new(&device, object_count, dt, masses, nodes);
+        let mut integrator = GpuIntegrator::new(&device, object_count, dt, masses, nodes.clone());
+
+        let candidates = TypedBuffer::new(&device, object_count * 8, "candidates", BufferUsages::STORAGE);
+        let candidate_count = TypedBuffer::new(
+            &device,
+            1,
+            "candidate_count",
+            BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
+        );
+        let mut broad_phase = BroadPhase::new(&device, object_count, candidates, candidate_count.clone(), nodes);
 
         let (tx, rx) = channel::bounded(PhaseStateRing::CAPACITY);
         let mut sim_step_count: usize = 0;
@@ -497,6 +507,7 @@ fn spawn_simulation_thread(
             drop(phase_state_ring_guard);
 
             bvh_builder.prepare(phase_state_index, &device, &current_phase_state);
+            broad_phase.prepare(phase_state_index, &device, &current_phase_state);
             integrator.prepare(phase_state_index, &device, &current_phase_state, &next_phase_state);
 
             // Run the bvh builder and the integrator
@@ -507,19 +518,25 @@ fn spawn_simulation_thread(
                 timestamp_writes: None,
             });
             bvh_builder.compute(&mut compute_pass);
+            candidate_count.write(&queue, &[0]);
+            broad_phase.compute(&queue, &mut compute_pass);
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
 
-            // let velocities_readback: TypedBuffer<Velocity> =
-            //     TypedBuffer::new(&device, &queue,1, "velocities readback", BufferUsages::COPY_DST | BufferUsages::MAP_READ, );
-            // let velocity_size: BufferAddress = size_of::<Velocity>().try_into().unwrap();
-            // encoder.copy_buffer_to_buffer(
-            //     next_phase_state.velocities().buffer(),
-            //     0,
-            //     velocities_readback.buffer(),
-            //     0,
-            //     velocity_size,
-            // );
+            let candidate_count_readback: TypedBuffer<u32> = TypedBuffer::new(
+                &device,
+                1,
+                "candidate_count readback",
+                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+            );
+            let candidate_count_size: BufferAddress = size_of::<u32>().try_into().unwrap();
+            encoder.copy_buffer_to_buffer(
+                candidate_count.buffer(),
+                0,
+                candidate_count_readback.buffer(),
+                0,
+                candidate_count_size,
+            );
 
             let start = Instant::now();
             queue.submit([encoder.finish()]);
@@ -553,7 +570,8 @@ fn spawn_simulation_thread(
             //     std::process::exit(1);
             // }
 
-            // velocities_readback.read(0..1, |velocities| println!("velocities[0]: {:?}", velocities[0]));
+            candidate_count_readback
+                .read(1, |candidate_count| println!("candidate_count[0]: {:?}", candidate_count.unwrap()[0]));
         }
     });
 }
