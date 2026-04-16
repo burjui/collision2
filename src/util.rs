@@ -22,9 +22,9 @@ impl Default for Velocity {
     }
 }
 
-pub fn dispatch_dimensions(object_count: usize, workgroup_size: u32) -> (u32, u32, u32) {
+pub fn dispatch_dimensions(object_count: u32, workgroup_size: u32) -> (u32, u32, u32) {
     const MAX_DIMENSION: u32 = 65535;
-    let total_workgroups = u32::try_from(object_count).map(|c| c.div_ceil(workgroup_size)).unwrap();
+    let total_workgroups = object_count.div_ceil(workgroup_size);
     let x = total_workgroups.min(MAX_DIMENSION);
     let y = (total_workgroups.div_ceil(x)).min(MAX_DIMENSION);
     let z = total_workgroups.div_ceil(x * y);

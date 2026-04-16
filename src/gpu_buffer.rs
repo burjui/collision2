@@ -12,13 +12,13 @@ use wgpu::{
 
 /// Typesafe handle to a wgpu buffer
 #[derive(Clone)]
-pub struct GpuBuffer<T> {
+pub struct TypedBuffer<T> {
     buffer: Buffer,
     _marker: PhantomData<T>,
 }
 
-impl<T> GpuBuffer<T> {
-    pub fn new(length: usize, label: &str, usage: wgpu::BufferUsages, device: &Device) -> Self {
+impl<T> TypedBuffer<T> {
+    pub fn new(device: &Device, length: usize, label: &str, usage: wgpu::BufferUsages) -> Self {
         let required_size = u64::try_from(length * size_of::<T>()).unwrap();
         let padded_size = required_size.div_ceil(COPY_BUFFER_ALIGNMENT) * COPY_BUFFER_ALIGNMENT;
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -33,7 +33,7 @@ impl<T> GpuBuffer<T> {
         }
     }
 
-    pub fn from_data(data: &[T], label: &str, usage: wgpu::BufferUsages, device: &Device) -> Self
+    pub fn from_data(device: &Device, data: &[T], label: &str, usage: wgpu::BufferUsages) -> Self
     where
         T: NoUninit,
     {

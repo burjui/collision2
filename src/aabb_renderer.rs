@@ -6,7 +6,7 @@ use wgpu::{
 };
 
 use crate::{
-    gpu_buffer::GpuBuffer,
+    gpu_buffer::TypedBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         common::Camera,
@@ -30,7 +30,7 @@ impl AabbRenderer {
     pub fn new(
         device: &Device,
         swapchain_format: TextureFormat,
-        camera_buffer: GpuBuffer<Camera>,
+        camera_buffer: TypedBuffer<Camera>,
         node_count: usize,
     ) -> Self {
         let pipeline_layout = create_pipeline_layout(device);

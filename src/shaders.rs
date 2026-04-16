@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 4fc9ab34d9334b71dd95195d6bddc2b2264df417dab5a76dd761d735cfdf4c43
+// SourceHash: 7ba0fc44eddbccb2c730ea46ac2c5ba03c68f8c29f3d2eec6a1983c0687969b6
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1377,6 +1377,7 @@ fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_wor
 pub mod collision_broad_phase {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
+    pub const BATCH_SIZE: u32 = 1u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const BROAD_PHASE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1398,11 +1399,15 @@ pub mod collision_broad_phase {
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub object_count: wgpu::BufferBinding<'a>,
         pub max_candidates: wgpu::BufferBinding<'a>,
+        pub candidates: wgpu::BufferBinding<'a>,
+        pub candidate_count: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub object_count: wgpu::BindGroupEntry<'a>,
         pub max_candidates: wgpu::BindGroupEntry<'a>,
+        pub candidates: wgpu::BindGroupEntry<'a>,
+        pub candidate_count: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -1415,10 +1420,23 @@ pub mod collision_broad_phase {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.max_candidates),
                 },
+                candidates: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.candidates),
+                },
+                candidate_count: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.candidate_count),
+                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
-            [self.object_count, self.max_candidates]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
+            [
+                self.object_count,
+                self.max_candidates,
+                self.candidates,
+                self.candidate_count,
+            ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -1452,6 +1470,28 @@ pub mod collision_broad_phase {
                     },
                     count: None,
                 },
+                #[doc = " @binding(2): \"candidates\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"candidate_count\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                    },
+                    count: None,
+                },
             ],
         };
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -1476,16 +1516,12 @@ pub mod collision_broad_phase {
         pub nodes: wgpu::BufferBinding<'a>,
         pub aabbs: wgpu::BufferBinding<'a>,
         pub flags: wgpu::BufferBinding<'a>,
-        pub candidates: wgpu::BufferBinding<'a>,
-        pub candidate_count: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup1Entries<'a> {
         pub nodes: wgpu::BindGroupEntry<'a>,
         pub aabbs: wgpu::BindGroupEntry<'a>,
         pub flags: wgpu::BindGroupEntry<'a>,
-        pub candidates: wgpu::BindGroupEntry<'a>,
-        pub candidate_count: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup1Entries<'a> {
         pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
@@ -1502,24 +1538,10 @@ pub mod collision_broad_phase {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.flags),
                 },
-                candidates: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.candidates),
-                },
-                candidate_count: wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.candidate_count),
-                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
-            [
-                self.nodes,
-                self.aabbs,
-                self.flags,
-                self.candidates,
-                self.candidate_count,
-            ]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
+            [self.nodes, self.aabbs, self.flags]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -1561,28 +1583,6 @@ pub mod collision_broad_phase {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
                         min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(3): \"candidates\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(4): \"candidate_count\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -1668,21 +1668,22 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
+const BATCH_SIZE: u32 = 1u;
 
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
 var<uniform> max_candidates: u32;
+@group(0) @binding(2) 
+var<storage, read_write> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(3) 
+var<storage, read_write> candidate_count: atomic<u32>;
 @group(1) @binding(0) 
 var<storage> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(1) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(2) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(3) 
-var<storage, read_write> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(4) 
-var<storage, read_write> candidate_count: atomic<u32>;
 var<workgroup> wg_candidate_count: atomic<u32>;
 
 fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {

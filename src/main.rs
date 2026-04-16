@@ -2,6 +2,7 @@
 
 pub mod aabb_renderer;
 pub mod bvh_builder;
+pub mod collision_broad_phase;
 pub mod gpu_buffer;
 pub mod integration;
 #[cfg(test)]
@@ -29,8 +30,8 @@ use nalgebra::Vector2;
 use pollster::block_on;
 use shaders::common::Mass;
 use wgpu::{
-    BufferAddress, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor,
-    InstanceDescriptor, PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
+    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor, InstanceDescriptor,
+    PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
     RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureView, TextureViewDescriptor,
 };
 use winit::{
@@ -45,14 +46,14 @@ use winit::{
 use crate::{
     aabb_renderer::AabbRenderer,
     bvh_builder::{BvhBuildParameters, BvhBuilder},
-    gpu_buffer::GpuBuffer,
+    gpu_buffer::TypedBuffer,
     integration::GpuIntegrator,
     objects::Objects,
     phase_state::PhaseStateRing,
     scene::create_scene,
     shaders::{
         build_bvh::CombineNodePass,
-        common::{AABB, BvhNode, Camera, Velocity},
+        common::{AABB, BvhNode, Camera},
     },
     shape_renderer::ShapeRenderer,
 };
@@ -114,7 +115,7 @@ struct GpuState<'a> {
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
     object_count: usize,
-    camera: GpuBuffer<Camera>,
+    camera: TypedBuffer<Camera>,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     exit_requested: Arc<AtomicBool>,
     prioritize_compute: Arc<AtomicBool>,
@@ -146,13 +147,14 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let bvh_build_params = BvhBuildParameters::new(object_count);
         // TODO: don't store leaves
         let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
-        let node_count = bvh_build_params.node_count();
-        let nodes = GpuBuffer::new(node_count, "bvh node buffer", storage_copy_dst, &device);
-        nodes.write_iter(&queue, (0..u32::try_from(object_count).unwrap()).map(BvhNode::new));
 
-        let masses = GpuBuffer::from_data(&objects.masses, "mass buffer", storage_copy_dst, &device);
-        let colors = GpuBuffer::from_data(&objects.colors, "color buffer", storage_copy_dst, &device);
-        let shapes = GpuBuffer::from_data(&objects.shapes, "shape buffer", storage_copy_dst, &device);
+        let node_count = bvh_build_params.node_count();
+        let nodes = TypedBuffer::new(&device, node_count, "nodes", storage_copy_dst);
+        nodes.write_iter(&queue, (0_u32..).take(object_count).map(BvhNode::new));
+
+        let masses = TypedBuffer::from_data(&device, &objects.masses, "masses", storage_copy_dst);
+        let colors = TypedBuffer::from_data(&device, &objects.colors, "colors", storage_copy_dst);
+        let shapes = TypedBuffer::from_data(&device, &objects.shapes, "shapes", storage_copy_dst);
 
         let phase_state_ring = Arc::new(Mutex::new(PhaseStateRing::new(
             &device,
@@ -163,8 +165,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             node_count,
         )));
 
-        let camera =
-            GpuBuffer::<Camera>::new(1, "camera buffer", BufferUsages::UNIFORM | BufferUsages::COPY_DST, &device);
+        let camera = TypedBuffer::<Camera>::new(&device, 1, "camera", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
         let shape_renderer =
             ShapeRenderer::new(&device, swapchain_format, camera.clone(), colors, shapes, masses.clone());
         let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), node_count);
@@ -394,7 +395,7 @@ fn render_scene(
     device: &Device,
     queue: &Queue,
 ) {
-    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
+    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(RenderPassColorAttachment {
@@ -454,8 +455,8 @@ fn spawn_simulation_thread(
     device: Device,
     queue: Queue,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
-    masses: GpuBuffer<Mass>,
-    nodes: GpuBuffer<BvhNode>,
+    masses: TypedBuffer<Mass>,
+    nodes: TypedBuffer<BvhNode>,
     bvh_build_params: BvhBuildParameters,
     exit_requested: Arc<AtomicBool>,
     prioritize_compute: Arc<AtomicBool>,
@@ -464,9 +465,9 @@ fn spawn_simulation_thread(
     thread::spawn({
         const DT: f32 = 0.004;
 
-        let dt = GpuBuffer::from_data(&[DT], "dt buffer", BufferUsages::UNIFORM, &device);
+        let dt = TypedBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
         let mut bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
-        let mut integrator = GpuIntegrator::new(&device, dt, masses, nodes, object_count);
+        let mut integrator = GpuIntegrator::new(&device, object_count, dt, masses, nodes);
 
         let (tx, rx) = channel::bounded(PhaseStateRing::CAPACITY);
         let mut sim_step_count: usize = 0;
@@ -509,20 +510,16 @@ fn spawn_simulation_thread(
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
 
-            let velocities_readback: GpuBuffer<Velocity> = GpuBuffer::new(
-                1,
-                "velocities readback buffer",
-                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-                &device,
-            );
-            let velocity_size: BufferAddress = size_of::<Velocity>().try_into().unwrap();
-            encoder.copy_buffer_to_buffer(
-                next_phase_state.velocities().buffer(),
-                0,
-                velocities_readback.buffer(),
-                0,
-                velocity_size,
-            );
+            // let velocities_readback: TypedBuffer<Velocity> =
+            //     TypedBuffer::new(&device, &queue,1, "velocities readback", BufferUsages::COPY_DST | BufferUsages::MAP_READ, );
+            // let velocity_size: BufferAddress = size_of::<Velocity>().try_into().unwrap();
+            // encoder.copy_buffer_to_buffer(
+            //     next_phase_state.velocities().buffer(),
+            //     0,
+            //     velocities_readback.buffer(),
+            //     0,
+            //     velocity_size,
+            // );
 
             let start = Instant::now();
             queue.submit([encoder.finish()]);
@@ -556,10 +553,7 @@ fn spawn_simulation_thread(
             //     std::process::exit(1);
             // }
 
-            velocities_readback.read(1, |result| {
-                let velocities = result.unwrap();
-                println!("velocities[0]: {:?}", velocities[0]);
-            });
+            // velocities_readback.read(0..1, |velocities| println!("velocities[0]: {:?}", velocities[0]));
         }
     });
 }

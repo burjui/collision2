@@ -6,7 +6,7 @@ use wgpu::{
 };
 
 use crate::{
-    gpu_buffer::GpuBuffer,
+    gpu_buffer::TypedBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         common::{Camera, Color, Mass, Shape},
@@ -29,10 +29,10 @@ impl ShapeRenderer {
     pub fn new(
         device: &Device,
         swapchain_format: TextureFormat,
-        camera: GpuBuffer<Camera>,
-        colors: GpuBuffer<Color>,
-        shapes: GpuBuffer<Shape>,
-        masses: GpuBuffer<Mass>,
+        camera: TypedBuffer<Camera>,
+        colors: TypedBuffer<Color>,
+        shapes: TypedBuffer<Shape>,
+        masses: TypedBuffer<Mass>,
     ) -> Self {
         let pipeline_layout = create_pipeline_layout(device);
         let shader = create_shader_module_embed_source(device);

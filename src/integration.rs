@@ -3,7 +3,7 @@ use std::array::from_fn;
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 use crate::{
-    gpu_buffer::GpuBuffer,
+    gpu_buffer::TypedBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         common::{BvhNode, Mass},
@@ -17,9 +17,9 @@ use crate::{
 };
 
 pub struct GpuIntegrator {
+    object_count: u32,
     main_bind_group: WgpuBindGroup0,
     blackhole_bind_group: WgpuBindGroup1,
-    object_count: usize,
     pipeline: ComputePipeline,
     phase_state_bind_groups: [Option<WgpuBindGroup2>; PhaseStateRing::CAPACITY],
     phase_state_index: Option<usize>,
@@ -43,27 +43,35 @@ impl GpuIntegrator {
 
     pub fn new(
         device: &Device,
-        dt: GpuBuffer<f32>,
-        masses: GpuBuffer<Mass>,
-        nodes: GpuBuffer<BvhNode>,
         object_count: usize,
+        dt: TypedBuffer<f32>,
+        masses: TypedBuffer<Mass>,
+        nodes: TypedBuffer<BvhNode>,
     ) -> Self {
-        let blackholes = GpuBuffer::from_data(Self::BLACKHOLES, "blackholes", BufferUsages::STORAGE, device);
+        let blackholes = TypedBuffer::from_data(device, Self::BLACKHOLES, "blackholes", BufferUsages::STORAGE);
         let pipeline = create_integrate_pipeline_embed_source(device);
         let blackhole_count = u32::try_from(Self::BLACKHOLES.len() - 1).unwrap();
         let blackhole_count =
-            GpuBuffer::from_data(&[blackhole_count], "blackhole count", BufferUsages::UNIFORM, device);
-        let blackhole_mass_scale =
-            GpuBuffer::from_data(&[Self::BLACKHOLE_MASS_SCALE], "blackhole mass scale", BufferUsages::UNIFORM, device);
-        let blackhole_size_scale =
-            GpuBuffer::from_data(&[Self::BLACKHOLE_SIZE_SCALE], "blackhole size scale", BufferUsages::UNIFORM, device);
-        let gravitational_constant = GpuBuffer::from_data(
+            TypedBuffer::from_data(device, &[blackhole_count], "blackhole count", BufferUsages::UNIFORM);
+        let blackhole_mass_scale = TypedBuffer::from_data(
+            device,
+            &[Self::BLACKHOLE_MASS_SCALE],
+            "blackhole mass scale",
+            BufferUsages::UNIFORM,
+        );
+        let blackhole_size_scale = TypedBuffer::from_data(
+            device,
+            &[Self::BLACKHOLE_SIZE_SCALE],
+            "blackhole size scale",
+            BufferUsages::UNIFORM,
+        );
+        let gravitational_constant = TypedBuffer::from_data(
+            device,
             &[Self::GRAVITATIONAL_CONSTANT],
             "gravitational constant",
             BufferUsages::UNIFORM,
-            device,
         );
-        let global_force = GpuBuffer::from_data(&[Self::GLOBAL_FORCE], "global force", BufferUsages::UNIFORM, device);
+        let global_force = TypedBuffer::from_data(device, &[Self::GLOBAL_FORCE], "global force", BufferUsages::UNIFORM);
         let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
@@ -85,9 +93,9 @@ impl GpuIntegrator {
         );
 
         Self {
+            object_count: object_count.try_into().unwrap(),
             main_bind_group,
             blackhole_bind_group,
-            object_count,
             pipeline,
             phase_state_bind_groups: from_fn(|_| None),
             phase_state_index: None,

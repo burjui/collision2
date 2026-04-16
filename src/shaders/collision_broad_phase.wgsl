@@ -6,15 +6,17 @@
 
 @group(0) @binding(0) var<uniform> object_count: u32;
 @group(0) @binding(1) var<uniform> max_candidates: u32;
+@group(0) @binding(2) var<storage, read_write> candidates: array<CollisionCandidate>;
+@group(0) @binding(3) var<storage, read_write> candidate_count: atomic<u32>;
 
 @group(1) @binding(0) var<storage, read> nodes: array<BvhNode>;
 @group(1) @binding(1) var<storage, read> aabbs: array<AABB>;
 @group(1) @binding(2) var<storage, read> flags: array<Flags>;
-@group(1) @binding(3) var<storage, read_write> candidates: array<CollisionCandidate>;
-@group(1) @binding(4) var<storage, read_write> candidate_count: atomic<u32>;
+
 var<workgroup> wg_candidate_count: atomic<u32>;
 
 const WORKGROUP_SIZE: u32 = 64;
+const BATCH_SIZE: u32 = 1;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn broad_phase(

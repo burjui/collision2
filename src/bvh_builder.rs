@@ -3,7 +3,7 @@ use std::array::from_fn;
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
-    gpu_buffer::GpuBuffer,
+    gpu_buffer::TypedBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         build_bvh::{
@@ -25,7 +25,7 @@ pub struct BvhBuilder {
 }
 
 impl BvhBuilder {
-    pub fn new(params: BvhBuildParameters, device: &Device, nodes: GpuBuffer<BvhNode>) -> Self {
+    pub fn new(params: BvhBuildParameters, device: &Device, nodes: TypedBuffer<BvhNode>) -> Self {
         let pipeline = create_combine_nodes_pipeline_embed_source(device);
         let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
@@ -62,7 +62,7 @@ impl BvhBuilder {
         phase_state_bind_group.set(compute_pass);
         for &pass in &self.passes {
             compute_pass.set_push_constants(0, bytemuck::cast_slice(&[pass]));
-            let (x, y, z) = dispatch_dimensions(pass.parent_count as usize, WORKGROUP_SIZE);
+            let (x, y, z) = dispatch_dimensions(pass.parent_count, WORKGROUP_SIZE);
             compute_pass.dispatch_workgroups(x, y, z);
         }
     }
