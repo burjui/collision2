@@ -15,9 +15,10 @@
 
 const WORKGROUP_SIZE: u32 = 64;
 const BATCH_SIZE: u32 = 1; // TODO make use of BATCH_SIZE
+const MAX_WG_CANDIDATES: u32 = WORKGROUP_SIZE * CANDIDATES_PER_OBJECT;
 
 var<workgroup> wg_candidate_count: atomic<u32>;
-var<workgroup> wg_candidates: array<CollisionCandidate, WORKGROUP_SIZE>;
+var<workgroup> wg_candidates: array<CollisionCandidate, MAX_WG_CANDIDATES>;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn broad_phase(
@@ -67,7 +68,9 @@ fn broad_phase(
             sp += 2;
         } else if other_index != i && (flags[other_index].inner & FLAG_PHYSICAL) != 0 {
             let candidates_index = atomicAdd(&wg_candidate_count, 1);
-            wg_candidates[candidates_index] = CollisionCandidate(i, other_index);
+            if candidates_index >= MAX_WG_CANDIDATES {
+                wg_candidates[candidates_index] = CollisionCandidate(i, other_index);
+            }
         }
     }
 

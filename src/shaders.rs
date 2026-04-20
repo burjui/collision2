@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 4020618ccc4cd81e6fc20d17fa13419f9439a8aa35c1d0f6dc49d3e4b4e18dee
+// SourceHash: 5ddf82c771c15334f606d8359042c87d44f34d09f53c5dcc71e9ac4a7f53159d
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1401,6 +1401,7 @@ pub mod collision_broad_phase {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
     pub const BATCH_SIZE: u32 = 1u32;
+    pub const MAX_WG_CANDIDATES: u32 = 384u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const BROAD_PHASE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1690,9 +1691,11 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
+const CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 6u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
 const BATCH_SIZE: u32 = 1u;
+const MAX_WG_CANDIDATES: u32 = 384u;
 
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
@@ -1709,7 +1712,7 @@ var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(2) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 var<workgroup> wg_candidate_count: atomic<u32>;
-var<workgroup> wg_candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX, 64>;
+var<workgroup> wg_candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX, 384>;
 
 fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
@@ -1772,31 +1775,33 @@ fn broad_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workg
                 let _e71 = flags[other_index].inner;
                 if ((other_index != _e4) && ((_e71 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
                     let _e79 = atomicAdd((&wg_candidate_count), 1u);
-                    wg_candidates[_e79] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(_e4, other_index);
+                    if (_e79 >= MAX_WG_CANDIDATES) {
+                        wg_candidates[_e79] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(_e4, other_index);
+                    }
                 }
             }
         }
     }
     workgroupBarrier();
     if (local_invocation_index == 0u) {
-        let _e86 = atomicLoad((&wg_candidate_count));
-        let _e88 = atomicAdd((&candidate_count), _e86);
+        let _e88 = atomicLoad((&wg_candidate_count));
+        let _e90 = atomicAdd((&candidate_count), _e88);
         loop {
-            let _e90 = j;
-            let _e92 = atomicLoad((&wg_candidate_count));
-            if (_e90 < _e92) {
+            let _e92 = j;
+            let _e94 = atomicLoad((&wg_candidate_count));
+            if (_e92 < _e94) {
             } else {
                 break;
             }
             {
-                let _e95 = j;
-                let _e99 = j;
-                let _e101 = wg_candidates[_e99];
-                candidates[(_e88 + _e95)] = _e101;
+                let _e97 = j;
+                let _e101 = j;
+                let _e103 = wg_candidates[_e101];
+                candidates[(_e90 + _e97)] = _e103;
             }
             continuing {
-                let _e103 = j;
-                j = (_e103 + 1u);
+                let _e105 = j;
+                j = (_e105 + 1u);
             }
         }
         return;
