@@ -1,5 +1,5 @@
 #import common::{
-    FLAG_PHYSICAL, BVH_NODE_TREE_FLAG,
+    FLAG_PHYSICAL, BVH_NODE_TREE_FLAG, CANDIDATES_PER_OBJECT,
     AABB, Flags, BvhNode, CollisionCandidate,
     flat_invocation_index
 }
@@ -13,12 +13,11 @@
 @group(1) @binding(1) var<storage, read> aabbs: array<AABB>;
 @group(1) @binding(2) var<storage, read> flags: array<Flags>;
 
+const WORKGROUP_SIZE: u32 = 64;
+const BATCH_SIZE: u32 = 1; // TODO make use of BATCH_SIZE
+
 var<workgroup> wg_candidate_count: atomic<u32>;
 var<workgroup> wg_candidates: array<CollisionCandidate, WORKGROUP_SIZE>;
-
-const WORKGROUP_SIZE: u32 = 64;
-const BATCH_SIZE: u32 = 1;
-const CANDIDATES_PER_OBJECT: u32 = 6;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn broad_phase(
@@ -32,7 +31,7 @@ fn broad_phase(
     }
 
     if local_invocation_index == 0 {
-        atomicStore(&candidate_count, 0);
+        atomicStore(&wg_candidate_count, 0);
     }
 
     workgroupBarrier();
@@ -62,9 +61,9 @@ fn broad_phase(
                 break;
             }
 
-            let i = other_index & ~BVH_NODE_TREE_FLAG;
-            stack[sp] = i;
-            stack[sp + 1] = i + 1;
+            let child = other_index & ~BVH_NODE_TREE_FLAG;
+            stack[sp] = child;
+            stack[sp + 1] = child + 1;
             sp += 2;
         } else if other_index != i && (flags[other_index].inner & FLAG_PHYSICAL) != 0 {
             let candidates_index = atomicAdd(&wg_candidate_count, 1);
@@ -75,9 +74,9 @@ fn broad_phase(
     workgroupBarrier();
 
     if local_invocation_index == 0 {
-        candidate_count += wg_candidate_count;
+        let base = atomicAdd(&candidate_count, wg_candidate_count);
         for (var j = 0u; j < wg_candidate_count; j++) {
-            candidates[i + j] = wg_candidates[i];
+            candidates[base + j] = wg_candidates[j];
         }
     }
 }

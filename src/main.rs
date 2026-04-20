@@ -3,6 +3,7 @@
 pub mod aabb_renderer;
 pub mod bvh_builder;
 pub mod collision_broad_phase;
+pub mod collision_narrow_phase;
 pub mod gpu_buffer;
 pub mod integration;
 #[cfg(test)]
@@ -54,7 +55,7 @@ use crate::{
     scene::create_scene,
     shaders::{
         build_bvh::CombineNodePass,
-        common::{AABB, BvhNode, Camera},
+        common::{AABB, BvhNode, CANDIDATES_PER_OBJECT, Camera},
     },
     shape_renderer::ShapeRenderer,
 };
@@ -470,7 +471,9 @@ fn spawn_simulation_thread(
         let mut bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
         let mut integrator = GpuIntegrator::new(&device, object_count, dt, masses, nodes.clone());
 
-        let candidates = TypedBuffer::new(&device, object_count * 8, "candidates", BufferUsages::STORAGE);
+        let candidates_per_object: usize = CANDIDATES_PER_OBJECT.try_into().unwrap();
+        let max_candidates = object_count * candidates_per_object;
+        let candidates = TypedBuffer::new(&device, max_candidates, "candidates", BufferUsages::STORAGE);
         let candidate_count = TypedBuffer::new(
             &device,
             1,
@@ -571,7 +574,7 @@ fn spawn_simulation_thread(
             // }
 
             candidate_count_readback
-                .read(1, |candidate_count| println!("candidate_count[0]: {:?}", candidate_count.unwrap()[0]));
+                .read(1, |candidate_count| println!("candidate_count: {:?}", candidate_count.unwrap()[0]));
         }
     });
 }

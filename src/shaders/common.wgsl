@@ -13,6 +13,8 @@ const FLAG_DRAW_OBJECT: u32 = 1 << 0;
 const FLAG_DRAW_AABB: u32 = 1 << 1;
 const FLAG_PHYSICAL: u32 = 1 << 2;
 
+const CANDIDATES_PER_OBJECT: u32 = 6;
+
 struct Camera {
     inner: mat4x4f
 }
@@ -40,6 +42,10 @@ struct Shape {
 struct AABB {
     min: vec2f,
     max: vec2f
+}
+
+struct Force {
+    inner: vec2f
 }
 
 const BVH_NODE_TREE_FLAG: u32 = 1 << 31;
