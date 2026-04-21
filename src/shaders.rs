@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: c36d201144971ef1328d05dc1305c583a5f280e6f6ee7836d598ef031de4504a
+// SourceHash: 91c318c8e3d5379ce11d7bf093c98b5c371b8a7299c564f04107ba8f68ce1c0b
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -140,7 +140,7 @@ pub mod common {
     pub const FLAG_DRAW_OBJECT: u32 = 1u32;
     pub const FLAG_DRAW_AABB: u32 = 2u32;
     pub const FLAG_PHYSICAL: u32 = 4u32;
-    pub const MAX_CANDIDATES_PER_OBJECT: u32 = 6u32;
+    pub const MAX_CANDIDATES_PER_OBJECT: u32 = 10u32;
     pub const BVH_NODE_TREE_FLAG: u32 = 2147483648u32;
     pub const MAX_DISPATCH_DIMENSION: u32 = 65535u32;
     #[repr(C, align(16))]
@@ -346,7 +346,7 @@ const UNIT_QUAD_VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.
 const FLAG_DRAW_OBJECT: u32 = 1u;
 const FLAG_DRAW_AABB: u32 = 2u;
 const FLAG_PHYSICAL: u32 = 4u;
-const MAX_CANDIDATES_PER_OBJECT: u32 = 6u;
+const MAX_CANDIDATES_PER_OBJECT: u32 = 10u;
 const BVH_NODE_TREE_FLAG: u32 = 2147483648u;
 const MAX_DISPATCH_DIMENSION: u32 = 65535u;
 
@@ -1441,7 +1441,7 @@ fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_wor
 pub mod collision_broad_phase {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const MAX_WG_CANDIDATES: u32 = 384u32;
+    pub const MAX_WG_CANDIDATES: u32 = 640u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const BROAD_PHASE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1731,10 +1731,10 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
-const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 6u;
+const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 10u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
-const MAX_WG_CANDIDATES: u32 = 384u;
+const MAX_WG_CANDIDATES: u32 = 640u;
 
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
@@ -1751,7 +1751,7 @@ var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(2) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 var<workgroup> wg_candidate_count: atomic<u32>;
-var<workgroup> wg_candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX, 384>;
+var<workgroup> wg_candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX, 640>;
 
 fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
@@ -1857,10 +1857,10 @@ fn broad_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workg
 pub mod collision_narrow_phase {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const BATCH_SIZE: u32 = 1u32;
-    pub const STIFFNESS: f32 = 30000f32;
-    pub const RESTITUTION: f32 = 0.3f32;
-    pub const GAMMA_COEFF: f32 = 105.732445f32;
+    pub const BATCH_SIZE: u32 = 100u32;
+    pub const STIFFNESS: f32 = 50000f32;
+    pub const RESTITUTION: f32 = 0.9f32;
+    pub const GAMMA_COEFF: f32 = 28.500006f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const NARROW_PHASE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -2193,12 +2193,12 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
     b: u32,
 }
 
-const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 6u;
+const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 10u;
 const WORKGROUP_SIZE: u32 = 64u;
-const BATCH_SIZE: u32 = 1u;
-const STIFFNESS: f32 = 30000f;
-const RESTITUTION: f32 = 0.3f;
-const GAMMA_COEFF: f32 = 105.732445f;
+const BATCH_SIZE: u32 = 100u;
+const STIFFNESS: f32 = 50000f;
+const RESTITUTION: f32 = 0.9f;
+const GAMMA_COEFF: f32 = 28.500006f;
 
 @group(0) @binding(0) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
@@ -2220,6 +2220,7 @@ fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec
 }
 
 fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f32>, m1_: f32, aabb2_: AABBX_naga_oil_mod_XMNXW23LPNYX, v2_: vec2<f32>, m2_: f32) -> vec2<f32> {
+    var f_elastic: vec2<f32> = vec2<f32>();
     var f_damping: vec2<f32> = vec2<f32>();
 
     let size1_ = (aabb1_.max - aabb1_.min);
@@ -2239,15 +2240,18 @@ fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f
     }
     let n = (separation_vector / vec2(distance));
     let penetration = (interaction_distance - distance);
-    let f_elastic = ((STIFFNESS * penetration) * n);
+    if (penetration > 0f) {
+        f_elastic = ((STIFFNESS * penetration) * n);
+    }
     let v_rel = (v1_ - v2_);
     let v_n = dot(v_rel, n);
     if (v_n < 0f) {
         let m_eff = ((m1_ * m2_) / (m1_ + m2_));
-        f_damping = (((-105.732445f * sqrt(m_eff)) * v_n) * n);
+        f_damping = (((-28.500006f * sqrt(m_eff)) * v_n) * n);
     }
-    let _e56 = f_damping;
-    return (f_elastic + _e56);
+    let _e59 = f_elastic;
+    let _e60 = f_damping;
+    return (_e59 + _e60);
 }
 
 @compute @workgroup_size(64, 1, 1) 
@@ -2266,7 +2270,7 @@ fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_work
             let i = ((_e4 * BATCH_SIZE) + _e11);
             let _e14 = candidate_count;
             if (i >= _e14) {
-                return;
+                continue;
             }
             let candidates_1 = candidates[i];
             let a = candidates_1.a;
@@ -2279,7 +2283,7 @@ fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_work
             let _e42 = masses[b].inner;
             let _e43 = collision_repulsion_pair(_e23, _e27, _e31, _e34, _e38, _e42);
             if ((_e43.x == 0f) && (_e43.y == 0f)) {
-                return;
+                continue;
             }
             let _e54 = atomicAdd((&collision_count[a]), 1u);
             let _e58 = atomicAdd((&collision_count[b]), 1u);
@@ -2297,7 +2301,7 @@ fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_work
 }
 pub mod collision_narrow_phase_dispatch_dimensions {
     use super::{_root, _root::*};
-    pub const CHUNK_SIZE: u32 = 64u32;
+    pub const CHUNK_SIZE: u32 = 6400u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CALCULATE_NARROW_PHASE_DISPATCH_DIMENSIONS_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
@@ -2462,10 +2466,10 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 const MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 65535u;
-const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 6u;
+const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 10u;
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 64u;
-const BATCH_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 1u;
-const CHUNK_SIZE: u32 = 64u;
+const BATCH_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 100u;
+const CHUNK_SIZE: u32 = 6400u;
 
 @group(0) @binding(0) 
 var<uniform> candidate_count: u32;
@@ -2696,9 +2700,6 @@ pub mod integrate {
         }
     }
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const STIFFNESS: f32 = 30000f32;
-    pub const RESTITUTION: f32 = 0.3f32;
-    pub const GAMMA_COEFF: f32 = 105.732445f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const INTEGRATE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -2722,7 +2723,6 @@ pub mod integrate {
         pub gravitational_constant: wgpu::BufferBinding<'a>,
         pub global_force: wgpu::BufferBinding<'a>,
         pub masses: wgpu::BufferBinding<'a>,
-        pub nodes: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
@@ -2730,7 +2730,6 @@ pub mod integrate {
         pub gravitational_constant: wgpu::BindGroupEntry<'a>,
         pub global_force: wgpu::BindGroupEntry<'a>,
         pub masses: wgpu::BindGroupEntry<'a>,
-        pub nodes: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -2751,20 +2750,10 @@ pub mod integrate {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.masses),
                 },
-                nodes: wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.nodes),
-                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
-            [
-                self.dt,
-                self.gravitational_constant,
-                self.global_force,
-                self.masses,
-                self.nodes,
-            ]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
+            [self.dt, self.gravitational_constant, self.global_force, self.masses]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -2812,17 +2801,6 @@ pub mod integrate {
                 #[doc = " @binding(3): \"masses\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(4): \"nodes\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -2968,60 +2946,29 @@ pub mod integrate {
     }
     #[derive(Debug)]
     pub struct WgpuBindGroup2EntriesParams<'a> {
-        pub flags: wgpu::BufferBinding<'a>,
-        pub aabbs: wgpu::BufferBinding<'a>,
-        pub velocities: wgpu::BufferBinding<'a>,
-        pub integrated_flags: wgpu::BufferBinding<'a>,
-        pub integrated_aabbs: wgpu::BufferBinding<'a>,
-        pub integrated_velocities: wgpu::BufferBinding<'a>,
+        pub collision_count: wgpu::BufferBinding<'a>,
+        pub collision_forces: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup2Entries<'a> {
-        pub flags: wgpu::BindGroupEntry<'a>,
-        pub aabbs: wgpu::BindGroupEntry<'a>,
-        pub velocities: wgpu::BindGroupEntry<'a>,
-        pub integrated_flags: wgpu::BindGroupEntry<'a>,
-        pub integrated_aabbs: wgpu::BindGroupEntry<'a>,
-        pub integrated_velocities: wgpu::BindGroupEntry<'a>,
+        pub collision_count: wgpu::BindGroupEntry<'a>,
+        pub collision_forces: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup2Entries<'a> {
         pub fn new(params: WgpuBindGroup2EntriesParams<'a>) -> Self {
             Self {
-                flags: wgpu::BindGroupEntry {
+                collision_count: wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.flags),
+                    resource: wgpu::BindingResource::Buffer(params.collision_count),
                 },
-                aabbs: wgpu::BindGroupEntry {
+                collision_forces: wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.aabbs),
-                },
-                velocities: wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.velocities),
-                },
-                integrated_flags: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.integrated_flags),
-                },
-                integrated_aabbs: wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.integrated_aabbs),
-                },
-                integrated_velocities: wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: wgpu::BindingResource::Buffer(params.integrated_velocities),
+                    resource: wgpu::BindingResource::Buffer(params.collision_forces),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
-            [
-                self.flags,
-                self.aabbs,
-                self.velocities,
-                self.integrated_flags,
-                self.integrated_aabbs,
-                self.integrated_velocities,
-            ]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
+            [self.collision_count, self.collision_forces]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -3033,7 +2980,7 @@ pub mod integrate {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("Integrate::BindGroup2::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(0): \"flags\""]
+                #[doc = " @binding(0): \"collision_count\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -3044,56 +2991,12 @@ pub mod integrate {
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"aabbs\""]
+                #[doc = " @binding(1): \"collision_forces\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(2): \"velocities\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(3): \"integrated_flags\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(4): \"integrated_aabbs\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(5): \"integrated_velocities\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -3118,6 +3021,158 @@ pub mod integrate {
             pass.set_bind_group(2, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup3EntriesParams<'a> {
+        pub flags: wgpu::BufferBinding<'a>,
+        pub aabbs: wgpu::BufferBinding<'a>,
+        pub velocities: wgpu::BufferBinding<'a>,
+        pub integrated_flags: wgpu::BufferBinding<'a>,
+        pub integrated_aabbs: wgpu::BufferBinding<'a>,
+        pub integrated_velocities: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup3Entries<'a> {
+        pub flags: wgpu::BindGroupEntry<'a>,
+        pub aabbs: wgpu::BindGroupEntry<'a>,
+        pub velocities: wgpu::BindGroupEntry<'a>,
+        pub integrated_flags: wgpu::BindGroupEntry<'a>,
+        pub integrated_aabbs: wgpu::BindGroupEntry<'a>,
+        pub integrated_velocities: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup3Entries<'a> {
+        pub fn new(params: WgpuBindGroup3EntriesParams<'a>) -> Self {
+            Self {
+                flags: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.flags),
+                },
+                aabbs: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.aabbs),
+                },
+                velocities: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.velocities),
+                },
+                integrated_flags: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.integrated_flags),
+                },
+                integrated_aabbs: wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Buffer(params.integrated_aabbs),
+                },
+                integrated_velocities: wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Buffer(params.integrated_velocities),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
+            [
+                self.flags,
+                self.aabbs,
+                self.velocities,
+                self.integrated_flags,
+                self.integrated_aabbs,
+                self.integrated_velocities,
+            ]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup3(wgpu::BindGroup);
+    impl WgpuBindGroup3 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("Integrate::BindGroup3::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"aabbs\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"velocities\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(4): \"integrated_flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(5): \"integrated_aabbs\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(6): \"integrated_velocities\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup3Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Integrate::BindGroup3"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(3, &self.0, &[]);
+        }
+    }
     #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
     #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
     #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
@@ -3129,18 +3184,20 @@ pub mod integrate {
         pub bind_group0: &'a WgpuBindGroup0,
         pub bind_group1: &'a WgpuBindGroup1,
         pub bind_group2: &'a WgpuBindGroup2,
+        pub bind_group3: &'a WgpuBindGroup3,
     }
     impl<'a> WgpuBindGroups<'a> {
         pub fn set(&self, pass: &mut impl SetBindGroup) {
             self.bind_group0.set(pass);
             self.bind_group1.set(pass);
             self.bind_group2.set(pass);
+            self.bind_group3.set(pass);
         }
     }
     #[derive(Debug)]
     pub struct WgpuPipelineLayout;
     impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 3]) -> [wgpu::BindGroupLayout; 3] {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 4]) -> [wgpu::BindGroupLayout; 4] {
             entries
         }
     }
@@ -3151,6 +3208,7 @@ pub mod integrate {
                 &WgpuBindGroup0::get_bind_group_layout(device),
                 &WgpuBindGroup1::get_bind_group_layout(device),
                 &WgpuBindGroup2::get_bind_group_layout(device),
+                &WgpuBindGroup3::get_bind_group_layout(device),
             ],
             push_constant_ranges: &[],
         })
@@ -3180,8 +3238,8 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
     max: vec2<f32>,
 }
 
-struct BvhNodeX_naga_oil_mod_XMNXW23LPNYX {
-    index: u32,
+struct ForceX_naga_oil_mod_XMNXW23LPNYX {
+    inner: vec2<f32>,
 }
 
 struct BlackHole {
@@ -3204,11 +3262,8 @@ struct InteractionResult {
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
-const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
+const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 10u;
 const WORKGROUP_SIZE: u32 = 64u;
-const STIFFNESS: f32 = 30000f;
-const RESTITUTION: f32 = 0.3f;
-const GAMMA_COEFF: f32 = 105.732445f;
 
 @group(0) @binding(0) 
 var<uniform> dt: f32;
@@ -3218,8 +3273,6 @@ var<uniform> gravitational_constant: f32;
 var<uniform> global_force: vec2<f32>;
 @group(0) @binding(3) 
 var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(4) 
-var<storage> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(0) 
 var<uniform> blackhole_count: u32;
 @group(1) @binding(1) 
@@ -3229,16 +3282,20 @@ var<uniform> blackhole_size_scale: f32;
 @group(1) @binding(3) 
 var<storage> blackholes: array<BlackHole>;
 @group(2) @binding(0) 
-var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> collision_count: array<u32>;
 @group(2) @binding(1) 
+var<storage> collision_forces: array<ForceX_naga_oil_mod_XMNXW23LPNYX>;
+@group(3) @binding(0) 
+var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+@group(3) @binding(1) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(2) @binding(2) 
+@group(3) @binding(3) 
 var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
-@group(2) @binding(3) 
+@group(3) @binding(4) 
 var<storage, read_write> integrated_flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-@group(2) @binding(4) 
+@group(3) @binding(5) 
 var<storage, read_write> integrated_aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(2) @binding(5) 
+@group(3) @binding(6) 
 var<storage, read_write> integrated_velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 
 fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
@@ -3263,102 +3320,14 @@ fn frame_dragging(blackhole_1: BlackHole, state_1: ObjectPhaseState) -> vec2<f32
     return ((((2f * _e14) * J) / pow(r, 3f)) * v_perp);
 }
 
-fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW23LPNYX) -> bool {
-    return ((((a.min.x < b.max.x) && (a.max.x > b.min.x)) && (a.min.y < b.max.y)) && (a.max.y > b.min.y));
-}
-
-fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity: vec2<f32>, mass_1: f32, other_index: u32) -> vec2<f32> {
-    var f_damping: vec2<f32> = vec2(0f);
-
-    let size = (aabb.max - aabb.min);
-    let other_size = (other_aabb.max - other_aabb.min);
-    let position_1 = ((aabb.min + aabb.max) * 0.5f);
-    let other_position = ((other_aabb.min + other_aabb.max) * 0.5f);
-    let separation_vector = (position_1 - other_position);
-    let distance_1 = length(separation_vector);
-    let r1_ = (0.5f * size.x);
-    let r2_ = (0.5f * other_size.x);
-    let interaction_distance = (r1_ + r2_);
-    if (distance_1 >= interaction_distance) {
-        return vec2<f32>();
-    }
-    if (distance_1 == 0f) {
-        return vec2<f32>();
-    }
-    let n = (separation_vector / vec2(distance_1));
-    let penetration = (interaction_distance - distance_1);
-    let f_elastic = ((STIFFNESS * penetration) * n);
-    let _e45 = velocities[other_index].inner;
-    let v_rel = (velocity - _e45);
-    let v_n = dot(v_rel, n);
-    if (v_n < 0f) {
-        let m2_ = masses[other_index].inner;
-        let m_eff = ((mass_1 * m2_) / (mass_1 + m2_));
-        f_damping = (((-105.732445f * sqrt(m_eff)) * v_n) * n);
-    }
-    let _e64 = f_damping;
-    return (f_elastic + _e64);
-}
-
-fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity_1: vec2<f32>, mass_2: f32) -> vec2<f32> {
-    var stack: array<u32, 64>;
-    var sp: u32 = 0u;
-    var total_force: vec2<f32> = vec2<f32>();
-
-    let _e4 = sp;
-    stack[_e4] = (arrayLength((&nodes)) - 1u);
-    let _e11 = sp;
-    sp = (_e11 + 1u);
-    loop {
-        let _e13 = sp;
-        if (_e13 > 0u) {
-        } else {
-            break;
-        }
-        {
-            let _e16 = sp;
-            let node_index = stack[(_e16 - 1u)];
-            let _e22 = sp;
-            sp = (_e22 - 1u);
-            let other_aabb_1 = aabbs[node_index];
-            let _e28 = aabb_overlaps(aabb_1, other_aabb_1);
-            if !(_e28) {
-                continue;
-            }
-            let other_index_1 = nodes[node_index].index;
-            if ((other_index_1 & BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
-                let _e38 = sp;
-                if (_e38 >= 62u) {
-                    break;
-                }
-                let i = (other_index_1 & 2147483647u);
-                let _e43 = sp;
-                stack[_e43] = i;
-                let _e45 = sp;
-                stack[(_e45 + 1u)] = (i + 1u);
-                let _e52 = sp;
-                sp = (_e52 + 2u);
-            } else {
-                let _e59 = flags[other_index_1].inner;
-                if ((other_index_1 != index) && ((_e59 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u)) {
-                    let _e67 = collision_repulsion_pair(aabb_1, other_aabb_1, velocity_1, mass_2, other_index_1);
-                    let _e69 = total_force;
-                    total_force = (_e69 + _e67);
-                }
-            }
-        }
-    }
-    let _e71 = total_force;
-    return _e71;
-}
-
-fn forces(state_2: ObjectPhaseState, index_1: u32, aabb_2: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_3: f32) -> vec2<f32> {
-    var total_force_1: vec2<f32>;
+fn forces(state_2: ObjectPhaseState, index: u32, aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_1: f32) -> vec2<f32> {
+    var total_force: vec2<f32>;
     var bh_index_1: u32 = 0u;
     var blackhole_2: BlackHole;
+    var i: u32 = 0u;
 
     let _e2 = global_force;
-    total_force_1 = _e2;
+    total_force = _e2;
     loop {
         let _e5 = bh_index_1;
         let _e7 = blackhole_count;
@@ -3371,35 +3340,51 @@ fn forces(state_2: ObjectPhaseState, index_1: u32, aabb_2: AABBX_naga_oil_mod_XM
             let _e12 = blackholes[_e10];
             blackhole_2 = _e12;
             let _e15 = blackhole_2;
-            let _e18 = blackhole_gravity(_e15, state_2.position, mass_3);
-            let _e19 = total_force_1;
-            total_force_1 = (_e19 + _e18);
+            let _e18 = blackhole_gravity(_e15, state_2.position, mass_1);
+            let _e19 = total_force;
+            total_force = (_e19 + _e18);
             let _e21 = blackhole_2;
             let _e22 = frame_dragging(_e21, state_2);
-            let _e23 = total_force_1;
-            total_force_1 = (_e23 + _e22);
+            let _e23 = total_force;
+            total_force = (_e23 + _e22);
         }
         continuing {
             let _e26 = bh_index_1;
             bh_index_1 = (_e26 + 1u);
         }
     }
-    let _e31 = collision_repulsion(index_1, aabb_2, state_2.velocity, mass_3);
-    let _e32 = total_force_1;
-    total_force_1 = (_e32 + _e31);
-    let _e34 = total_force_1;
-    return _e34;
+    let collision_count_1 = collision_count[index];
+    let base = (index * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
+    loop {
+        let _e35 = i;
+        if (_e35 < collision_count_1) {
+        } else {
+            break;
+        }
+        {
+            let _e38 = i;
+            let _e42 = collision_forces[(base + _e38)].inner;
+            let _e43 = total_force;
+            total_force = (_e43 + _e42);
+        }
+        continuing {
+            let _e46 = i;
+            i = (_e46 + 1u);
+        }
+    }
+    let _e48 = total_force;
+    return _e48;
 }
 
-fn integrate_euler_symplectic(state_3: ObjectPhaseState, index_2: u32, aabb_3: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_4: f32) -> ObjectPhaseState {
+fn integrate_euler_symplectic(state_3: ObjectPhaseState, index_1: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_2: f32) -> ObjectPhaseState {
     var new_state: ObjectPhaseState;
 
-    let _e4 = forces(state_3, index_2, aabb_3, mass_4);
-    let a_1 = (_e4 / vec2(mass_4));
+    let _e4 = forces(state_3, index_1, aabb_1, mass_2);
+    let a = (_e4 / vec2(mass_2));
     new_state = state_3;
     let _e10 = dt;
     let _e12 = new_state.velocity;
-    new_state.velocity = (_e12 + (a_1 * _e10));
+    new_state.velocity = (_e12 + (a * _e10));
     let _e16 = new_state.velocity;
     let _e18 = dt;
     let _e20 = new_state.position;
@@ -3419,21 +3404,21 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
     if (_e4 >= arrayLength((&masses))) {
         return;
     }
-    let aabb_4 = aabbs[_e4];
-    let initial_position = ((aabb_4.min + aabb_4.max) / vec2(2f));
+    let aabb_2 = aabbs[_e4];
+    let initial_position = ((aabb_2.min + aabb_2.max) / vec2(2f));
     let initial_velocity = velocities[_e4].inner;
     let _e24 = flags[_e4].inner;
     f = _e24;
-    let mass_5 = masses[_e4].inner;
+    let mass_3 = masses[_e4].inner;
     let _e33 = velocities[_e4].inner;
     state = ObjectPhaseState(initial_position, _e33);
     let _e36 = f;
     if ((_e36 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
         let _e41 = state;
-        let _e42 = integrate_euler_symplectic(_e41, _e4, aabb_4, mass_5);
+        let _e42 = integrate_euler_symplectic(_e41, _e4, aabb_2, mass_3);
         state = _e42;
     }
-    let size_1 = (aabb_4.max - aabb_4.min);
+    let size = (aabb_2.max - aabb_2.min);
     loop {
         let _e47 = bh_index;
         let _e49 = blackhole_count;
@@ -3446,9 +3431,9 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
             let _e58 = bh_index;
             let blackhole_3 = blackholes[_e58];
             let _e63 = state.position;
-            let distance_2 = (length((blackhole_3.position - _e63)) - (max(size_1.x, size_1.y) / 2f));
+            let distance_1 = (length((blackhole_3.position - _e63)) - (max(size.x, size.y) / 2f));
             let _e74 = blackhole_size_scale;
-            if (distance_2 < (blackhole_3.radius * _e74)) {
+            if (distance_1 < (blackhole_3.radius * _e74)) {
                 let _e78 = f;
                 f = (_e78 & 4294967288u);
                 state.velocity = vec2<f32>();
@@ -3461,7 +3446,7 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
     }
     let _e86 = state.position;
     let offset = (_e86 - initial_position);
-    new_aabb = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb_4.min + offset), (aabb_4.max + offset));
+    new_aabb = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb_2.min + offset), (aabb_2.max + offset));
     let _e97 = new_aabb.min.x;
     if (_e97 < -3200f) {
         let _e101 = new_aabb.min.x;

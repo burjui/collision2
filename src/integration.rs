@@ -6,26 +6,28 @@ use crate::{
     gpu_buffer::TypedBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
-        common::{BvhNode, Mass},
+        common::Mass,
         integrate::{
             BlackHole, WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
             WgpuBindGroup1, WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries,
-            WgpuBindGroup2EntriesParams, compute::create_integrate_pipeline_embed_source,
+            WgpuBindGroup2EntriesParams, WgpuBindGroup3, WgpuBindGroup3Entries, WgpuBindGroup3EntriesParams,
+            compute::create_integrate_pipeline_embed_source,
         },
     },
     util::dispatch_dimensions,
 };
 
-pub struct GpuIntegrator {
+pub struct Integrator {
     object_count: u32,
     main_bind_group: WgpuBindGroup0,
     blackhole_bind_group: WgpuBindGroup1,
+    collision_bind_group: WgpuBindGroup2,
     pipeline: ComputePipeline,
-    phase_state_bind_groups: [Option<WgpuBindGroup2>; PhaseStateRing::CAPACITY],
+    phase_state_bind_groups: [Option<WgpuBindGroup3>; PhaseStateRing::CAPACITY],
     phase_state_index: Option<usize>,
 }
 
-impl GpuIntegrator {
+impl Integrator {
     const BLACKHOLE_DUMMY: BlackHole = BlackHole::new([0.0, 0.0], 0.0, 0.0, 0.0);
     const BLACKHOLES: &[BlackHole] = &[
         // BlackHole::new([-200.0, 500.0], 2.0, 10.0, 0.0 * -50.0),
@@ -46,7 +48,8 @@ impl GpuIntegrator {
         object_count: usize,
         dt: TypedBuffer<f32>,
         masses: TypedBuffer<Mass>,
-        nodes: TypedBuffer<BvhNode>,
+        collision_count: TypedBuffer<u32>,
+        collision_forces: TypedBuffer<crate::shaders::common::Force>,
     ) -> Self {
         let blackholes = TypedBuffer::from_data(device, Self::BLACKHOLES, "blackholes", BufferUsages::STORAGE);
         let pipeline = create_integrate_pipeline_embed_source(device);
@@ -79,7 +82,6 @@ impl GpuIntegrator {
                 gravitational_constant: gravitational_constant.buffer().as_entire_buffer_binding(),
                 global_force: global_force.buffer().as_entire_buffer_binding(),
                 masses: masses.buffer().as_entire_buffer_binding(),
-                nodes: nodes.buffer().as_entire_buffer_binding(),
             }),
         );
         let blackhole_bind_group = WgpuBindGroup1::from_bindings(
@@ -91,11 +93,18 @@ impl GpuIntegrator {
                 blackholes: blackholes.buffer().as_entire_buffer_binding(),
             }),
         );
-
+        let collision_bind_group = WgpuBindGroup2::from_bindings(
+            device,
+            WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
+                collision_count: collision_count.buffer().as_entire_buffer_binding(),
+                collision_forces: collision_forces.buffer().as_entire_buffer_binding(),
+            }),
+        );
         Self {
             object_count: object_count.try_into().unwrap(),
             main_bind_group,
             blackhole_bind_group,
+            collision_bind_group,
             pipeline,
             phase_state_bind_groups: from_fn(|_| None),
             phase_state_index: None,
@@ -104,9 +113,9 @@ impl GpuIntegrator {
 
     pub fn prepare(&mut self, phase_state_index: usize, device: &Device, src: &PhaseState, dst: &PhaseState) {
         self.phase_state_bind_groups[phase_state_index].get_or_insert_with(|| {
-            WgpuBindGroup2::from_bindings(
+            WgpuBindGroup3::from_bindings(
                 device,
-                WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
+                WgpuBindGroup3Entries::new(WgpuBindGroup3EntriesParams {
                     flags: src.flags().buffer().as_entire_buffer_binding(),
                     aabbs: src.aabbs().buffer().as_entire_buffer_binding(),
                     velocities: src.velocities().buffer().as_entire_buffer_binding(),
@@ -125,6 +134,7 @@ impl GpuIntegrator {
         compute_pass.set_pipeline(&self.pipeline);
         self.main_bind_group.set(compute_pass);
         self.blackhole_bind_group.set(compute_pass);
+        self.collision_bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
         let (x, y, z) = dispatch_dimensions(self.object_count, WORKGROUP_SIZE);
         compute_pass.dispatch_workgroups(x, y, z);

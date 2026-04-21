@@ -54,7 +54,7 @@ use crate::{
     collision_narrow_phase::NarrowPhase,
     collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgsCalculator,
     gpu_buffer::TypedBuffer,
-    integration::GpuIntegrator,
+    integration::Integrator,
     objects::Objects,
     phase_state::PhaseStateRing,
     scene::create_scene,
@@ -74,7 +74,7 @@ fn main() {
 
 struct App<'a> {
     render_parameters: RenderParameters,
-    gpu_state: Option<GpuState<'a>>,
+    sim_state: Option<SimState<'a>>,
     world_aabb: AABB,
     event_loop_proxy: EventLoopProxy<AppEvent>,
     cursor_position: Option<Vector2<f32>>,
@@ -88,7 +88,7 @@ impl App<'_> {
                 min: [-3200.0, -2000.0],
                 max: [3200.0, 2000.0],
             },
-            gpu_state: None,
+            sim_state: None,
             event_loop_proxy,
             cursor_position: None,
         }
@@ -118,7 +118,7 @@ impl Default for RenderParameters {
     }
 }
 
-struct GpuState<'a> {
+struct SimState<'a> {
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
     object_count: usize,
@@ -206,7 +206,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             }
         });
 
-        self.gpu_state = Some(GpuState {
+        self.sim_state = Some(SimState {
             shape_renderer,
             aabb_renderer,
             object_count,
@@ -226,7 +226,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) => {
-                if let Some(state) = &mut self.gpu_state {
+                if let Some(state) = &mut self.sim_state {
                     state.surface_config.width = size.width;
                     state.surface_config.height = size.height;
                     state.surface.configure(&state.device, &state.surface_config);
@@ -234,7 +234,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             }
 
             WindowEvent::RedrawRequested => {
-                if let Some(state) = &mut self.gpu_state {
+                if let Some(state) = &mut self.sim_state {
                     let view_size = state.window.inner_size();
                     let world_height = self.world_aabb.max().y - self.world_aabb.min().y;
                     let camera = orthographic_camera(view_size.cast(), world_height, &self.render_parameters);
@@ -267,7 +267,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             }
 
             WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::KeyC) => {
-                if let Some(state) = &self.gpu_state {
+                if let Some(state) = &self.sim_state {
                     state.prioritize_compute.fetch_not(Ordering::SeqCst);
                 }
             }
@@ -279,7 +279,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 delta: MouseScrollDelta::LineDelta(_, dy),
                 ..
             } => {
-                if let Some(state) = &self.gpu_state {
+                if let Some(state) = &self.sim_state {
                     if let Some(cursor_pos) = self.cursor_position {
                         let zoom_old = self.render_parameters.zoom;
                         let zoom_new = self.render_parameters.zoom * (1.0 + dy * 0.1);
@@ -317,7 +317,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(state) = &self.gpu_state {
+        if let Some(state) = &self.sim_state {
             state.exit_requested.store(true, Ordering::SeqCst);
         }
     }
@@ -325,7 +325,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
         match event {
             AppEvent::RedrawRequested => {
-                if let Some(state) = &self.gpu_state {
+                if let Some(state) = &self.sim_state {
                     state.window.request_redraw();
                 }
             }
@@ -333,7 +333,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(state) = &self.gpu_state
+        if let Some(state) = &self.sim_state
             && !state.prioritize_compute.load(Ordering::Relaxed)
         {
             state.window.request_redraw();
@@ -470,11 +470,10 @@ fn spawn_simulation_thread(
     event_loop_proxy: EventLoopProxy<AppEvent>,
 ) {
     thread::spawn({
-        const DT: f32 = 0.002;
+        const DT: f32 = 0.001;
 
         let dt = TypedBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
         let mut bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
-        let mut integrator = GpuIntegrator::new(&device, object_count, dt, masses.clone(), nodes.clone());
 
         let max_candidates_per_object: usize = MAX_CANDIDATES_PER_OBJECT.try_into().unwrap();
         let max_candidates = object_count * max_candidates_per_object;
@@ -487,7 +486,7 @@ fn spawn_simulation_thread(
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         );
         let mut broad_phase =
-            BroadPhase::new(&device, object_count, candidates.clone(), candidate_count.clone(), nodes);
+            BroadPhase::new(&device, object_count, candidates.clone(), candidate_count.clone(), nodes.clone());
 
         let narrow_phase_dispatch_dimensions = TypedBuffer::from_data(
             &device,
@@ -521,6 +520,14 @@ fn spawn_simulation_thread(
             narrow_phase_dispatch_dimensions.clone(),
             candidates.clone(),
             candidate_count.clone(),
+            masses.clone(),
+            collision_count.clone(),
+            collision_forces.clone(),
+        );
+        let mut integrator = Integrator::new(
+            &device,
+            object_count,
+            dt,
             masses.clone(),
             collision_count.clone(),
             collision_forces.clone(),

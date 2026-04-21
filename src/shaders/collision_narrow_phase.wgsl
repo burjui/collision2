@@ -17,10 +17,10 @@
 @group(2) @binding(1) var<storage, read_write> collision_forces: array<Force>;
 
 const WORKGROUP_SIZE: u32 = 64;
-const BATCH_SIZE: u32 = 1;
+const BATCH_SIZE: u32 = 100;
 
-const STIFFNESS: f32 = 30000;
-const RESTITUTION: f32 = 0.3;
+const STIFFNESS: f32 = 50000;
+const RESTITUTION: f32 = 0.9;
 const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(5.0) * sqrt(STIFFNESS);
 
 @compute @workgroup_size(WORKGROUP_SIZE)
@@ -33,7 +33,7 @@ fn narrow_phase(
     for (var batch_index: u32 = 0; batch_index < BATCH_SIZE; batch_index += 1) {
         let i = fii * BATCH_SIZE + batch_index;
         if i >= candidate_count {
-            return;
+            continue;
         }
 
         let candidates = candidates[i];
@@ -44,7 +44,7 @@ fn narrow_phase(
             aabbs[b], velocities[b].inner, masses[b].inner
         );
         if f.x == 0 && f.y == 0 {
-            return;
+            continue;
         }
 
         let a_force_index = atomicAdd(&collision_count[a], 1);
@@ -52,7 +52,6 @@ fn narrow_phase(
         collision_forces[a * MAX_CANDIDATES_PER_OBJECT + a_force_index] = Force(f);
         collision_forces[b * MAX_CANDIDATES_PER_OBJECT + b_force_index] = Force(-f);
     }
-
 }
 
 fn collision_repulsion_pair(
@@ -83,7 +82,10 @@ fn collision_repulsion_pair(
 
     let n = separation_vector / distance;
     let penetration = interaction_distance - distance;
-    let f_elastic = STIFFNESS * penetration * n;
+    var f_elastic = vec2f();
+    if penetration > 0.0 {
+        f_elastic = STIFFNESS * penetration * n;
+    }
 
     let v_rel = v1 - v2;
     let v_n = dot(v_rel, n);

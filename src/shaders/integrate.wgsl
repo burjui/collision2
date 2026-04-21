@@ -1,6 +1,6 @@
 #import common::{
-    FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB, BVH_NODE_TREE_FLAG,
-    AABB, Mass, Velocity, Position, Flags, BvhNode,
+    FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB, MAX_CANDIDATES_PER_OBJECT,
+    AABB, Mass, Velocity, Position, Flags, Force,
     flat_invocation_index
 }
 
@@ -8,19 +8,21 @@
 @group(0) @binding(1) var<uniform> gravitational_constant: f32;
 @group(0) @binding(2) var<uniform> global_force: vec2f;
 @group(0) @binding(3) var<storage, read> masses: array<Mass>;
-@group(0) @binding(4) var<storage, read> nodes: array<BvhNode>;
 
 @group(1) @binding(0) var<uniform> blackhole_count: u32;
 @group(1) @binding(1) var<uniform> blackhole_mass_scale: f32;
 @group(1) @binding(2) var<uniform> blackhole_size_scale: f32;
 @group(1) @binding(3) var<storage, read> blackholes: array<BlackHole>;
 
-@group(2) @binding(0) var<storage, read> flags: array<Flags>;
-@group(2) @binding(1) var<storage, read> aabbs: array<AABB>;
-@group(2) @binding(2) var<storage, read> velocities: array<Velocity>;
-@group(2) @binding(3) var<storage, read_write> integrated_flags: array<Flags>;
-@group(2) @binding(4) var<storage, read_write> integrated_aabbs: array<AABB>;
-@group(2) @binding(5) var<storage, read_write> integrated_velocities: array<Velocity>;
+@group(2) @binding(0) var<storage, read> collision_count: array<u32>;
+@group(2) @binding(1) var<storage, read> collision_forces: array<Force>;
+
+@group(3) @binding(0) var<storage, read> flags: array<Flags>;
+@group(3) @binding(1) var<storage, read> aabbs: array<AABB>;
+@group(3) @binding(3) var<storage, read> velocities: array<Velocity>;
+@group(3) @binding(4) var<storage, read_write> integrated_flags: array<Flags>;
+@group(3) @binding(5) var<storage, read_write> integrated_aabbs: array<AABB>;
+@group(3) @binding(6) var<storage, read_write> integrated_velocities: array<Velocity>;
 
 const WORKGROUP_SIZE: u32 = 64;
 
@@ -30,10 +32,6 @@ struct BlackHole {
     mass: f32,
     spin: f32,
 }
-
-const STIFFNESS: f32 = 30000;
-const RESTITUTION: f32 = 0.3;
-const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(5.0) * sqrt(STIFFNESS);
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn integrate(
@@ -125,7 +123,13 @@ fn forces(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
         total_force += blackhole_gravity(blackhole, state.position, mass);
         total_force += frame_dragging(blackhole, state);
     }
-    total_force += collision_repulsion(index, aabb, state.velocity, mass);
+
+    let collision_count = collision_count[index];
+    let base = index * MAX_CANDIDATES_PER_OBJECT;
+    for (var i: u32 = 0; i < collision_count; i++) {
+        total_force += collision_forces[base + i].inner;
+    }
+
     return total_force;
 }
 
@@ -144,91 +148,4 @@ fn frame_dragging(blackhole: BlackHole, state: ObjectPhaseState) -> vec2f {
     let J = blackhole.spin; // scalar angular momentum (Jz)
     let v_perp = vec2f(-state.velocity.y, state.velocity.x); // v rotated by +90 degrees
     return (2.0 * gravitational_constant * J / pow(r, 3.0)) * v_perp;
-}
-
-fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> vec2f {
-    const MAX_STACK_DEPTH: u32 = 64; // 2 * max tree depth
-
-    var stack: array<u32, MAX_STACK_DEPTH>;
-    var sp: u32 = 0;
-    var total_force = vec2f();
-
-    stack[sp] = arrayLength(&nodes) - 1; // root
-    sp++;
-
-    while sp > 0 {
-        let node_index = stack[sp - 1];
-        sp--;
-
-        let other_aabb = aabbs[node_index];
-        if !aabb_overlaps(aabb, other_aabb) {
-            continue;
-        }
-
-        let other_index = nodes[node_index].index;
-        if (other_index & BVH_NODE_TREE_FLAG) != 0 {
-            if sp >= MAX_STACK_DEPTH - 2 {
-                break;
-            }
-
-            let i = other_index & ~BVH_NODE_TREE_FLAG;
-            stack[sp] = i;
-            stack[sp + 1] = i + 1;
-            sp += 2;
-        } else if other_index != index && (flags[other_index].inner & FLAG_PHYSICAL) != 0 {
-            // TODO: pairwise force accumulation for precision
-            total_force += collision_repulsion_pair(aabb, other_aabb, velocity, mass, other_index);
-        }
-    }
-
-    return total_force;
-}
-
-fn collision_repulsion_pair(
-    aabb: AABB,
-    other_aabb: AABB,
-    velocity: vec2f,
-    mass: f32,
-    other_index: u32
-) -> vec2f {
-    let size = aabb.max - aabb.min;
-    let other_size = other_aabb.max - other_aabb.min;
-    let position = (aabb.min + aabb.max) * 0.5;
-    let other_position = (other_aabb.min + other_aabb.max) * 0.5;
-    let separation_vector = position - other_position;
-    let distance = length(separation_vector);
-    let r1 = 0.5 * size.x;
-    let r2 = 0.5 * other_size.x;
-    let interaction_distance = r1 + r2;
-
-    if distance >= interaction_distance {
-        return vec2f();
-    }
-
-    if distance == 0.0 {
-        return vec2f();
-    }
-
-    let n = separation_vector / distance;
-    let penetration = interaction_distance - distance;
-    let f_elastic = STIFFNESS * penetration * n;
-
-    let v_rel = velocity - velocities[other_index].inner;
-    let v_n = dot(v_rel, n);
-    var f_damping = vec2f(0.0);
-    if v_n < 0.0 {
-        let m1 = mass;
-        let m2 = masses[other_index].inner;
-        let m_eff = m1 * m2 / (m1 + m2);
-        f_damping = -GAMMA_COEFF * sqrt(m_eff) * v_n * n;
-    }
-
-    return f_elastic + f_damping;
-}
-
-fn aabb_overlaps(a: AABB, b: AABB) -> bool {
-    return a.min.x < b.max.x &&
-           a.max.x > b.min.x &&
-           a.min.y < b.max.y &&
-           a.max.y > b.min.y;
 }
