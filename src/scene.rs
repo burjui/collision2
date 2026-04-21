@@ -3,7 +3,7 @@ use std::ops::{Range, RangeInclusive};
 use color::{AlphaColor, Srgb, palette::css};
 use itertools::Itertools as _;
 use nalgebra::Vector2;
-use rand::random_range;
+use rand::{random, random_range};
 
 use crate::{
     objects::{ObjectPrototype, Objects},
@@ -19,28 +19,33 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         max: (world_aabb.max() * 0.6).into(),
     };
     let circles = {
-        const RADIUS: f32 = 6.0;
+        const RADIUS: f32 = 3.0;
         const PADDING: f32 = 1.0;
         const POSITION_RAND_FACTOR: f32 = 0.1;
+        const RADIUS_RAND_FACTOR: f32 = 0.0;
         const VELOCITY_RAND_MAX: f32 = 0.0;
         const VELOCITY_RAND_RANGE_X: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
         const VELOCITY_RAND_RANGE_Y: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
         const _COLOR_RAND_RANGE: Range<f32> = 0.8..1.0;
-        const EFFECTIVE_RADIUS: f32 = RADIUS + PADDING;
+        const EFFECTIVE_RADIUS: f32 = RADIUS * (1.0 + RADIUS_RAND_FACTOR) + PADDING;
         let shape_count_f32 = world_aabb.size() / (EFFECTIVE_RADIUS * 2.0);
         let shape_count: Vector2<usize> = shape_count_f32.try_cast().unwrap();
         (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(i, j)| {
             let (i, j) = (i as f32, j as f32);
-            let range = -RADIUS * POSITION_RAND_FACTOR..=RADIUS * POSITION_RAND_FACTOR;
+            let postition_randomization_range = -RADIUS * POSITION_RAND_FACTOR..=RADIUS * POSITION_RAND_FACTOR;
             let position = world_aabb.min()
                 + Vector2::new(EFFECTIVE_RADIUS * (i * 2.0 + 1.0), EFFECTIVE_RADIUS * (j * 2.0 + 1.0))
-                + Vector2::new(random_range(range.clone()), random_range(range));
+                + Vector2::new(
+                    random_range(postition_randomization_range.clone()),
+                    random_range(postition_randomization_range),
+                );
+            let radius = RADIUS + random::<f32>() * RADIUS_RAND_FACTOR;
             ObjectPrototype {
                 flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_PHYSICAL,
                 position: position.into(),
                 velocity: [random_range(VELOCITY_RAND_RANGE_X), random_range(VELOCITY_RAND_RANGE_Y)],
                 mass: 2.0,
-                size: [RADIUS * 2.0, RADIUS * 2.0],
+                size: [radius * 2.0, radius * 2.0],
                 color: AlphaColor::new([
                     0.4 + 0.6 * i / (shape_count_f32.x - 1.0),
                     0.8 * j / (shape_count_f32.x - 1.0),

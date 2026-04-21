@@ -18,6 +18,7 @@ pub mod shape_renderer;
 pub mod util;
 
 use std::{
+    io::Write as _,
     mem::size_of,
     ops::Range,
     sync::{
@@ -177,7 +178,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             ShapeRenderer::new(&device, swapchain_format, camera.clone(), colors, shapes, masses.clone());
         let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), node_count);
         let exit_requested = Arc::new(AtomicBool::new(false));
-        let prioritize_compute = Arc::new(AtomicBool::new(false));
+        let prioritize_compute = Arc::new(AtomicBool::new(true));
 
         spawn_simulation_thread(
             object_count,
@@ -470,7 +471,7 @@ fn spawn_simulation_thread(
     event_loop_proxy: EventLoopProxy<AppEvent>,
 ) {
     thread::spawn({
-        const DT: f32 = 0.001;
+        const DT: f32 = 0.002;
 
         let dt = TypedBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
         let mut bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
@@ -645,10 +646,10 @@ fn spawn_simulation_thread(
 
             // Only run for a fixed duration
 
-            // if real_time > 5.0 {
-            //     std::io::stdout().flush().unwrap();
-            //     std::process::exit(1);
-            // }
+            if sim_time > 3.3 {
+                std::io::stdout().flush().unwrap();
+                std::process::exit(1);
+            }
 
             // Debug
 

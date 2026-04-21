@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 91c318c8e3d5379ce11d7bf093c98b5c371b8a7299c564f04107ba8f68ce1c0b
+// SourceHash: b2b8ee0b519d8d218a32664f3ef6a3aba0c0f58aee342e3e789f783d4da26c9e
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -140,7 +140,7 @@ pub mod common {
     pub const FLAG_DRAW_OBJECT: u32 = 1u32;
     pub const FLAG_DRAW_AABB: u32 = 2u32;
     pub const FLAG_PHYSICAL: u32 = 4u32;
-    pub const MAX_CANDIDATES_PER_OBJECT: u32 = 10u32;
+    pub const MAX_CANDIDATES_PER_OBJECT: u32 = 16u32;
     pub const BVH_NODE_TREE_FLAG: u32 = 2147483648u32;
     pub const MAX_DISPATCH_DIMENSION: u32 = 65535u32;
     #[repr(C, align(16))]
@@ -346,7 +346,7 @@ const UNIT_QUAD_VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.
 const FLAG_DRAW_OBJECT: u32 = 1u;
 const FLAG_DRAW_AABB: u32 = 2u;
 const FLAG_PHYSICAL: u32 = 4u;
-const MAX_CANDIDATES_PER_OBJECT: u32 = 10u;
+const MAX_CANDIDATES_PER_OBJECT: u32 = 16u;
 const BVH_NODE_TREE_FLAG: u32 = 2147483648u;
 const MAX_DISPATCH_DIMENSION: u32 = 65535u;
 
@@ -1441,7 +1441,7 @@ fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_wor
 pub mod collision_broad_phase {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const MAX_WG_CANDIDATES: u32 = 640u32;
+    pub const MAX_WG_CANDIDATES: u32 = 1024u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const BROAD_PHASE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -1731,10 +1731,10 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
-const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 10u;
+const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
-const MAX_WG_CANDIDATES: u32 = 640u;
+const MAX_WG_CANDIDATES: u32 = 1024u;
 
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
@@ -1751,7 +1751,7 @@ var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(2) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 var<workgroup> wg_candidate_count: atomic<u32>;
-var<workgroup> wg_candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX, 640>;
+var<workgroup> wg_candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX, 1024>;
 
 fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
@@ -1857,10 +1857,10 @@ fn broad_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workg
 pub mod collision_narrow_phase {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const BATCH_SIZE: u32 = 100u32;
-    pub const STIFFNESS: f32 = 50000f32;
-    pub const RESTITUTION: f32 = 0.9f32;
-    pub const GAMMA_COEFF: f32 = 28.500006f32;
+    pub const BATCH_SIZE: u32 = 1u32;
+    pub const STIFFNESS: f32 = 100000f32;
+    pub const RESTITUTION: f32 = 0.3f32;
+    pub const GAMMA_COEFF: f32 = 193.04015f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const NARROW_PHASE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -2193,12 +2193,12 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
     b: u32,
 }
 
-const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 10u;
+const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 const WORKGROUP_SIZE: u32 = 64u;
-const BATCH_SIZE: u32 = 100u;
-const STIFFNESS: f32 = 50000f;
-const RESTITUTION: f32 = 0.9f;
-const GAMMA_COEFF: f32 = 28.500006f;
+const BATCH_SIZE: u32 = 1u;
+const STIFFNESS: f32 = 100000f;
+const RESTITUTION: f32 = 0.3f;
+const GAMMA_COEFF: f32 = 193.04015f;
 
 @group(0) @binding(0) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
@@ -2247,7 +2247,7 @@ fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f
     let v_n = dot(v_rel, n);
     if (v_n < 0f) {
         let m_eff = ((m1_ * m2_) / (m1_ + m2_));
-        f_damping = (((-28.500006f * sqrt(m_eff)) * v_n) * n);
+        f_damping = (((-193.04015f * sqrt(m_eff)) * v_n) * n);
     }
     let _e59 = f_elastic;
     let _e60 = f_damping;
@@ -2256,17 +2256,17 @@ fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f
 
 @compute @workgroup_size(64, 1, 1) 
 fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
-    var batch_index: u32 = 0u;
+    var batch_i: u32 = 0u;
 
     let _e4 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
     loop {
-        let _e6 = batch_index;
+        let _e6 = batch_i;
         if (_e6 < BATCH_SIZE) {
         } else {
             break;
         }
         {
-            let _e11 = batch_index;
+            let _e11 = batch_i;
             let i = ((_e4 * BATCH_SIZE) + _e11);
             let _e14 = candidate_count;
             if (i >= _e14) {
@@ -2291,8 +2291,8 @@ fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_work
             collision_forces[((b * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX) + _e58)] = ForceX_naga_oil_mod_XMNXW23LPNYX(-(_e43));
         }
         continuing {
-            let _e73 = batch_index;
-            batch_index = (_e73 + 1u);
+            let _e73 = batch_i;
+            batch_i = (_e73 + 1u);
         }
     }
     return;
@@ -2301,7 +2301,7 @@ fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_work
 }
 pub mod collision_narrow_phase_dispatch_dimensions {
     use super::{_root, _root::*};
-    pub const CHUNK_SIZE: u32 = 6400u32;
+    pub const CHUNK_SIZE: u32 = 64u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CALCULATE_NARROW_PHASE_DISPATCH_DIMENSIONS_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
@@ -2466,10 +2466,10 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 const MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 65535u;
-const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 10u;
+const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 64u;
-const BATCH_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 100u;
-const CHUNK_SIZE: u32 = 6400u;
+const BATCH_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 1u;
+const CHUNK_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 
 var<uniform> candidate_count: u32;
@@ -3262,7 +3262,7 @@ struct InteractionResult {
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
-const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 10u;
+const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 const WORKGROUP_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 

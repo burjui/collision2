@@ -46,7 +46,7 @@ struct BvhNode {
 
 struct CollisionCandidate {
     a: u32,
-    b: u32
+    b: u32,
 }
 
 const UNIT_QUAD_VERTICES = array<vec2f, 6>(
@@ -62,7 +62,7 @@ const FLAG_DRAW_OBJECT: u32 = 1 << 0;
 const FLAG_DRAW_AABB: u32 = 1 << 1;
 const FLAG_PHYSICAL: u32 = 1 << 2;
 
-const MAX_CANDIDATES_PER_OBJECT: u32 = 10;
+const MAX_CANDIDATES_PER_OBJECT: u32 = 16;
 
 const BVH_NODE_TREE_FLAG: u32 = 1 << 31;
 

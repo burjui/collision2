@@ -17,10 +17,10 @@
 @group(2) @binding(1) var<storage, read_write> collision_forces: array<Force>;
 
 const WORKGROUP_SIZE: u32 = 64;
-const BATCH_SIZE: u32 = 100;
+const BATCH_SIZE: u32 = 1;
 
-const STIFFNESS: f32 = 50000;
-const RESTITUTION: f32 = 0.9;
+const STIFFNESS: f32 = 100000;
+const RESTITUTION: f32 = 0.3;
 const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(5.0) * sqrt(STIFFNESS);
 
 @compute @workgroup_size(WORKGROUP_SIZE)
@@ -30,8 +30,8 @@ fn narrow_phase(
     @builtin(local_invocation_index) local_invocation_index: u32,
 ) {
     let fii = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
-    for (var batch_index: u32 = 0; batch_index < BATCH_SIZE; batch_index += 1) {
-        let i = fii * BATCH_SIZE + batch_index;
+    for (var batch_i: u32 = 0; batch_i < BATCH_SIZE; batch_i += 1) {
+        let i = fii * BATCH_SIZE + batch_i;
         if i >= candidate_count {
             continue;
         }
