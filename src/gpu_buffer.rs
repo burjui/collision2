@@ -1,12 +1,12 @@
 use std::{
     marker::PhantomData,
     mem::size_of,
-    ops::{Bound, RangeBounds},
+    ops::{Bound, Range, RangeBounds},
 };
 
 use bytemuck::{AnyBitPattern, NoUninit, Pod};
 use wgpu::{
-    Buffer, BufferAsyncError, BufferSize, BufferSlice, COPY_BUFFER_ALIGNMENT, Device, MapMode, Queue, WasmNotSend,
+    Buffer, BufferAsyncError, BufferSize, COPY_BUFFER_ALIGNMENT, CommandEncoder, Device, MapMode, Queue, WasmNotSend,
     util::DeviceExt,
 };
 
@@ -60,28 +60,6 @@ impl<T> TypedBuffer<T> {
         self.len() == 0
     }
 
-    pub fn slice(&self, bounds: impl RangeBounds<usize>) -> BufferSlice<'_> {
-        let start = match bounds.start_bound() {
-            Bound::Included(&start) => start,
-            Bound::Excluded(&start) => start + 1,
-            Bound::Unbounded => 0,
-        };
-        let end = match bounds.end_bound() {
-            Bound::Included(&end) => end + 1,
-            Bound::Excluded(&end) => end,
-            Bound::Unbounded => self.len(),
-        };
-        let slice_start = u64::try_from(start * size_of::<T>()).unwrap();
-        let slice_end = u64::try_from(end * size_of::<T>()).unwrap();
-        assert!(
-            slice_start <= slice_end && slice_end <= self.buffer.size(),
-            "Bounds {slice_start}..{slice_end} out of range {}..{}",
-            0,
-            self.buffer.size()
-        );
-        self.buffer.slice(slice_start..slice_end)
-    }
-
     pub fn write(&self, queue: &Queue, data: &[T])
     where
         T: NoUninit,
@@ -120,5 +98,45 @@ impl<T> TypedBuffer<T> {
                 data
             }));
         });
+    }
+
+    pub fn copy(
+        &self,
+        dst_bounds: impl RangeBounds<usize>,
+        src: &TypedBuffer<T>,
+        src_bounds: impl RangeBounds<usize>,
+        encoder: &mut CommandEncoder,
+    ) {
+        let dst_range = self.range(dst_bounds);
+        let src_range = src.range(src_bounds);
+        encoder.copy_buffer_to_buffer(
+            &src.buffer,
+            src_range.start,
+            &self.buffer,
+            dst_range.start,
+            src_range.end - src_range.start,
+        );
+    }
+
+    fn range(&self, bounds: impl RangeBounds<usize>) -> Range<u64> {
+        let start = match bounds.start_bound() {
+            Bound::Included(&start) => start,
+            Bound::Excluded(&start) => start + 1,
+            Bound::Unbounded => 0,
+        };
+        let end = match bounds.end_bound() {
+            Bound::Included(&end) => end + 1,
+            Bound::Excluded(&end) => end,
+            Bound::Unbounded => self.len(),
+        };
+        let slice_start = u64::try_from(start * size_of::<T>()).unwrap();
+        let slice_end = u64::try_from(end * size_of::<T>()).unwrap();
+        assert!(
+            slice_start <= slice_end && slice_end <= self.buffer.size(),
+            "Bounds {slice_start}..{slice_end} out of range {}..{}",
+            0,
+            self.buffer.size()
+        );
+        slice_start..slice_end
     }
 }

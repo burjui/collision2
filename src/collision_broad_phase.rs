@@ -7,9 +7,8 @@ use crate::{
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         collision_broad_phase::{
-            BATCH_SIZE, WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
-            WgpuBindGroup1, WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams,
-            compute::create_broad_phase_pipeline_embed_source,
+            WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
+            WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, compute::create_broad_phase_pipeline_embed_source,
         },
         common::{BvhNode, CollisionCandidate, MAX_CANDIDATES_PER_OBJECT},
     },
@@ -79,14 +78,13 @@ impl BroadPhase {
 
     pub fn compute(&self, queue: &Queue, compute_pass: &mut ComputePass) {
         let pipeline = self.pipeline.clone();
-        let batch_count = self.object_count.div_ceil(BATCH_SIZE);
         let phase_state_index = self.phase_state_index.expect("prepare() must be called every frame");
         let phase_state_bind_group = self.phase_state_bind_groups[phase_state_index].as_ref().unwrap();
         self.candidate_count.write(queue, &[0]);
         compute_pass.set_pipeline(&pipeline);
         self.candidate_bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
-        let (x, y, z) = dispatch_dimensions(batch_count, WORKGROUP_SIZE);
+        let (x, y, z) = dispatch_dimensions(self.object_count, WORKGROUP_SIZE);
         compute_pass.dispatch_workgroups(x, y, z);
     }
 }

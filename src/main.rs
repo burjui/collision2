@@ -33,8 +33,8 @@ use nalgebra::Vector2;
 use pollster::block_on;
 use shaders::common::Mass;
 use wgpu::{
-    BufferAddress, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor,
-    InstanceDescriptor, PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
+    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor, InstanceDescriptor,
+    PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
     RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureView, TextureViewDescriptor,
 };
 use winit::{
@@ -470,7 +470,7 @@ fn spawn_simulation_thread(
     event_loop_proxy: EventLoopProxy<AppEvent>,
 ) {
     thread::spawn({
-        const DT: f32 = 0.004;
+        const DT: f32 = 0.002;
 
         let dt = TypedBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
         let mut bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
@@ -570,7 +570,7 @@ fn spawn_simulation_thread(
             broad_phase.compute(&queue, &mut compute_pass);
             narrow_phase_dispatch_dimensions_calculator.compute(&mut compute_pass);
             collision_count_reset.compute(&mut compute_pass);
-            // narrow_phase.compute(&mut compute_pass);
+            narrow_phase.compute(&mut compute_pass);
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
 
@@ -603,48 +603,11 @@ fn spawn_simulation_thread(
                 BufferUsages::COPY_DST | BufferUsages::MAP_READ,
             );
 
-            let candidate_size: BufferAddress = size_of::<CollisionCandidate>().try_into().unwrap();
-            encoder.copy_buffer_to_buffer(candidates.buffer(), 0, candidates_readback.buffer(), 0, candidate_size);
-
-            let candidate_count_size: BufferAddress = size_of::<u32>().try_into().unwrap();
-            encoder.copy_buffer_to_buffer(
-                candidate_count.buffer(),
-                0,
-                candidate_count_readback.buffer(),
-                0,
-                candidate_count_size,
-            );
-
-            let dispatch_indirect_args_size: BufferAddress = size_of::<DispatchIndirectArgs>().try_into().unwrap();
-            encoder.copy_buffer_to_buffer(
-                narrow_phase_dispatch_dimensions.buffer(),
-                0,
-                narrow_phase_dispatch_dimensions_readback.buffer(),
-                0,
-                dispatch_indirect_args_size,
-            );
-
-            let collision_count_size: BufferAddress = size_of::<u32>().try_into().unwrap();
-            encoder.copy_buffer_to_buffer(
-                collision_count.buffer(),
-                ((object_count - 1) * size_of::<u32>()).try_into().unwrap(),
-                collision_count_readback.buffer(),
-                0,
-                collision_count_size,
-            );
-
-            let last_object_forces_offset: u32 = {
-                let n: u32 = ((object_count - 1) * size_of::<Force>()).try_into().unwrap();
-                n * MAX_CANDIDATES_PER_OBJECT
-            };
-            let forces_size: BufferAddress = size_of::<Force>().try_into().unwrap();
-            encoder.copy_buffer_to_buffer(
-                collision_forces.buffer(),
-                last_object_forces_offset.try_into().unwrap(),
-                collision_forces_readback.buffer(),
-                0,
-                forces_size,
-            );
+            candidates_readback.copy(0..1, &candidates, 0..1, &mut encoder);
+            candidate_count_readback.copy(0..1, &candidate_count, 0..1, &mut encoder);
+            narrow_phase_dispatch_dimensions_readback.copy(0..1, &narrow_phase_dispatch_dimensions, 0..1, &mut encoder);
+            collision_count_readback.copy(0..1, &collision_count, 0..1, &mut encoder);
+            collision_forces_readback.copy(0..1, &collision_forces, 0..1, &mut encoder);
 
             // Submit work
 
@@ -688,12 +651,10 @@ fn spawn_simulation_thread(
             narrow_phase_dispatch_dimensions_readback.read(1, |narrow_phase_dispatch_dimensions| {
                 println!("narrow_phase_dispatch_dimensions: ({:?})", narrow_phase_dispatch_dimensions.unwrap()[0])
             });
-            collision_count_readback.read(1, |collision_count| {
-                println!("collision_count[object_count - 1]: {:?}", collision_count.unwrap()[0])
-            });
-            collision_forces_readback.read(1, move |collision_forces| {
-                println!("collision_forces[{last_object_forces_offset}] ({:?})", collision_forces.unwrap()[0])
-            });
+            collision_count_readback
+                .read(1, |collision_count| println!("collision_count[0]: {:?}", collision_count.unwrap()[0]));
+            collision_forces_readback
+                .read(1, move |collision_forces| println!("collision_forces[0] ({:?})", collision_forces.unwrap()[0]));
         }
     });
 }

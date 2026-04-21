@@ -184,34 +184,45 @@ fn collision_repulsion(index: u32, aabb: AABB, velocity: vec2f, mass: f32) -> ve
     return total_force;
 }
 
-fn collision_repulsion_pair(aabb: AABB, other_aabb: AABB, velocity: vec2f, mass: f32, other_index: u32) -> vec2f {
+fn collision_repulsion_pair(
+    aabb: AABB,
+    other_aabb: AABB,
+    velocity: vec2f,
+    mass: f32,
+    other_index: u32
+) -> vec2f {
     let size = aabb.max - aabb.min;
     let other_size = other_aabb.max - other_aabb.min;
-    let position = (aabb.min + aabb.max) / 2;
-    let other_position = (other_aabb.min + other_aabb.max) / 2;
+    let position = (aabb.min + aabb.max) * 0.5;
+    let other_position = (other_aabb.min + other_aabb.max) * 0.5;
     let separation_vector = position - other_position;
     let distance = length(separation_vector);
     let r1 = 0.5 * size.x;
     let r2 = 0.5 * other_size.x;
     let interaction_distance = r1 + r2;
+
     if distance >= interaction_distance {
         return vec2f();
     }
 
+    if distance == 0.0 {
+        return vec2f();
+    }
+
+    let n = separation_vector / distance;
     let penetration = interaction_distance - distance;
-    let n = normalize(separation_vector);
-    var v_ij_n = dot(velocity - velocities[other_index].inner, n);
-    if penetration <= 0 && v_ij_n > 0 {
-        v_ij_n = -RESTITUTION * v_ij_n;
-    }
-    let m1 = mass;
-    let m2 = masses[other_index].inner;
-    let m_eff = m1 * m2 / (m1 + m2);
-    var f_damping = vec2f();
-    if v_ij_n < 0 {
-        f_damping = -GAMMA_COEFF * sqrt(m_eff) * v_ij_n * n;
-    }
     let f_elastic = STIFFNESS * penetration * n;
+
+    let v_rel = velocity - velocities[other_index].inner;
+    let v_n = dot(v_rel, n);
+    var f_damping = vec2f(0.0);
+    if v_n < 0.0 {
+        let m1 = mass;
+        let m2 = masses[other_index].inner;
+        let m_eff = m1 * m2 / (m1 + m2);
+        f_damping = -GAMMA_COEFF * sqrt(m_eff) * v_n * n;
+    }
+
     return f_elastic + f_damping;
 }
 

@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 5460d7e367946090b0050f25d6f1b71863e42c18e932ec16cbb9d47b8773df40
+// SourceHash: c36d201144971ef1328d05dc1305c583a5f280e6f6ee7836d598ef031de4504a
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1441,7 +1441,6 @@ fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_wor
 pub mod collision_broad_phase {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const BATCH_SIZE: u32 = 1u32;
     pub const MAX_WG_CANDIDATES: u32 = 384u32;
     pub mod compute {
         use super::{_root, _root::*};
@@ -1735,7 +1734,6 @@ const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 6u;
 const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
 const WORKGROUP_SIZE: u32 = 64u;
-const BATCH_SIZE: u32 = 1u;
 const MAX_WG_CANDIDATES: u32 = 384u;
 
 @group(0) @binding(0) 
@@ -2221,68 +2219,85 @@ fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec
     return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
 }
 
-fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity: vec2<f32>, mass: f32, other_index: u32) -> vec2<f32> {
-    var v_ij_n: f32;
+fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f32>, m1_: f32, aabb2_: AABBX_naga_oil_mod_XMNXW23LPNYX, v2_: vec2<f32>, m2_: f32) -> vec2<f32> {
     var f_damping: vec2<f32> = vec2<f32>();
 
-    let size = (aabb.max - aabb.min);
-    let other_size = (other_aabb.max - other_aabb.min);
-    let position = ((aabb.min + aabb.max) / vec2(2f));
-    let other_position = ((other_aabb.min + other_aabb.max) / vec2(2f));
-    let separation_vector = (position - other_position);
+    let size1_ = (aabb1_.max - aabb1_.min);
+    let size2_ = (aabb2_.max - aabb2_.min);
+    let x1_ = ((aabb1_.min + aabb1_.max) * 0.5f);
+    let x2_ = ((aabb2_.min + aabb2_.max) * 0.5f);
+    let separation_vector = (x1_ - x2_);
     let distance = length(separation_vector);
-    let r1_ = (0.5f * size.x);
-    let r2_ = (0.5f * other_size.x);
+    let r1_ = (0.5f * size1_.x);
+    let r2_ = (0.5f * size2_.x);
     let interaction_distance = (r1_ + r2_);
     if (distance >= interaction_distance) {
         return vec2<f32>();
     }
+    if (distance == 0f) {
+        return vec2<f32>();
+    }
+    let n = (separation_vector / vec2(distance));
     let penetration = (interaction_distance - distance);
-    let n = normalize(separation_vector);
-    let _e39 = velocities[other_index].inner;
-    v_ij_n = dot((velocity - _e39), n);
-    let _e45 = v_ij_n;
-    if ((penetration <= 0f) && (_e45 > 0f)) {
-        let _e50 = v_ij_n;
-        v_ij_n = (-0.3f * _e50);
-    }
-    let m2_ = masses[other_index].inner;
-    let m_eff = ((mass * m2_) / (mass + m2_));
-    let _e60 = v_ij_n;
-    if (_e60 < 0f) {
-        let _e66 = v_ij_n;
-        f_damping = (((-105.732445f * sqrt(m_eff)) * _e66) * n);
-    }
     let f_elastic = ((STIFFNESS * penetration) * n);
-    let _e73 = f_damping;
-    return (f_elastic + _e73);
+    let v_rel = (v1_ - v2_);
+    let v_n = dot(v_rel, n);
+    if (v_n < 0f) {
+        let m_eff = ((m1_ * m2_) / (m1_ + m2_));
+        f_damping = (((-105.732445f * sqrt(m_eff)) * v_n) * n);
+    }
+    let _e56 = f_damping;
+    return (f_elastic + _e56);
 }
 
 @compute @workgroup_size(64, 1, 1) 
 fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
-    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let _e5 = candidate_count;
-    if (_e3 >= _e5) {
-        return;
+    var batch_index: u32 = 0u;
+
+    let _e4 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
+    loop {
+        let _e6 = batch_index;
+        if (_e6 < BATCH_SIZE) {
+        } else {
+            break;
+        }
+        {
+            let _e11 = batch_index;
+            let i = ((_e4 * BATCH_SIZE) + _e11);
+            let _e14 = candidate_count;
+            if (i >= _e14) {
+                return;
+            }
+            let candidates_1 = candidates[i];
+            let a = candidates_1.a;
+            let b = candidates_1.b;
+            let _e23 = aabbs[a];
+            let _e27 = velocities[a].inner;
+            let _e31 = masses[a].inner;
+            let _e34 = aabbs[b];
+            let _e38 = velocities[b].inner;
+            let _e42 = masses[b].inner;
+            let _e43 = collision_repulsion_pair(_e23, _e27, _e31, _e34, _e38, _e42);
+            if ((_e43.x == 0f) && (_e43.y == 0f)) {
+                return;
+            }
+            let _e54 = atomicAdd((&collision_count[a]), 1u);
+            let _e58 = atomicAdd((&collision_count[b]), 1u);
+            collision_forces[((a * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX) + _e54)] = ForceX_naga_oil_mod_XMNXW23LPNYX(_e43);
+            collision_forces[((b * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX) + _e58)] = ForceX_naga_oil_mod_XMNXW23LPNYX(-(_e43));
+        }
+        continuing {
+            let _e73 = batch_index;
+            batch_index = (_e73 + 1u);
+        }
     }
-    let candidates_1 = candidates[_e3];
-    let a = candidates_1.a;
-    let b = candidates_1.b;
-    let _e15 = atomicAdd((&collision_count[a]), 1u);
-    let _e19 = atomicAdd((&collision_count[b]), 1u);
-    let _e22 = aabbs[a];
-    let _e25 = aabbs[b];
-    let _e29 = velocities[a].inner;
-    let _e33 = masses[a].inner;
-    let _e34 = collision_repulsion_pair(_e22, _e25, _e29, _e33, b);
-    collision_forces[((a * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX) + _e15)] = ForceX_naga_oil_mod_XMNXW23LPNYX(_e34);
-    collision_forces[((b * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX) + _e19)] = ForceX_naga_oil_mod_XMNXW23LPNYX(-(_e34));
     return;
 }
 "#;
 }
 pub mod collision_narrow_phase_dispatch_dimensions {
     use super::{_root, _root::*};
+    pub const CHUNK_SIZE: u32 = 64u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CALCULATE_NARROW_PHASE_DISPATCH_DIMENSIONS_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
@@ -2449,6 +2464,8 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 const MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 65535u;
 const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 6u;
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 64u;
+const BATCH_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 1u;
+const CHUNK_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 
 var<uniform> candidate_count: u32;
@@ -2462,7 +2479,7 @@ fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid: vec3<u32>, nwg: vec3<u3
 @compute @workgroup_size(1, 1, 1) 
 fn calculate_narrow_phase_dispatch_dimensions() {
     let _e1 = candidate_count;
-    let total_workgroups = (((_e1 + WORKGROUP_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX) - 1u) / WORKGROUP_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX);
+    let total_workgroups = (((_e1 + CHUNK_SIZE) - 1u) / CHUNK_SIZE);
     let x = min(total_workgroups, MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX);
     let y = min((((total_workgroups + x) - 1u) / x), MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX);
     let z = min((((total_workgroups + (x * y)) - 1u) / (x * y)), MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX);
@@ -3251,13 +3268,12 @@ fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW
 }
 
 fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity: vec2<f32>, mass_1: f32, other_index: u32) -> vec2<f32> {
-    var v_ij_n: f32;
-    var f_damping: vec2<f32> = vec2<f32>();
+    var f_damping: vec2<f32> = vec2(0f);
 
     let size = (aabb.max - aabb.min);
     let other_size = (other_aabb.max - other_aabb.min);
-    let position_1 = ((aabb.min + aabb.max) / vec2(2f));
-    let other_position = ((other_aabb.min + other_aabb.max) / vec2(2f));
+    let position_1 = ((aabb.min + aabb.max) * 0.5f);
+    let other_position = ((other_aabb.min + other_aabb.max) * 0.5f);
     let separation_vector = (position_1 - other_position);
     let distance_1 = length(separation_vector);
     let r1_ = (0.5f * size.x);
@@ -3266,25 +3282,22 @@ fn collision_repulsion_pair(aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, other_aabb: A
     if (distance_1 >= interaction_distance) {
         return vec2<f32>();
     }
+    if (distance_1 == 0f) {
+        return vec2<f32>();
+    }
+    let n = (separation_vector / vec2(distance_1));
     let penetration = (interaction_distance - distance_1);
-    let n = normalize(separation_vector);
-    let _e39 = velocities[other_index].inner;
-    v_ij_n = dot((velocity - _e39), n);
-    let _e45 = v_ij_n;
-    if ((penetration <= 0f) && (_e45 > 0f)) {
-        let _e50 = v_ij_n;
-        v_ij_n = (-0.3f * _e50);
-    }
-    let m2_ = masses[other_index].inner;
-    let m_eff = ((mass_1 * m2_) / (mass_1 + m2_));
-    let _e60 = v_ij_n;
-    if (_e60 < 0f) {
-        let _e66 = v_ij_n;
-        f_damping = (((-105.732445f * sqrt(m_eff)) * _e66) * n);
-    }
     let f_elastic = ((STIFFNESS * penetration) * n);
-    let _e73 = f_damping;
-    return (f_elastic + _e73);
+    let _e45 = velocities[other_index].inner;
+    let v_rel = (velocity - _e45);
+    let v_n = dot(v_rel, n);
+    if (v_n < 0f) {
+        let m2_ = masses[other_index].inner;
+        let m_eff = ((mass_1 * m2_) / (mass_1 + m2_));
+        f_damping = (((-105.732445f * sqrt(m_eff)) * v_n) * n);
+    }
+    let _e64 = f_damping;
+    return (f_elastic + _e64);
 }
 
 fn collision_repulsion(index: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, velocity_1: vec2<f32>, mass_2: f32) -> vec2<f32> {
