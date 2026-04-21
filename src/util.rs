@@ -1,6 +1,6 @@
 use nalgebra::Vector2;
 
-use crate::shaders::common::{AABB, Velocity};
+use crate::shaders::common::{AABB, MAX_DISPATCH_DIMENSION, Velocity};
 
 impl AABB {
     pub fn min(&self) -> Vector2<f32> {
@@ -23,10 +23,9 @@ impl Default for Velocity {
 }
 
 pub fn dispatch_dimensions(object_count: u32, workgroup_size: u32) -> (u32, u32, u32) {
-    const MAX_DIMENSION: u32 = 65535;
     let total_workgroups = object_count.div_ceil(workgroup_size);
-    let x = total_workgroups.min(MAX_DIMENSION);
-    let y = (total_workgroups.div_ceil(x)).min(MAX_DIMENSION);
+    let x = total_workgroups.min(MAX_DISPATCH_DIMENSION);
+    let y = (total_workgroups.div_ceil(x)).min(MAX_DISPATCH_DIMENSION);
     let z = total_workgroups.div_ceil(x * y);
     (x, y, z)
 }

@@ -106,22 +106,18 @@ impl<T> TypedBuffer<T> {
 
     pub fn read(&self, size: usize, callback: impl FnOnce(Result<Vec<T>, BufferAsyncError>) + WasmNotSend + 'static)
     where
-        T: Pod + Default,
+        T: Pod,
     {
         let dst_size = u64::try_from(size * size_of::<T>()).unwrap();
         let copy_size = dst_size.min(self.buffer.size());
         let buffer = self.buffer.clone();
         self.buffer.map_async(MapMode::Read, .., move |result| {
             callback(result.map(|_| {
-                let size_in_bytes: usize = copy_size.try_into().unwrap();
-                let size = size_in_bytes / size_of::<T>();
-                let mut dst = Vec::with_capacity(size);
-                dst.resize(size, Default::default());
                 let view = buffer.get_mapped_range(0..copy_size);
-                dst.copy_from_slice(bytemuck::cast_slice(&view));
+                let data = bytemuck::cast_slice(&view).to_vec();
                 drop(view);
                 buffer.unmap();
-                dst
+                data
             }));
         });
     }

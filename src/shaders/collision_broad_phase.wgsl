@@ -1,5 +1,5 @@
 #import common::{
-    FLAG_PHYSICAL, BVH_NODE_TREE_FLAG, CANDIDATES_PER_OBJECT,
+    FLAG_PHYSICAL, BVH_NODE_TREE_FLAG, MAX_CANDIDATES_PER_OBJECT,
     AABB, Flags, BvhNode, CollisionCandidate,
     flat_invocation_index
 }
@@ -15,7 +15,7 @@
 
 const WORKGROUP_SIZE: u32 = 64;
 const BATCH_SIZE: u32 = 1; // TODO make use of BATCH_SIZE
-const MAX_WG_CANDIDATES: u32 = WORKGROUP_SIZE * CANDIDATES_PER_OBJECT;
+const MAX_WG_CANDIDATES: u32 = WORKGROUP_SIZE * MAX_CANDIDATES_PER_OBJECT;
 
 var<workgroup> wg_candidate_count: atomic<u32>;
 var<workgroup> wg_candidates: array<CollisionCandidate, MAX_WG_CANDIDATES>;
@@ -27,7 +27,7 @@ fn broad_phase(
     @builtin(local_invocation_index) local_invocation_index: u32,
 ) {
     let i = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
-    if i >= object_count {
+    if i >= object_count || (flags[i].inner & FLAG_PHYSICAL) == 0 {
         return;
     }
 
@@ -66,9 +66,9 @@ fn broad_phase(
             stack[sp] = child;
             stack[sp + 1] = child + 1;
             sp += 2;
-        } else if other_index != i && (flags[other_index].inner & FLAG_PHYSICAL) != 0 {
+        } else if other_index > i && (flags[other_index].inner & FLAG_PHYSICAL) != 0 {
             let candidates_index = atomicAdd(&wg_candidate_count, 1);
-            if candidates_index >= MAX_WG_CANDIDATES {
+            if candidates_index < MAX_WG_CANDIDATES {
                 wg_candidates[candidates_index] = CollisionCandidate(i, other_index);
             }
         }
@@ -77,11 +77,16 @@ fn broad_phase(
     workgroupBarrier();
 
     if local_invocation_index == 0 {
-        let base = atomicAdd(&candidate_count, wg_candidate_count);
-        for (var j = 0u; j < wg_candidate_count; j++) {
-            candidates[base + j] = wg_candidates[j];
+        let count = atomicLoad(&wg_candidate_count);
+        let base = atomicAdd(&candidate_count, count);
+        for (var j = 0u; j < count; j++) {
+            if base + j < max_candidates {
+                candidates[base + j] = wg_candidates[j];
+            }
         }
     }
+
+    // candidates[0] = wg_candidates[0];
 }
 
 fn aabb_overlaps(a: AABB, b: AABB) -> bool {

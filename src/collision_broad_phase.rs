@@ -11,7 +11,7 @@ use crate::{
             WgpuBindGroup1, WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams,
             compute::create_broad_phase_pipeline_embed_source,
         },
-        common::{BvhNode, CollisionCandidate},
+        common::{BvhNode, CollisionCandidate, MAX_CANDIDATES_PER_OBJECT},
     },
     util::dispatch_dimensions,
 };
@@ -33,9 +33,15 @@ impl BroadPhase {
         candidate_count: TypedBuffer<u32>,
         nodes: TypedBuffer<BvhNode>,
     ) -> Self {
+        let object_count: u32 = object_count.try_into().unwrap();
         let object_count_buffer =
             TypedBuffer::from_data(device, &[object_count], "object count", BufferUsages::UNIFORM);
-        let max_candidates_buffer = TypedBuffer::from_data(device, &[0], "max candidates", BufferUsages::UNIFORM);
+        let max_candidates_buffer: TypedBuffer<u32> = TypedBuffer::from_data(
+            device,
+            &[object_count * MAX_CANDIDATES_PER_OBJECT],
+            "max candidates",
+            BufferUsages::UNIFORM,
+        );
         let candidate_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
@@ -49,7 +55,7 @@ impl BroadPhase {
 
         let pipeline = create_broad_phase_pipeline_embed_source(device);
         Self {
-            object_count: object_count.try_into().unwrap(),
+            object_count,
             candidate_bind_group,
             pipeline,
             candidate_count,

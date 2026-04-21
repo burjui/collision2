@@ -1,17 +1,21 @@
+#define_import_path collision_narrow_phase
+
 #import common::{
-    FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB, BVH_NODE_TREE_FLAG, CANDIDATES_PER_OBJECT,
+    FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB, BVH_NODE_TREE_FLAG, MAX_CANDIDATES_PER_OBJECT,
     AABB, Mass, Velocity, BvhNode, CollisionCandidate, Force,
     flat_invocation_index
 }
 
-@group(0) @binding(0) var<storage, read> candidates: array<CollisionCandidate>;
-@group(0) @binding(1) var<storage, read> candidate_count: atomic<u32>;
-@group(0) @binding(2) var<storage, read> aabbs: array<AABB>;
-@group(0) @binding(3) var<storage, read> velocities: array<Velocity>;
-@group(0) @binding(4) var<storage, read> masses: array<Mass>;
 
-@group(1) @binding(0) var<storage, read_write> interaction_count: array<atomic<u32>>;
-@group(1) @binding(1) var<storage, read_write> forces: array<Force>;
+@group(0) @binding(0) var<storage, read> aabbs: array<AABB>;
+@group(0) @binding(1) var<storage, read> velocities: array<Velocity>;
+@group(0) @binding(2) var<storage, read> masses: array<Mass>;
+
+@group(1) @binding(0) var<uniform> candidate_count: u32;
+@group(1) @binding(1) var<storage, read> candidates: array<CollisionCandidate>;
+
+@group(2) @binding(0) var<storage, read_write> collision_count: array<atomic<u32>>;
+@group(2) @binding(1) var<storage, read_write> collision_forces: array<Force>;
 
 const WORKGROUP_SIZE: u32 = 64;
 const BATCH_SIZE: u32 = 1; // TODO make use of BATCH_SIZE
@@ -35,11 +39,11 @@ fn narrow_phase(
     let a = candidates.a;
     let b = candidates.b;
 
-    let a_force_index = atomicAdd(&interaction_count[a], 1);
-    let b_force_index = atomicAdd(&interaction_count[b], 1);
+    let a_force_index = atomicAdd(&collision_count[a], 1);
+    let b_force_index = atomicAdd(&collision_count[b], 1);
     let f = collision_repulsion_pair(aabbs[a], aabbs[b], velocities[a].inner, masses[a].inner, b);
-    forces[a * CANDIDATES_PER_OBJECT + a_force_index] = Force(f);
-    forces[b * CANDIDATES_PER_OBJECT + b_force_index] = Force(-f);
+    collision_forces[a * MAX_CANDIDATES_PER_OBJECT + a_force_index] = Force(f);
+    collision_forces[b * MAX_CANDIDATES_PER_OBJECT + b_force_index] = Force(-f);
 }
 
 fn collision_repulsion_pair(aabb: AABB, other_aabb: AABB, velocity: vec2f, mass: f32, other_index: u32) -> vec2f {
