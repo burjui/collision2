@@ -43,9 +43,6 @@ fn narrow_phase(
             aabbs[a], velocities[a].inner, masses[a].inner,
             aabbs[b], velocities[b].inner, masses[b].inner
         );
-        if f.x == 0 && f.y == 0 {
-            continue;
-        }
 
         cas_add_force(a, f);
         cas_add_force(b, -f);
@@ -70,28 +67,16 @@ fn collision_repulsion_pair(
     let r2 = 0.5 * size2.x;
     let interaction_distance = r1 + r2;
 
-    if distance >= interaction_distance {
-        return vec2f();
-    }
-
-    if distance == 0.0 {
-        return vec2f();
-    }
-
     let n = separation_vector / distance;
     let penetration = interaction_distance - distance;
     var f_elastic = vec2f();
-    if penetration > 0.0 {
-        f_elastic = STIFFNESS * penetration * n;
-    }
+    f_elastic = STIFFNESS * max(0.0, penetration) * n;
 
     let v_rel = v1 - v2;
     let v_n = dot(v_rel, n);
     var f_damping = vec2f();
-    if v_n < 0.0 {
-        let m_eff = m1 * m2 / (m1 + m2);
-        f_damping = -GAMMA_COEFF * sqrt(m_eff) * v_n * n;
-    }
+    let m_eff = m1 * m2 / (m1 + m2);
+    f_damping = -GAMMA_COEFF * sqrt(m_eff) * min(0.0, v_n) * n;
 
     return f_elastic + f_damping;
 }

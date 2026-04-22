@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: b9046fa270fd7284cc2a4c2cc9d50058ff0461c6b9efab7e85542c0cf6214c38
+// SourceHash: 5814ee326f3d07bb75139274b76dfafb639c6525909beaeef82336c3b9ba394b
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -2206,26 +2206,16 @@ fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f
     let r1_ = (0.5f * size1_.x);
     let r2_ = (0.5f * size2_.x);
     let interaction_distance = (r1_ + r2_);
-    if (distance >= interaction_distance) {
-        return vec2<f32>();
-    }
-    if (distance == 0f) {
-        return vec2<f32>();
-    }
     let n = (separation_vector / vec2(distance));
     let penetration = (interaction_distance - distance);
-    if (penetration > 0f) {
-        f_elastic = ((STIFFNESS * penetration) * n);
-    }
+    f_elastic = ((STIFFNESS * max(0f, penetration)) * n);
     let v_rel = (v1_ - v2_);
     let v_n = dot(v_rel, n);
-    if (v_n < 0f) {
-        let m_eff = ((m1_ * m2_) / (m1_ + m2_));
-        f_damping = (((-193.04015f * sqrt(m_eff)) * v_n) * n);
-    }
-    let _e59 = f_elastic;
-    let _e60 = f_damping;
-    return (_e59 + _e60);
+    let m_eff = ((m1_ * m2_) / (m1_ + m2_));
+    f_damping = (((-193.04015f * sqrt(m_eff)) * min(0f, v_n)) * n);
+    let _e54 = f_elastic;
+    let _e55 = f_damping;
+    return (_e54 + _e55);
 }
 
 fn cas_add_force_x(i: u32, value: f32) {
@@ -2302,15 +2292,12 @@ fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_work
             let _e38 = velocities[b].inner;
             let _e42 = masses[b].inner;
             let _e43 = collision_repulsion_pair(_e23, _e27, _e31, _e34, _e38, _e42);
-            if ((_e43.x == 0f) && (_e43.y == 0f)) {
-                continue;
-            }
             cas_add_force(a, _e43);
             cas_add_force(b, -(_e43));
         }
         continuing {
-            let _e53 = batch_i;
-            batch_i = (_e53 + 1u);
+            let _e46 = batch_i;
+            batch_i = (_e46 + 1u);
         }
     }
     return;
