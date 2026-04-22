@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 8ba8e242d5844eb8080c5b0f4510a8025d7aaf2c126ea1aecef6e0d84b1df49a
+// SourceHash: b9046fa270fd7284cc2a4c2cc9d50058ff0461c6b9efab7e85542c0cf6214c38
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1836,7 +1836,7 @@ fn broad_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workg
 pub mod collision_narrow_phase {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const BATCH_SIZE: u32 = 16u32;
+    pub const BATCH_SIZE: u32 = 1u32;
     pub const STIFFNESS: f32 = 100000f32;
     pub const RESTITUTION: f32 = 0.3f32;
     pub const GAMMA_COEFF: f32 = 193.04015f32;
@@ -2169,7 +2169,7 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 const WORKGROUP_SIZE: u32 = 64u;
-const BATCH_SIZE: u32 = 16u;
+const BATCH_SIZE: u32 = 1u;
 const STIFFNESS: f32 = 100000f;
 const RESTITUTION: f32 = 0.3f;
 const GAMMA_COEFF: f32 = 193.04015f;
@@ -2228,10 +2228,55 @@ fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f
     return (_e59 + _e60);
 }
 
+fn cas_add_force_x(i: u32, value: f32) {
+    var old: u32;
+
+    let _e3 = atomicLoad((&collision_forces_x[i]));
+    old = _e3;
+    loop {
+        let _e5 = old;
+        let old_f = bitcast<f32>(_e5);
+        let new_f = (old_f + value);
+        let new_value = bitcast<u32>(new_f);
+        let _e12 = old;
+        let _e13 = atomicCompareExchangeWeak((&collision_forces_x[i]), _e12, new_value);
+        if _e13.exchanged {
+            break;
+        }
+        old = _e13.old_value;
+    }
+    return;
+}
+
+fn cas_add_force_y(i_1: u32, value_1: f32) {
+    var old_1: u32;
+
+    let _e3 = atomicLoad((&collision_forces_y[i_1]));
+    old_1 = _e3;
+    loop {
+        let _e5 = old_1;
+        let old_f_1 = bitcast<f32>(_e5);
+        let new_f_1 = (old_f_1 + value_1);
+        let new_value_1 = bitcast<u32>(new_f_1);
+        let _e12 = old_1;
+        let _e13 = atomicCompareExchangeWeak((&collision_forces_y[i_1]), _e12, new_value_1);
+        if _e13.exchanged {
+            break;
+        }
+        old_1 = _e13.old_value;
+    }
+    return;
+}
+
+fn cas_add_force(i_2: u32, value_2: vec2<f32>) {
+    cas_add_force_x(i_2, value_2.x);
+    cas_add_force_y(i_2, value_2.y);
+    return;
+}
+
 @compute @workgroup_size(64, 1, 1) 
 fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
     var batch_i: u32 = 0u;
-    var old: u32;
 
     let _e4 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
     loop {
@@ -2242,12 +2287,12 @@ fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_work
         }
         {
             let _e11 = batch_i;
-            let i = ((_e4 * BATCH_SIZE) + _e11);
+            let i_3 = ((_e4 * BATCH_SIZE) + _e11);
             let _e14 = candidate_count;
-            if (i >= _e14) {
+            if (i_3 >= _e14) {
                 continue;
             }
-            let candidates_1 = candidates[i];
+            let candidates_1 = candidates[i_3];
             let a = candidates_1.a;
             let b = candidates_1.b;
             let _e23 = aabbs[a];
@@ -2260,66 +2305,12 @@ fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_work
             if ((_e43.x == 0f) && (_e43.y == 0f)) {
                 continue;
             }
-            let _e53 = atomicLoad((&collision_forces_x[a]));
-            old = _e53;
-            loop {
-                let _e55 = old;
-                let old_f = bitcast<f32>(_e55);
-                let new_f = (old_f + _e43.x);
-                let new_value = bitcast<u32>(new_f);
-                let _e62 = old;
-                let _e63 = atomicCompareExchangeWeak((&collision_forces_x[a]), _e62, new_value);
-                if _e63.exchanged {
-                    break;
-                }
-                old = _e63.old_value;
-            }
-            let _e68 = atomicLoad((&collision_forces_y[a]));
-            old = _e68;
-            loop {
-                let _e69 = old;
-                let old_f_1 = bitcast<f32>(_e69);
-                let new_f_1 = (old_f_1 + _e43.y);
-                let new_value_1 = bitcast<u32>(new_f_1);
-                let _e76 = old;
-                let _e77 = atomicCompareExchangeWeak((&collision_forces_y[a]), _e76, new_value_1);
-                if _e77.exchanged {
-                    break;
-                }
-                old = _e77.old_value;
-            }
-            let _e82 = atomicLoad((&collision_forces_x[b]));
-            old = _e82;
-            loop {
-                let _e83 = old;
-                let old_f_2 = bitcast<f32>(_e83);
-                let new_f_2 = (old_f_2 - _e43.x);
-                let new_value_2 = bitcast<u32>(new_f_2);
-                let _e90 = old;
-                let _e91 = atomicCompareExchangeWeak((&collision_forces_x[b]), _e90, new_value_2);
-                if _e91.exchanged {
-                    break;
-                }
-                old = _e91.old_value;
-            }
-            let _e96 = atomicLoad((&collision_forces_y[b]));
-            old = _e96;
-            loop {
-                let _e97 = old;
-                let old_f_3 = bitcast<f32>(_e97);
-                let new_f_3 = (old_f_3 - _e43.y);
-                let new_value_3 = bitcast<u32>(new_f_3);
-                let _e104 = old;
-                let _e105 = atomicCompareExchangeWeak((&collision_forces_y[b]), _e104, new_value_3);
-                if _e105.exchanged {
-                    break;
-                }
-                old = _e105.old_value;
-            }
+            cas_add_force(a, _e43);
+            cas_add_force(b, -(_e43));
         }
         continuing {
-            let _e109 = batch_i;
-            batch_i = (_e109 + 1u);
+            let _e53 = batch_i;
+            batch_i = (_e53 + 1u);
         }
     }
     return;
@@ -2328,7 +2319,7 @@ fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_work
 }
 pub mod collision_narrow_phase_dispatch_dimensions {
     use super::{_root, _root::*};
-    pub const CHUNK_SIZE: u32 = 1024u32;
+    pub const CHUNK_SIZE: u32 = 64u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CALCULATE_NARROW_PHASE_DISPATCH_DIMENSIONS_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
@@ -2490,8 +2481,8 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 
 const MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 65535u;
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 64u;
-const BATCH_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 16u;
-const CHUNK_SIZE: u32 = 1024u;
+const BATCH_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 1u;
+const CHUNK_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 
 var<uniform> candidate_count: u32;

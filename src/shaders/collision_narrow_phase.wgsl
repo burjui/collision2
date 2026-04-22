@@ -47,53 +47,8 @@ fn narrow_phase(
             continue;
         }
 
-        var old = atomicLoad(&collision_forces_x[a]);
-        loop {
-            let old_f = bitcast<f32>(old);
-            let new_f = old_f + f.x;
-            let new_value = bitcast<u32>(new_f);
-            let res = atomicCompareExchangeWeak(&collision_forces_x[a], old, new_value);
-            if res.exchanged {
-                break;
-            }
-            old = res.old_value;
-        }
-
-        old = atomicLoad(&collision_forces_y[a]);
-        loop {
-            let old_f = bitcast<f32>(old);
-            let new_f = old_f + f.y;
-            let new_value = bitcast<u32>(new_f);
-            let res = atomicCompareExchangeWeak(&collision_forces_y[a], old, new_value);
-            if res.exchanged {
-                break;
-            }
-            old = res.old_value;
-        }
-
-        old = atomicLoad(&collision_forces_x[b]);
-        loop {
-            let old_f = bitcast<f32>(old);
-            let new_f = old_f - f.x;
-            let new_value = bitcast<u32>(new_f);
-            let res = atomicCompareExchangeWeak(&collision_forces_x[b], old, new_value);
-            if res.exchanged {
-                break;
-            }
-            old = res.old_value;
-        }
-
-        old = atomicLoad(&collision_forces_y[b]);
-        loop {
-            let old_f = bitcast<f32>(old);
-            let new_f = old_f - f.y;
-            let new_value = bitcast<u32>(new_f);
-            let res = atomicCompareExchangeWeak(&collision_forces_y[b], old, new_value);
-            if res.exchanged {
-                break;
-            }
-            old = res.old_value;
-        }
+        cas_add_force(a, f);
+        cas_add_force(b, -f);
     }
 }
 
@@ -139,4 +94,37 @@ fn collision_repulsion_pair(
     }
 
     return f_elastic + f_damping;
+}
+
+fn cas_add_force(i: u32, value: vec2f) {
+    cas_add_force_x(i, value.x);
+    cas_add_force_y(i, value.y);
+}
+
+fn cas_add_force_x(i: u32, value: f32) {
+    var old = atomicLoad(&collision_forces_x[i]);
+    loop {
+        let old_f = bitcast<f32>(old);
+        let new_f = old_f + value;
+        let new_value = bitcast<u32>(new_f);
+        let res = atomicCompareExchangeWeak(&collision_forces_x[i], old, new_value);
+        if res.exchanged {
+            break;
+        }
+        old = res.old_value;
+    }
+}
+
+fn cas_add_force_y(i: u32, value: f32) {
+    var old = atomicLoad(&collision_forces_y[i]);
+    loop {
+        let old_f = bitcast<f32>(old);
+        let new_f = old_f + value;
+        let new_value = bitcast<u32>(new_f);
+        let res = atomicCompareExchangeWeak(&collision_forces_y[i], old, new_value);
+        if res.exchanged {
+            break;
+        }
+        old = res.old_value;
+    }
 }
