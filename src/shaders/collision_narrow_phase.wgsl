@@ -13,8 +13,7 @@
 @group(1) @binding(0) var<uniform> candidate_count: u32;
 @group(1) @binding(1) var<storage, read> candidates: array<CollisionCandidate>;
 
-@group(2) @binding(0) var<storage, read_write> collision_forces_x: array<atomic<u32>>;
-@group(2) @binding(1) var<storage, read_write> collision_forces_y: array<atomic<u32>>;
+@group(2) @binding(0) var<storage, read_write> collision_forces: array<atomic<u32>>;
 
 const WORKGROUP_SIZE: u32 = 64;
 const BATCH_SIZE: u32 = 1;
@@ -82,31 +81,17 @@ fn collision_repulsion_pair(
 }
 
 fn cas_add_force(i: u32, value: vec2f) {
-    cas_add_force_x(i, value.x);
-    cas_add_force_y(i, value.y);
+    cas_add_force_component(i * 2, value.x);
+    cas_add_force_component(i * 2 + 1, value.y);
 }
 
-fn cas_add_force_x(i: u32, value: f32) {
-    var old = atomicLoad(&collision_forces_x[i]);
+fn cas_add_force_component(i: u32, value: f32) {
+    var old = atomicLoad(&collision_forces[i]);
     loop {
         let old_f = bitcast<f32>(old);
         let new_f = old_f + value;
         let new_value = bitcast<u32>(new_f);
-        let res = atomicCompareExchangeWeak(&collision_forces_x[i], old, new_value);
-        if res.exchanged {
-            break;
-        }
-        old = res.old_value;
-    }
-}
-
-fn cas_add_force_y(i: u32, value: f32) {
-    var old = atomicLoad(&collision_forces_y[i]);
-    loop {
-        let old_f = bitcast<f32>(old);
-        let new_f = old_f + value;
-        let new_value = bitcast<u32>(new_f);
-        let res = atomicCompareExchangeWeak(&collision_forces_y[i], old, new_value);
+        let res = atomicCompareExchangeWeak(&collision_forces[i], old, new_value);
         if res.exchanged {
             break;
         }

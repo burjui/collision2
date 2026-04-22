@@ -14,8 +14,7 @@
 @group(1) @binding(2) var<uniform> blackhole_size_scale: f32;
 @group(1) @binding(3) var<storage, read> blackholes: array<BlackHole>;
 
-@group(2) @binding(0) var<storage, read> collision_forces_x: array<f32>;
-@group(2) @binding(1) var<storage, read> collision_forces_y: array<f32>;
+@group(2) @binding(0) var<storage, read> collision_forces: array<vec2f>;
 
 @group(3) @binding(0) var<storage, read> flags: array<Flags>;
 @group(3) @binding(1) var<storage, read> aabbs: array<AABB>;
@@ -46,10 +45,8 @@ fn integrate(
     let aabb = aabbs[i];
     let initial_position = (aabb.min + aabb.max) / 2;
     let initial_velocity = velocities[i].inner;
-
-    var f = flags[i].inner;
-
     let mass = masses[i].inner;
+    var f = flags[i].inner;
     var state = ObjectPhaseState(initial_position, velocities[i].inner);
     if (f & FLAG_PHYSICAL) != 0 {
         state = integrate_euler_symplectic(state, i, aabb, mass);
@@ -118,8 +115,7 @@ fn forces(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
         total_force += blackhole_gravity(blackhole, state.position, mass);
         total_force += frame_dragging(blackhole, state);
     }
-    total_force.x += collision_forces_x[index];
-    total_force.y += collision_forces_y[index];
+    total_force += collision_forces[index];
     return total_force;
 }
 

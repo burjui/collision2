@@ -16,20 +16,14 @@ pub struct CollisionReset {
 }
 
 impl CollisionReset {
-    pub fn new(
-        device: &Device,
-        object_count: u32,
-        collision_forces_x: TypedBuffer<u32>,
-        collision_forces_y: TypedBuffer<u32>,
-    ) -> Self {
+    pub fn new(device: &Device, object_count: u32, collision_forces: TypedBuffer<u32>) -> Self {
         let dispatch_dimensions = dispatch_dimensions(object_count, WORKGROUP_SIZE);
         let object_count = TypedBuffer::from_data(device, &[object_count], "object count", BufferUsages::UNIFORM);
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count.buffer().as_entire_buffer_binding(),
-                collision_forces_x: collision_forces_x.buffer().as_entire_buffer_binding(),
-                collision_forces_y: collision_forces_y.buffer().as_entire_buffer_binding(),
+                collision_forces: collision_forces.buffer().as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_reset_collision_forces_pipeline_embed_source(device);

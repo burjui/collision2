@@ -32,8 +32,7 @@ impl NarrowPhase {
         candidates: TypedBuffer<CollisionCandidate>,
         candidate_count: TypedBuffer<u32>,
         masses: TypedBuffer<Mass>,
-        collision_forces_x: TypedBuffer<u32>,
-        collision_forces_y: TypedBuffer<u32>,
+        collision_forces: TypedBuffer<u32>,
     ) -> Self {
         let input_bind_group = WgpuBindGroup1::from_bindings(
             device,
@@ -45,8 +44,7 @@ impl NarrowPhase {
         let output_bind_group = WgpuBindGroup2::from_bindings(
             device,
             WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
-                collision_forces_x: collision_forces_x.buffer().as_entire_buffer_binding(),
-                collision_forces_y: collision_forces_y.buffer().as_entire_buffer_binding(),
+                collision_forces: collision_forces.buffer().as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_narrow_phase_pipeline_embed_source(device);

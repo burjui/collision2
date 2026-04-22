@@ -502,41 +502,22 @@ fn spawn_simulation_thread(
             narrow_phase_dispatch_dimensions.clone(),
         );
 
-        let collision_forces_x = TypedBuffer::new(
+        let collision_forces = TypedBuffer::new(
             &device,
-            object_count.try_into().unwrap(),
+            object_count * 2,
             "collision forces",
             BufferUsages::STORAGE | BufferUsages::COPY_SRC,
         );
-        let collision_forces_y = TypedBuffer::new(
-            &device,
-            object_count.try_into().unwrap(),
-            "collision forces",
-            BufferUsages::STORAGE | BufferUsages::COPY_SRC,
-        );
-        let collision_reset = CollisionReset::new(
-            &device,
-            object_count.try_into().unwrap(),
-            collision_forces_x.clone(),
-            collision_forces_y.clone(),
-        );
+        let collision_reset = CollisionReset::new(&device, object_count.try_into().unwrap(), collision_forces.clone());
         let mut narrow_phase = NarrowPhase::new(
             &device,
             narrow_phase_dispatch_dimensions.clone(),
             candidates.clone(),
             candidate_count.clone(),
             masses.clone(),
-            collision_forces_x.clone(),
-            collision_forces_y.clone(),
+            collision_forces.clone(),
         );
-        let mut integrator = Integrator::new(
-            &device,
-            object_count,
-            dt,
-            masses.clone(),
-            collision_forces_x.clone(),
-            collision_forces_y.clone(),
-        );
+        let mut integrator = Integrator::new(&device, object_count, dt, masses.clone(), collision_forces.clone());
 
         let (tx, rx) = channel::bounded(PhaseStateRing::CAPACITY);
         let mut sim_step_count: usize = 0;
