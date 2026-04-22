@@ -13,8 +13,8 @@
 @group(1) @binding(0) var<uniform> candidate_count: u32;
 @group(1) @binding(1) var<storage, read> candidates: array<CollisionCandidate>;
 
-@group(2) @binding(0) var<storage, read_write> collision_count: array<atomic<u32>>;
-@group(2) @binding(1) var<storage, read_write> collision_forces: array<Force>;
+@group(2) @binding(0) var<storage, read_write> collision_forces_x: array<atomic<u32>>;
+@group(2) @binding(1) var<storage, read_write> collision_forces_y: array<atomic<u32>>;
 
 const WORKGROUP_SIZE: u32 = 64;
 const BATCH_SIZE: u32 = 1;
@@ -47,10 +47,53 @@ fn narrow_phase(
             continue;
         }
 
-        let a_force_index = atomicAdd(&collision_count[a], 1);
-        let b_force_index = atomicAdd(&collision_count[b], 1);
-        collision_forces[a * MAX_CANDIDATES_PER_OBJECT + a_force_index] = Force(f);
-        collision_forces[b * MAX_CANDIDATES_PER_OBJECT + b_force_index] = Force(-f);
+        var old = atomicLoad(&collision_forces_x[a]);
+        loop {
+            let old_f = bitcast<f32>(old);
+            let new_f = old_f + f.x;
+            let new_value = bitcast<u32>(new_f);
+            let res = atomicCompareExchangeWeak(&collision_forces_x[a], old, new_value);
+            if res.exchanged {
+                break;
+            }
+            old = res.old_value;
+        }
+
+        old = atomicLoad(&collision_forces_y[a]);
+        loop {
+            let old_f = bitcast<f32>(old);
+            let new_f = old_f + f.y;
+            let new_value = bitcast<u32>(new_f);
+            let res = atomicCompareExchangeWeak(&collision_forces_y[a], old, new_value);
+            if res.exchanged {
+                break;
+            }
+            old = res.old_value;
+        }
+
+        old = atomicLoad(&collision_forces_x[b]);
+        loop {
+            let old_f = bitcast<f32>(old);
+            let new_f = old_f - f.x;
+            let new_value = bitcast<u32>(new_f);
+            let res = atomicCompareExchangeWeak(&collision_forces_x[b], old, new_value);
+            if res.exchanged {
+                break;
+            }
+            old = res.old_value;
+        }
+
+        old = atomicLoad(&collision_forces_y[b]);
+        loop {
+            let old_f = bitcast<f32>(old);
+            let new_f = old_f - f.y;
+            let new_value = bitcast<u32>(new_f);
+            let res = atomicCompareExchangeWeak(&collision_forces_y[b], old, new_value);
+            if res.exchanged {
+                break;
+            }
+            old = res.old_value;
+        }
     }
 }
 

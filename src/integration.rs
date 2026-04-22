@@ -48,8 +48,8 @@ impl Integrator {
         object_count: usize,
         dt: TypedBuffer<f32>,
         masses: TypedBuffer<Mass>,
-        collision_count: TypedBuffer<u32>,
-        collision_forces: TypedBuffer<crate::shaders::common::Force>,
+        collision_forces_x: TypedBuffer<u32>,
+        collision_forces_y: TypedBuffer<u32>,
     ) -> Self {
         let blackholes = TypedBuffer::from_data(device, Self::BLACKHOLES, "blackholes", BufferUsages::STORAGE);
         let pipeline = create_integrate_pipeline_embed_source(device);
@@ -96,8 +96,8 @@ impl Integrator {
         let collision_bind_group = WgpuBindGroup2::from_bindings(
             device,
             WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
-                collision_count: collision_count.buffer().as_entire_buffer_binding(),
-                collision_forces: collision_forces.buffer().as_entire_buffer_binding(),
+                collision_forces_x: collision_forces_x.buffer().as_entire_buffer_binding(),
+                collision_forces_y: collision_forces_y.buffer().as_entire_buffer_binding(),
             }),
         );
         Self {

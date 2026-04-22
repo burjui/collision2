@@ -3,7 +3,7 @@
 pub mod aabb_renderer;
 pub mod bvh_builder;
 pub mod collision_broad_phase;
-pub mod collision_count_reset;
+pub mod collision_forces_reset;
 pub mod collision_narrow_phase;
 pub mod collision_narrow_phase_dispatch_dimensions;
 pub mod gpu_buffer;
@@ -51,7 +51,7 @@ use crate::{
     aabb_renderer::AabbRenderer,
     bvh_builder::{BvhBuildParameters, BvhBuilder},
     collision_broad_phase::BroadPhase,
-    collision_count_reset::CollisionCountReset,
+    collision_forces_reset::CollisionReset,
     collision_narrow_phase::NarrowPhase,
     collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgsCalculator,
     gpu_buffer::TypedBuffer,
@@ -61,7 +61,7 @@ use crate::{
     scene::create_scene,
     shaders::{
         build_bvh::CombineNodePass,
-        common::{AABB, BvhNode, Camera, CollisionCandidate, DispatchIndirectArgs, Force, MAX_CANDIDATES_PER_OBJECT},
+        common::{AABB, BvhNode, Camera, CollisionCandidate, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT},
     },
     shape_renderer::ShapeRenderer,
 };
@@ -472,6 +472,7 @@ fn spawn_simulation_thread(
 ) {
     thread::spawn({
         const DT: f32 = 0.002;
+        const MAX_SIM_TIME: Option<f32> = Some(3.3);
 
         let dt = TypedBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
         let mut bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
@@ -501,20 +502,23 @@ fn spawn_simulation_thread(
             narrow_phase_dispatch_dimensions.clone(),
         );
 
-        let collision_count = TypedBuffer::new(
+        let collision_forces_x = TypedBuffer::new(
             &device,
-            max_candidates,
-            "interaction count",
-            BufferUsages::STORAGE | BufferUsages::COPY_SRC,
-        );
-        let collision_count_reset =
-            CollisionCountReset::new(&device, max_candidates.try_into().unwrap(), collision_count.clone());
-
-        let collision_forces = TypedBuffer::new(
-            &device,
-            max_candidates,
+            object_count.try_into().unwrap(),
             "collision forces",
             BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+        );
+        let collision_forces_y = TypedBuffer::new(
+            &device,
+            object_count.try_into().unwrap(),
+            "collision forces",
+            BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+        );
+        let collision_reset = CollisionReset::new(
+            &device,
+            object_count.try_into().unwrap(),
+            collision_forces_x.clone(),
+            collision_forces_y.clone(),
         );
         let mut narrow_phase = NarrowPhase::new(
             &device,
@@ -522,16 +526,16 @@ fn spawn_simulation_thread(
             candidates.clone(),
             candidate_count.clone(),
             masses.clone(),
-            collision_count.clone(),
-            collision_forces.clone(),
+            collision_forces_x.clone(),
+            collision_forces_y.clone(),
         );
         let mut integrator = Integrator::new(
             &device,
             object_count,
             dt,
             masses.clone(),
-            collision_count.clone(),
-            collision_forces.clone(),
+            collision_forces_x.clone(),
+            collision_forces_y.clone(),
         );
 
         let (tx, rx) = channel::bounded(PhaseStateRing::CAPACITY);
@@ -577,7 +581,7 @@ fn spawn_simulation_thread(
             candidate_count.write(&queue, &[0]);
             broad_phase.compute(&queue, &mut compute_pass);
             narrow_phase_dispatch_dimensions_calculator.compute(&mut compute_pass);
-            collision_count_reset.compute(&mut compute_pass);
+            collision_reset.compute(&mut compute_pass);
             narrow_phase.compute(&mut compute_pass);
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
@@ -598,13 +602,7 @@ fn spawn_simulation_thread(
                 "narrow phase dispatch dimensions readback",
                 BufferUsages::COPY_DST | BufferUsages::MAP_READ,
             );
-            let collision_count_readback: TypedBuffer<u32> = TypedBuffer::new(
-                &device,
-                1,
-                "collision count readback",
-                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            );
-            let collision_forces_readback: TypedBuffer<Force> = TypedBuffer::new(
+            let collision_forces_readback: TypedBuffer<u32> = TypedBuffer::new(
                 &device,
                 1,
                 "collision forces readback",
@@ -614,8 +612,6 @@ fn spawn_simulation_thread(
             candidates_readback.copy(0..1, &candidates, 0..1, &mut encoder);
             candidate_count_readback.copy(0..1, &candidate_count, 0..1, &mut encoder);
             narrow_phase_dispatch_dimensions_readback.copy(0..1, &narrow_phase_dispatch_dimensions, 0..1, &mut encoder);
-            collision_count_readback.copy(0..1, &collision_count, 0..1, &mut encoder);
-            collision_forces_readback.copy(0..1, &collision_forces, 0..1, &mut encoder);
 
             // Submit work
 
@@ -646,7 +642,7 @@ fn spawn_simulation_thread(
 
             // Only run for a fixed duration
 
-            if sim_time > 3.3 {
+            if MAX_SIM_TIME.is_some_and(|max_sim_time| sim_time > max_sim_time) {
                 std::io::stdout().flush().unwrap();
                 std::process::exit(1);
             }
@@ -659,10 +655,9 @@ fn spawn_simulation_thread(
             narrow_phase_dispatch_dimensions_readback.read(1, |narrow_phase_dispatch_dimensions| {
                 println!("narrow_phase_dispatch_dimensions: ({:?})", narrow_phase_dispatch_dimensions.unwrap()[0])
             });
-            collision_count_readback
-                .read(1, |collision_count| println!("collision_count[0]: {:?}", collision_count.unwrap()[0]));
-            collision_forces_readback
-                .read(1, move |collision_forces| println!("collision_forces[0] ({:?})", collision_forces.unwrap()[0]));
+            collision_forces_readback.read(1, move |collision_forces_x| {
+                println!("collision_forces_x[0] ({:?})", f32::from_bits(collision_forces_x.unwrap()[0]))
+            });
         }
     });
 }

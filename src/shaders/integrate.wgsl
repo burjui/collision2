@@ -14,8 +14,8 @@
 @group(1) @binding(2) var<uniform> blackhole_size_scale: f32;
 @group(1) @binding(3) var<storage, read> blackholes: array<BlackHole>;
 
-@group(2) @binding(0) var<storage, read> collision_count: array<u32>;
-@group(2) @binding(1) var<storage, read> collision_forces: array<Force>;
+@group(2) @binding(0) var<storage, read> collision_forces_x: array<f32>;
+@group(2) @binding(1) var<storage, read> collision_forces_y: array<f32>;
 
 @group(3) @binding(0) var<storage, read> flags: array<Flags>;
 @group(3) @binding(1) var<storage, read> aabbs: array<AABB>;
@@ -111,11 +111,6 @@ fn integrate_euler_symplectic(state: ObjectPhaseState, index: u32, aabb: AABB, m
     return new_state;
 }
 
-struct InteractionResult {
-    force: vec2f,
-    collision_count: u32
-}
-
 fn forces(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
     var total_force = global_force;
     for (var bh_index: u32 = 0; bh_index < blackhole_count; bh_index += 1) {
@@ -123,13 +118,8 @@ fn forces(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
         total_force += blackhole_gravity(blackhole, state.position, mass);
         total_force += frame_dragging(blackhole, state);
     }
-
-    let collision_count = collision_count[index];
-    let base = index * MAX_CANDIDATES_PER_OBJECT;
-    for (var i: u32 = 0; i < collision_count; i++) {
-        total_force += collision_forces[base + i].inner;
-    }
-
+    total_force.x += collision_forces_x[index];
+    total_force.y += collision_forces_y[index];
     return total_force;
 }
 

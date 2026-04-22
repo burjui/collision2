@@ -29,10 +29,6 @@ struct AABB {
     max: vec2f
 }
 
-struct Force {
-    inner: vec2f
-}
-
 struct DispatchIndirectArgs {
     x: u32,
     y: u32,

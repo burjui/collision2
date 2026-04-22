@@ -44,7 +44,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
                 flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_PHYSICAL,
                 position: position.into(),
                 velocity: [random_range(VELOCITY_RAND_RANGE_X), random_range(VELOCITY_RAND_RANGE_Y)],
-                mass: 2.0,
+                mass: 3.0,
                 size: [radius * 2.0, radius * 2.0],
                 color: AlphaColor::new([
                     0.4 + 0.6 * i / (shape_count_f32.x - 1.0),
