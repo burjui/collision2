@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: 3584dfbdd0114f228564ad86540060d59dc09e29f1e5ea5258a10e276b57dfac
+// SourceHash: a823fb7ee12a6de778b417cd4eb10cd300952ca8589d1ac075e2149db1ad7088
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -2683,14 +2683,14 @@ pub mod integrate {
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub dt: wgpu::BufferBinding<'a>,
         pub gravitational_constant: wgpu::BufferBinding<'a>,
-        pub global_force: wgpu::BufferBinding<'a>,
+        pub global_acceleration: wgpu::BufferBinding<'a>,
         pub masses: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub dt: wgpu::BindGroupEntry<'a>,
         pub gravitational_constant: wgpu::BindGroupEntry<'a>,
-        pub global_force: wgpu::BindGroupEntry<'a>,
+        pub global_acceleration: wgpu::BindGroupEntry<'a>,
         pub masses: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
@@ -2704,9 +2704,9 @@ pub mod integrate {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.gravitational_constant),
                 },
-                global_force: wgpu::BindGroupEntry {
+                global_acceleration: wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.global_force),
+                    resource: wgpu::BindingResource::Buffer(params.global_acceleration),
                 },
                 masses: wgpu::BindGroupEntry {
                     binding: 3,
@@ -2715,7 +2715,12 @@ pub mod integrate {
             }
         }
         pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
-            [self.dt, self.gravitational_constant, self.global_force, self.masses]
+            [
+                self.dt,
+                self.gravitational_constant,
+                self.global_acceleration,
+                self.masses,
+            ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -2749,7 +2754,7 @@ pub mod integrate {
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"global_force\""]
+                #[doc = " @binding(2): \"global_acceleration\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -3205,7 +3210,7 @@ var<uniform> dt: f32;
 @group(0) @binding(1) 
 var<uniform> gravitational_constant: f32;
 @group(0) @binding(2) 
-var<uniform> global_force: vec2<f32>;
+var<uniform> global_acceleration: vec2<f32>;
 @group(0) @binding(3) 
 var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(0) 
@@ -3254,59 +3259,58 @@ fn frame_dragging(blackhole_1: BlackHole, state_1: ObjectPhaseState) -> vec2<f32
 }
 
 fn forces(state_2: ObjectPhaseState, index: u32, aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_1: f32) -> vec2<f32> {
-    var total_force: vec2<f32>;
+    var total_force: vec2<f32> = vec2<f32>();
     var bh_index_1: u32 = 0u;
     var blackhole_2: BlackHole;
 
-    let _e2 = global_force;
-    total_force = _e2;
     loop {
-        let _e5 = bh_index_1;
-        let _e7 = blackhole_count;
-        if (_e5 < _e7) {
+        let _e3 = bh_index_1;
+        let _e5 = blackhole_count;
+        if (_e3 < _e5) {
         } else {
             break;
         }
         {
-            let _e10 = bh_index_1;
-            let _e12 = blackholes[_e10];
-            blackhole_2 = _e12;
-            let _e15 = blackhole_2;
-            let _e18 = blackhole_gravity(_e15, state_2.position, mass_1);
-            let _e19 = total_force;
-            total_force = (_e19 + _e18);
-            let _e21 = blackhole_2;
-            let _e22 = frame_dragging(_e21, state_2);
-            let _e23 = total_force;
-            total_force = (_e23 + _e22);
+            let _e8 = bh_index_1;
+            let _e10 = blackholes[_e8];
+            blackhole_2 = _e10;
+            let _e13 = blackhole_2;
+            let _e16 = blackhole_gravity(_e13, state_2.position, mass_1);
+            let _e18 = total_force;
+            total_force = (_e18 + _e16);
+            let _e20 = blackhole_2;
+            let _e21 = frame_dragging(_e20, state_2);
+            let _e22 = total_force;
+            total_force = (_e22 + _e21);
         }
         continuing {
-            let _e26 = bh_index_1;
-            bh_index_1 = (_e26 + 1u);
+            let _e25 = bh_index_1;
+            bh_index_1 = (_e25 + 1u);
         }
     }
-    let _e31 = collision_forces[index];
-    let _e32 = total_force;
-    total_force = (_e32 + _e31);
-    let _e34 = total_force;
-    return _e34;
+    let _e30 = collision_forces[index];
+    let _e31 = total_force;
+    total_force = (_e31 + _e30);
+    let _e33 = total_force;
+    return _e33;
 }
 
 fn integrate_euler_symplectic(state_3: ObjectPhaseState, index_1: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_2: f32) -> ObjectPhaseState {
     var new_state: ObjectPhaseState;
 
-    let _e4 = forces(state_3, index_1, aabb_1, mass_2);
-    let a = (_e4 / vec2(mass_2));
+    let _e1 = global_acceleration;
+    let _e6 = forces(state_3, index_1, aabb_1, mass_2);
+    let a = (_e1 + (_e6 / vec2(mass_2)));
     new_state = state_3;
-    let _e10 = dt;
-    let _e12 = new_state.velocity;
-    new_state.velocity = (_e12 + (a * _e10));
-    let _e16 = new_state.velocity;
-    let _e18 = dt;
-    let _e20 = new_state.position;
-    new_state.position = (_e20 + (_e16 * _e18));
-    let _e22 = new_state;
-    return _e22;
+    let _e13 = dt;
+    let _e15 = new_state.velocity;
+    new_state.velocity = (_e15 + (a * _e13));
+    let _e19 = new_state.velocity;
+    let _e21 = dt;
+    let _e23 = new_state.position;
+    new_state.position = (_e23 + (_e19 * _e21));
+    let _e25 = new_state;
+    return _e25;
 }
 
 @compute @workgroup_size(64, 1, 1) 

@@ -41,7 +41,7 @@ impl Integrator {
     const BLACKHOLE_MASS_SCALE: f32 = 1.0 * 1000.0;
     const BLACKHOLE_SIZE_SCALE: f32 = 10.0;
     const GRAVITATIONAL_CONSTANT: f32 = 1.0 * 100000.0;
-    const GLOBAL_FORCE: [f32; 2] = [0.0, -1000.0];
+    const GLOBAL_ACCELERATION: [f32; 2] = [0.0, -100.0];
 
     pub fn new(
         device: &Device,
@@ -73,13 +73,14 @@ impl Integrator {
             "gravitational constant",
             BufferUsages::UNIFORM,
         );
-        let global_force = TypedBuffer::from_data(device, &[Self::GLOBAL_FORCE], "global force", BufferUsages::UNIFORM);
+        let global_acceleration =
+            TypedBuffer::from_data(device, &[Self::GLOBAL_ACCELERATION], "global force", BufferUsages::UNIFORM);
         let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 dt: dt.buffer().as_entire_buffer_binding(),
                 gravitational_constant: gravitational_constant.buffer().as_entire_buffer_binding(),
-                global_force: global_force.buffer().as_entire_buffer_binding(),
+                global_acceleration: global_acceleration.buffer().as_entire_buffer_binding(),
                 masses: masses.buffer().as_entire_buffer_binding(),
             }),
         );

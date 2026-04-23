@@ -6,7 +6,7 @@
 
 @group(0) @binding(0) var<uniform> dt: f32;
 @group(0) @binding(1) var<uniform> gravitational_constant: f32;
-@group(0) @binding(2) var<uniform> global_force: vec2f;
+@group(0) @binding(2) var<uniform> global_acceleration: vec2f;
 @group(0) @binding(3) var<storage, read> masses: array<Mass>;
 
 @group(1) @binding(0) var<uniform> blackhole_count: u32;
@@ -101,7 +101,7 @@ struct ObjectPhaseState {
 }
 
 fn integrate_euler_symplectic(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> ObjectPhaseState {
-    let a = forces(state, index, aabb, mass) / mass;
+    let a = global_acceleration + forces(state, index, aabb, mass) / mass;
     var new_state = state;
     new_state.velocity += a * dt;
     new_state.position += new_state.velocity * dt;
@@ -109,7 +109,7 @@ fn integrate_euler_symplectic(state: ObjectPhaseState, index: u32, aabb: AABB, m
 }
 
 fn forces(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
-    var total_force = global_force;
+    var total_force = vec2f();
     for (var bh_index: u32 = 0; bh_index < blackhole_count; bh_index += 1) {
         var blackhole = blackholes[bh_index];
         total_force += blackhole_gravity(blackhole, state.position, mass);
