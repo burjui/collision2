@@ -472,7 +472,7 @@ fn spawn_simulation_thread(
 ) {
     thread::spawn({
         const DT: f32 = 0.002;
-        const MAX_SIM_TIME: Option<f32> = Some(3.3);
+        const MAX_SIM_TIME: Option<f32> = None;
 
         let dt = TypedBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
         let mut bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
