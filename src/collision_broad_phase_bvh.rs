@@ -3,19 +3,19 @@ use std::array::from_fn;
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device, Queue};
 
 use crate::{
-    gpu_buffer::TypedBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
-        collision_broad_phase::{
+        collision_broad_phase_bvh::{
             WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
             WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, compute::create_broad_phase_pipeline_embed_source,
         },
         common::{BvhNode, CollisionCandidate, MAX_CANDIDATES_PER_OBJECT},
     },
+    typed_buffer::TypedBuffer,
     util::dispatch_dimensions,
 };
 
-pub struct BroadPhase {
+pub struct BroadPhaseBVH {
     object_count: u32,
     candidate_bind_group: WgpuBindGroup0,
     pipeline: ComputePipeline,
@@ -24,7 +24,7 @@ pub struct BroadPhase {
     phase_state_index: Option<usize>,
 }
 
-impl BroadPhase {
+impl BroadPhaseBVH {
     pub fn new(
         device: &Device,
         object_count: usize,

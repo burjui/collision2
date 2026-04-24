@@ -3,7 +3,6 @@ use std::array::from_fn;
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 use crate::{
-    gpu_buffer::TypedBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         common::Mass,
@@ -14,6 +13,7 @@ use crate::{
             compute::create_integrate_pipeline_embed_source,
         },
     },
+    typed_buffer::TypedBuffer,
     util::dispatch_dimensions,
 };
 

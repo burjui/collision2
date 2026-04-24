@@ -2,11 +2,10 @@
 
 pub mod aabb_renderer;
 pub mod bvh_builder;
-pub mod collision_broad_phase;
+pub mod collision_broad_phase_bvh;
 pub mod collision_forces_reset;
 pub mod collision_narrow_phase;
 pub mod collision_narrow_phase_dispatch_dimensions;
-pub mod gpu_buffer;
 pub mod integration;
 #[cfg(test)]
 mod mock_bvh_test;
@@ -15,6 +14,7 @@ pub mod phase_state;
 pub mod scene;
 pub mod shaders;
 pub mod shape_renderer;
+pub mod typed_buffer;
 pub mod util;
 
 use std::{
@@ -50,11 +50,10 @@ use winit::{
 use crate::{
     aabb_renderer::AabbRenderer,
     bvh_builder::{BvhBuildParameters, BvhBuilder},
-    collision_broad_phase::BroadPhase,
+    collision_broad_phase_bvh::BroadPhaseBVH,
     collision_forces_reset::CollisionReset,
     collision_narrow_phase::NarrowPhase,
     collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgsCalculator,
-    gpu_buffer::TypedBuffer,
     integration::Integrator,
     objects::Objects,
     phase_state::PhaseStateRing,
@@ -64,6 +63,7 @@ use crate::{
         common::{AABB, BvhNode, Camera, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT},
     },
     shape_renderer::ShapeRenderer,
+    typed_buffer::TypedBuffer,
 };
 
 fn main() {
@@ -488,7 +488,7 @@ fn spawn_simulation_thread(
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         );
         let mut broad_phase =
-            BroadPhase::new(&device, object_count, candidates.clone(), candidate_count.clone(), nodes.clone());
+            BroadPhaseBVH::new(&device, object_count, candidates.clone(), candidate_count.clone(), nodes.clone());
 
         let narrow_phase_dispatch_dimensions = TypedBuffer::from_data(
             &device,

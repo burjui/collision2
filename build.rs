@@ -18,7 +18,7 @@ fn generate_shader_bindings() -> Result<(), Box<dyn std::error::Error>> {
         .add_entry_point("src/shaders/render_shape.wgsl")
         .add_entry_point("src/shaders/render_aabb.wgsl")
         .add_entry_point("src/shaders/build_bvh.wgsl")
-        .add_entry_point("src/shaders/collision_broad_phase.wgsl")
+        .add_entry_point("src/shaders/collision_broad_phase_bvh.wgsl")
         .add_entry_point("src/shaders/collision_narrow_phase_dispatch_dimensions.wgsl")
         .add_entry_point("src/shaders/collision_forces_reset.wgsl")
         .add_entry_point("src/shaders/collision_narrow_phase.wgsl")

@@ -6,7 +6,6 @@ use wgpu::{
 };
 
 use crate::{
-    gpu_buffer::TypedBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         common::{Camera, Color, Mass, Shape},
@@ -16,6 +15,7 @@ use crate::{
             fs_main_entry, vertex_state, vs_main_entry,
         },
     },
+    typed_buffer::TypedBuffer,
 };
 
 pub struct ShapeRenderer {

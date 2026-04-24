@@ -3,7 +3,6 @@ use std::array::from_fn;
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
-    gpu_buffer::TypedBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         collision_narrow_phase::{
@@ -13,6 +12,7 @@ use crate::{
         },
         common::{CollisionCandidate, DispatchIndirectArgs, Mass},
     },
+    typed_buffer::TypedBuffer,
 };
 
 pub struct NarrowPhase {

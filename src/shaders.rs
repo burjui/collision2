@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.21.3
 // Changes made to this file will not be saved.
-// SourceHash: a823fb7ee12a6de778b417cd4eb10cd300952ca8589d1ac075e2149db1ad7088
+// SourceHash: 7004dd925b2c7afb19a48cdc126db4393a2475110345886080e152b938d5cd5f
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -11,7 +11,7 @@ pub enum ShaderEntry {
     RenderShape,
     RenderAabb,
     BuildBvh,
-    CollisionBroadPhase,
+    CollisionBroadPhaseBvh,
     CollisionNarrowPhaseDispatchDimensions,
     CollisionForcesReset,
     CollisionNarrowPhase,
@@ -24,7 +24,7 @@ impl ShaderEntry {
             Self::RenderShape => render_shape::create_pipeline_layout(device),
             Self::RenderAabb => render_aabb::create_pipeline_layout(device),
             Self::BuildBvh => build_bvh::create_pipeline_layout(device),
-            Self::CollisionBroadPhase => collision_broad_phase::create_pipeline_layout(device),
+            Self::CollisionBroadPhaseBvh => collision_broad_phase_bvh::create_pipeline_layout(device),
             Self::CollisionNarrowPhaseDispatchDimensions => {
                 collision_narrow_phase_dispatch_dimensions::create_pipeline_layout(device)
             }
@@ -39,7 +39,7 @@ impl ShaderEntry {
             Self::RenderShape => render_shape::create_shader_module_embed_source(device),
             Self::RenderAabb => render_aabb::create_shader_module_embed_source(device),
             Self::BuildBvh => build_bvh::create_shader_module_embed_source(device),
-            Self::CollisionBroadPhase => collision_broad_phase::create_shader_module_embed_source(device),
+            Self::CollisionBroadPhaseBvh => collision_broad_phase_bvh::create_shader_module_embed_source(device),
             Self::CollisionNarrowPhaseDispatchDimensions => {
                 collision_narrow_phase_dispatch_dimensions::create_shader_module_embed_source(device)
             }
@@ -1417,7 +1417,7 @@ fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_wor
 }
 "#;
 }
-pub mod collision_broad_phase {
+pub mod collision_broad_phase_bvh {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
     pub const MAX_WG_CANDIDATES: u32 = 1024u32;
@@ -1496,7 +1496,7 @@ pub mod collision_broad_phase {
     pub struct WgpuBindGroup0(wgpu::BindGroup);
     impl WgpuBindGroup0 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("CollisionBroadPhase::BindGroup0::LayoutDescriptor"),
+            label: Some("CollisionBroadPhaseBvh::BindGroup0::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"object_count\""]
                 wgpu::BindGroupLayoutEntry {
@@ -1562,7 +1562,7 @@ pub mod collision_broad_phase {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("CollisionBroadPhase::BindGroup0"),
+                label: Some("CollisionBroadPhaseBvh::BindGroup0"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -1606,7 +1606,7 @@ pub mod collision_broad_phase {
     pub struct WgpuBindGroup1(wgpu::BindGroup);
     impl WgpuBindGroup1 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("CollisionBroadPhase::BindGroup1::LayoutDescriptor"),
+            label: Some("CollisionBroadPhaseBvh::BindGroup1::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(1): \"aabbs\""]
                 wgpu::BindGroupLayoutEntry {
@@ -1639,7 +1639,7 @@ pub mod collision_broad_phase {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("CollisionBroadPhase::BindGroup1"),
+                label: Some("CollisionBroadPhaseBvh::BindGroup1"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
@@ -1675,7 +1675,7 @@ pub mod collision_broad_phase {
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("CollisionBroadPhase::PipelineLayout"),
+            label: Some("CollisionBroadPhaseBvh::PipelineLayout"),
             bind_group_layouts: &[
                 &WgpuBindGroup0::get_bind_group_layout(device),
                 &WgpuBindGroup1::get_bind_group_layout(device),
@@ -1686,7 +1686,7 @@ pub mod collision_broad_phase {
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
         let source = std::borrow::Cow::Borrowed(SHADER_STRING);
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("collision_broad_phase.wgsl"),
+            label: Some("collision_broad_phase_bvh.wgsl"),
             source: wgpu::ShaderSource::Wgsl(source),
         })
     }

@@ -3,7 +3,6 @@ use std::array::from_fn;
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
-    gpu_buffer::TypedBuffer,
     phase_state::{PhaseState, PhaseStateRing},
     shaders::{
         build_bvh::{
@@ -13,6 +12,7 @@ use crate::{
         },
         common::BvhNode,
     },
+    typed_buffer::TypedBuffer,
     util::dispatch_dimensions,
 };
 

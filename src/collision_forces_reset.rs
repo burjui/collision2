@@ -1,11 +1,11 @@
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 use crate::{
-    gpu_buffer::TypedBuffer,
     shaders::collision_forces_reset::{
         WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
         compute::create_reset_collision_forces_pipeline_embed_source,
     },
+    typed_buffer::TypedBuffer,
     util::dispatch_dimensions,
 };
 

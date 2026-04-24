@@ -1,8 +1,8 @@
 use wgpu::{BufferUsages, Device, Queue};
 
 use crate::{
-    gpu_buffer::TypedBuffer,
     shaders::common::{AABB, Flags, Velocity},
+    typed_buffer::TypedBuffer,
 };
 
 /// Set of object phase states (change every frame)
