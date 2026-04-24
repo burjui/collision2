@@ -61,7 +61,7 @@ use crate::{
     scene::create_scene,
     shaders::{
         build_bvh::CombineNodePass,
-        common::{AABB, BvhNode, Camera, CollisionCandidate, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT},
+        common::{AABB, BvhNode, Camera, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT},
     },
     shape_renderer::ShapeRenderer,
 };
@@ -569,30 +569,13 @@ fn spawn_simulation_thread(
 
             // Debug
 
-            let candidates_readback: TypedBuffer<CollisionCandidate> =
-                TypedBuffer::new(&device, 1, "candidate readback", BufferUsages::COPY_DST | BufferUsages::MAP_READ);
             let candidate_count_readback: TypedBuffer<u32> = TypedBuffer::new(
                 &device,
                 1,
                 "candidate_count readback",
                 BufferUsages::COPY_DST | BufferUsages::MAP_READ,
             );
-            let narrow_phase_dispatch_dimensions_readback: TypedBuffer<DispatchIndirectArgs> = TypedBuffer::new(
-                &device,
-                1,
-                "narrow phase dispatch dimensions readback",
-                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            );
-            let collision_forces_readback: TypedBuffer<u32> = TypedBuffer::new(
-                &device,
-                1,
-                "collision forces readback",
-                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            );
-
-            candidates_readback.copy(0..1, &candidates, 0..1, &mut encoder);
             candidate_count_readback.copy(0..1, &candidate_count, 0..1, &mut encoder);
-            narrow_phase_dispatch_dimensions_readback.copy(0..1, &narrow_phase_dispatch_dimensions, 0..1, &mut encoder);
 
             // Submit work
 
@@ -630,15 +613,8 @@ fn spawn_simulation_thread(
 
             // Debug
 
-            candidates_readback.read(1, |candidates| println!("candidates[0]: ({:?})", candidates.unwrap()[0]));
             candidate_count_readback
                 .read(1, |candidate_count| println!("candidate_count: {:?}", candidate_count.unwrap()[0]));
-            narrow_phase_dispatch_dimensions_readback.read(1, |narrow_phase_dispatch_dimensions| {
-                println!("narrow_phase_dispatch_dimensions: ({:?})", narrow_phase_dispatch_dimensions.unwrap()[0])
-            });
-            collision_forces_readback.read(1, move |collision_forces_x| {
-                println!("collision_forces_x[0] ({:?})", f32::from_bits(collision_forces_x.unwrap()[0]))
-            });
         }
     });
 }
