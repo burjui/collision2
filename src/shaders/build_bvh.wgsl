@@ -8,7 +8,7 @@ struct CombineNodePass {
     parent_count: u32,
 }
 
-var<push_constant> params: CombineNodePass;
+var<immediate> params: CombineNodePass;
 
 @group(0) @binding(0) var<storage, read_write> nodes: array<BvhNode>;
 

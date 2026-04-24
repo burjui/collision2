@@ -61,7 +61,7 @@ impl BvhBuilder {
         self.main_bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
         for &pass in &self.passes {
-            compute_pass.set_push_constants(0, bytemuck::cast_slice(&[pass]));
+            compute_pass.set_immediates(0, bytemuck::cast_slice(&[pass]));
             let (x, y, z) = dispatch_dimensions(pass.parent_count, WORKGROUP_SIZE);
             compute_pass.dispatch_workgroups(x, y, z);
         }

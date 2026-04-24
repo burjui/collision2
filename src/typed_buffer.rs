@@ -5,6 +5,7 @@ use std::{
 };
 
 use bytemuck::{AnyBitPattern, NoUninit, Pod};
+use itertools::Itertools;
 use wgpu::{
     Buffer, BufferAsyncError, BufferSize, COPY_BUFFER_ALIGNMENT, CommandEncoder, Device, MapMode, Queue, WasmNotSend,
     util::DeviceExt,
@@ -66,16 +67,18 @@ impl<T> TypedBuffer<T> {
     {
         let data_size: BufferSize = u64::try_from(size_of_val(data)).unwrap().try_into().unwrap();
         let mut view = queue.write_buffer_with(&self.buffer, 0, data_size).unwrap();
-        view.as_mut().copy_from_slice(bytemuck::cast_slice(data));
+        view.copy_from_slice(bytemuck::cast_slice(data));
     }
 
-    pub fn write_iter(&self, queue: &Queue, data: impl Iterator<Item = T>)
+    pub fn write_iter(&self, queue: &Queue, iter: impl Iterator<Item = T>)
     where
         T: NoUninit + AnyBitPattern,
     {
         let buffer_size: BufferSize = self.buffer.size().try_into().unwrap();
+        let data = iter.collect_vec();
         let mut view = queue.write_buffer_with(&self.buffer, 0, buffer_size).unwrap();
-        data.zip(bytemuck::cast_slice_mut(view.as_mut()).iter_mut()).for_each(|(src, dst)| *dst = src);
+        let mut slice = view.slice(0..data.len() * size_of::<T>());
+        slice.copy_from_slice(bytemuck::cast_slice(&data));
     }
 
     fn size(&self) -> usize {

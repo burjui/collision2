@@ -52,8 +52,8 @@ impl ShapeRenderer {
             primitive: PrimitiveState::default(),
             depth_stencil: None,
             multisample: MultisampleState::default(),
-            multiview: None,
             cache: None,
+            multiview_mask: None,
         });
         let main_bind_group = WgpuBindGroup0::from_bindings(
             device,

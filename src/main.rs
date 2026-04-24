@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod aabb_renderer;
+pub mod assign_object_cells;
 pub mod bvh_builder;
 pub mod collision_broad_phase_bvh;
 pub mod collision_forces_reset;
@@ -17,6 +18,7 @@ pub mod shape_renderer;
 pub mod typed_buffer;
 pub mod util;
 
+use core::panic;
 use std::{
     io::Write as _,
     mem::size_of,
@@ -34,8 +36,8 @@ use nalgebra::Vector2;
 use pollster::block_on;
 use shaders::common::Mass;
 use wgpu::{
-    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device, DeviceDescriptor, InstanceDescriptor,
-    PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
+    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, CurrentSurfaceTexture, Device, DeviceDescriptor,
+    InstanceDescriptor, PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
     RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureView, TextureViewDescriptor,
 };
 use winit::{
@@ -49,6 +51,7 @@ use winit::{
 
 use crate::{
     aabb_renderer::AabbRenderer,
+    assign_object_cells::AssignObjectCells,
     bvh_builder::{BvhBuildParameters, BvhBuilder},
     collision_broad_phase_bvh::BroadPhaseBVH,
     collision_forces_reset::CollisionReset,
@@ -60,7 +63,9 @@ use crate::{
     scene::create_scene,
     shaders::{
         build_bvh::CombineNodePass,
-        common::{AABB, BvhNode, Camera, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT},
+        common::{
+            AABB, BvhNode, Camera, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL, Position,
+        },
     },
     shape_renderer::ShapeRenderer,
     typed_buffer::TypedBuffer,
@@ -138,7 +143,7 @@ struct SimState<'a> {
 impl ApplicationHandler<AppEvent> for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = create_window(event_loop);
-        let wgpu_instance = wgpu::Instance::new(&InstanceDescriptor::from_env_or_default());
+        let wgpu_instance = wgpu::Instance::new(InstanceDescriptor::new_without_display_handle());
         let surface = wgpu_instance.create_surface(window.clone()).unwrap();
         let (surface_config, device, queue, swapchain_format) = init_wgpu(&wgpu_instance, &window, &surface);
 
@@ -241,8 +246,9 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     let camera = orthographic_camera(view_size.cast(), world_height, &self.render_parameters);
                     state.camera.write(&state.queue, &[Camera::new(camera)]);
 
-                    let surface_texture =
-                        state.surface.get_current_texture().expect("Failed to acquire next swap chain texture");
+                    let CurrentSurfaceTexture::Success(surface_texture) = state.surface.get_current_texture() else {
+                        panic!("Failed to get current surface texture");
+                    };
                     let surface_texture_view = surface_texture.texture.create_view(&TextureViewDescriptor::default());
                     render_scene(
                         surface_texture_view,
@@ -366,9 +372,10 @@ fn init_wgpu(
     }))
     .expect("Failed to find an appropriate adapter");
 
-    let required_features = wgpu::Features::PUSH_CONSTANTS | wgpu::Features::POLYGON_MODE_LINE;
+    let required_features = wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::IMMEDIATES;
     let required_limits = wgpu::Limits {
-        max_push_constant_size: u32::try_from(size_of::<CombineNodePass>()).unwrap(),
+        max_immediate_size: 128,
+        max_storage_buffers_per_shader_stage: 16,
         ..wgpu::Limits::defaults().using_resolution(adapter.limits())
     };
     let (device, queue) = block_on(adapter.request_device(&DeviceDescriptor {
@@ -418,6 +425,7 @@ fn render_scene(
         depth_stencil_attachment: None,
         timestamp_writes: None,
         occlusion_query_set: None,
+        multiview_mask: None,
     });
 
     let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
@@ -489,6 +497,29 @@ fn spawn_simulation_thread(
         );
         let mut broad_phase =
             BroadPhaseBVH::new(&device, object_count, candidates.clone(), candidate_count.clone(), nodes.clone());
+
+        let max_objects_per_cell: usize = MAX_OBJECTS_PER_CELL.try_into().unwrap();
+        let grid_position: TypedBuffer<Position> = TypedBuffer::new(&device, 1, "grid position", BufferUsages::STORAGE);
+        let object_cells: TypedBuffer<u32> =
+            TypedBuffer::new(&device, object_count, "object cells", BufferUsages::STORAGE);
+        let cells: TypedBuffer<u32> =
+            TypedBuffer::new(&device, object_count * max_objects_per_cell, "cells", BufferUsages::STORAGE);
+        let max_cells = object_count;
+
+        let cell_object_count: TypedBuffer<u32> = TypedBuffer::new(
+            &device,
+            max_cells,
+            "cell object count",
+            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
+        );
+        let cell_offsets: TypedBuffer<u32> =
+            TypedBuffer::new(&device, max_cells, "cell offsets", BufferUsages::STORAGE);
+        let assign_object_cells = AssignObjectCells::new(
+            &device,
+            object_count,
+            cell_object_count.clone(),
+            // object_cells.clone(),
+        );
 
         let narrow_phase_dispatch_dimensions = TypedBuffer::from_data(
             &device,

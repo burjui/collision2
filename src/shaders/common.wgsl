@@ -45,6 +45,14 @@ struct CollisionCandidate {
     b: u32,
 }
 
+struct Position {
+    inner: vec2f
+}
+
+struct CellPosition {
+    inner: vec2u
+}
+
 const UNIT_QUAD_VERTICES = array<vec2f, 6>(
     vec2f(0.5, 0.5),
     vec2f(-0.5, 0.5),
@@ -59,6 +67,7 @@ const FLAG_DRAW_AABB: u32 = 1 << 1;
 const FLAG_PHYSICAL: u32 = 1 << 2;
 
 const MAX_CANDIDATES_PER_OBJECT: u32 = 16;
+const MAX_OBJECTS_PER_CELL: u32 = 4;
 
 const BVH_NODE_TREE_FLAG: u32 = 1 << 31;
 
