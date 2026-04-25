@@ -1,9 +1,7 @@
-use std::array::from_fn;
-
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
-    phase_state::{PhaseState, PhaseStateRing},
+    phase_state::PhaseState,
     shaders::{
         build_bvh::{
             CombineNodePass, WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
@@ -13,19 +11,18 @@ use crate::{
         common::BvhNode,
     },
     typed_buffer::TypedBuffer,
-    util::dispatch_dimensions,
+    util::{PhaseStateCache, dispatch_dimensions},
 };
 
 pub struct BvhBuilder {
     passes: Vec<CombineNodePass>,
     pipeline: ComputePipeline,
     main_bind_group: WgpuBindGroup0,
-    phase_state_bind_groups: [Option<WgpuBindGroup1>; PhaseStateRing::CAPACITY],
-    phase_state_index: Option<usize>,
+    phase_state_cache: PhaseStateCache<WgpuBindGroup1>,
 }
 
 impl BvhBuilder {
-    pub fn new(params: BvhBuildParameters, device: &Device, nodes: TypedBuffer<BvhNode>) -> Self {
+    pub fn new(passes: Vec<CombineNodePass>, device: &Device, nodes: TypedBuffer<BvhNode>) -> Self {
         let pipeline = create_combine_nodes_pipeline_embed_source(device);
         let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
@@ -33,17 +30,17 @@ impl BvhBuilder {
                 nodes: nodes.buffer().as_entire_buffer_binding(),
             }),
         );
+        let phase_state_cache = PhaseStateCache::new();
         Self {
-            passes: params.passes,
+            passes,
             pipeline,
             main_bind_group,
-            phase_state_bind_groups: from_fn(|_| None),
-            phase_state_index: None,
+            phase_state_cache,
         }
     }
 
-    pub fn prepare(&mut self, phase_state_index: usize, device: &Device, phase_state: &PhaseState) {
-        self.phase_state_bind_groups[phase_state_index].get_or_insert_with(|| {
+    pub fn prepare(&mut self, device: &Device, phase_state_index: usize, phase_state: &PhaseState) {
+        self.phase_state_cache.update(phase_state_index, || {
             WgpuBindGroup1::from_bindings(
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
@@ -51,12 +48,10 @@ impl BvhBuilder {
                 }),
             )
         });
-        self.phase_state_index = Some(phase_state_index);
     }
 
     pub fn compute(&mut self, compute_pass: &mut ComputePass) {
-        let phase_state_index = self.phase_state_index.expect("prepare() must be called every frame");
-        let phase_state_bind_group = self.phase_state_bind_groups[phase_state_index].as_ref().unwrap();
+        let phase_state_bind_group = self.phase_state_cache.get_current();
         compute_pass.set_pipeline(&self.pipeline);
         self.main_bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
@@ -73,8 +68,8 @@ impl BvhBuilder {
 }
 
 pub struct BvhBuildParameters {
-    passes: Vec<CombineNodePass>,
-    node_count: usize,
+    pub passes: Vec<CombineNodePass>,
+    pub node_count: usize,
 }
 
 impl BvhBuildParameters {
@@ -97,13 +92,5 @@ impl BvhBuildParameters {
         let final_pass = &passes[passes.len() - 1];
         let node_count = usize::try_from(final_pass.dst_start + 1).unwrap();
         Self { passes, node_count }
-    }
-
-    pub fn passes(&self) -> &[CombineNodePass] {
-        &self.passes
-    }
-
-    pub fn node_count(&self) -> usize {
-        self.node_count
     }
 }

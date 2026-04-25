@@ -3,6 +3,7 @@
 pub mod aabb_renderer;
 pub mod assign_object_cells;
 pub mod bvh_builder;
+pub mod calculate_grid_position;
 pub mod collision_broad_phase_bvh;
 pub mod collision_forces_reset;
 pub mod collision_narrow_phase;
@@ -21,7 +22,6 @@ pub mod util;
 use core::panic;
 use std::{
     io::Write as _,
-    mem::size_of,
     ops::Range,
     sync::{
         Arc, Mutex,
@@ -53,6 +53,7 @@ use crate::{
     aabb_renderer::AabbRenderer,
     assign_object_cells::AssignObjectCells,
     bvh_builder::{BvhBuildParameters, BvhBuilder},
+    calculate_grid_position::CalculateGridPosition,
     collision_broad_phase_bvh::BroadPhaseBVH,
     collision_forces_reset::CollisionReset,
     collision_narrow_phase::NarrowPhase,
@@ -61,12 +62,7 @@ use crate::{
     objects::Objects,
     phase_state::PhaseStateRing,
     scene::create_scene,
-    shaders::{
-        build_bvh::CombineNodePass,
-        common::{
-            AABB, BvhNode, Camera, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL, Position,
-        },
-    },
+    shaders::common::{AABB, BvhNode, Camera, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL},
     shape_renderer::ShapeRenderer,
     typed_buffer::TypedBuffer,
 };
@@ -157,11 +153,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let world_size = self.world_aabb.size();
         println!("World size: {}x{}", world_size.x, world_size.y);
 
+        let object_count_buffer: TypedBuffer<u32> =
+            TypedBuffer::from_data(&device, &[object_count.try_into().unwrap()], "object_count", BufferUsages::UNIFORM);
         let bvh_build_params = BvhBuildParameters::new(object_count);
         // TODO: don't store leaves
         let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
 
-        let node_count = bvh_build_params.node_count();
+        let node_count = bvh_build_params.node_count;
         let nodes = TypedBuffer::new(&device, node_count, "nodes", storage_copy_dst);
         nodes.write_iter(&queue, (0_u32..).take(object_count).map(BvhNode::new));
 
@@ -186,9 +184,10 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let prioritize_compute = Arc::new(AtomicBool::new(true));
 
         spawn_simulation_thread(
-            object_count,
             device.clone(),
             queue.clone(),
+            object_count,
+            object_count_buffer,
             phase_state_ring.clone(),
             masses,
             nodes,
@@ -467,9 +466,10 @@ fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32, params: 
 }
 
 fn spawn_simulation_thread(
-    object_count: usize,
     device: Device,
     queue: Queue,
+    object_count: usize,
+    object_count_buffer: TypedBuffer<u32>,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: TypedBuffer<Mass>,
     nodes: TypedBuffer<BvhNode>,
@@ -483,7 +483,7 @@ fn spawn_simulation_thread(
         const MAX_SIM_TIME: Option<f32> = None;
 
         let dt = TypedBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
-        let mut bvh_builder = BvhBuilder::new(bvh_build_params, &device, nodes.clone());
+        let mut bvh_builder = BvhBuilder::new(bvh_build_params.passes, &device, nodes.clone());
 
         let max_candidates_per_object: usize = MAX_CANDIDATES_PER_OBJECT.try_into().unwrap();
         let max_candidates = object_count * max_candidates_per_object;
@@ -495,28 +495,45 @@ fn spawn_simulation_thread(
             "candidate_count",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         );
-        let mut broad_phase =
-            BroadPhaseBVH::new(&device, object_count, candidates.clone(), candidate_count.clone(), nodes.clone());
+        let mut broad_phase = BroadPhaseBVH::new(
+            &device,
+            object_count,
+            object_count_buffer.clone(),
+            candidates.clone(),
+            candidate_count.clone(),
+            nodes.clone(),
+        );
 
         let max_objects_per_cell: usize = MAX_OBJECTS_PER_CELL.try_into().unwrap();
-        let grid_position: TypedBuffer<Position> = TypedBuffer::new(&device, 1, "grid position", BufferUsages::STORAGE);
-        let object_cells: TypedBuffer<u32> =
+        let grid_position_x: TypedBuffer<f32> =
+            TypedBuffer::new(&device, 1, "grid position x", BufferUsages::STORAGE | BufferUsages::COPY_SRC);
+        let grid_position_y: TypedBuffer<f32> =
+            TypedBuffer::new(&device, 1, "grid position y", BufferUsages::STORAGE | BufferUsages::COPY_SRC);
+        let _object_cells: TypedBuffer<u32> =
             TypedBuffer::new(&device, object_count, "object cells", BufferUsages::STORAGE);
-        let cells: TypedBuffer<u32> =
+        let _cells: TypedBuffer<u32> =
             TypedBuffer::new(&device, object_count * max_objects_per_cell, "cells", BufferUsages::STORAGE);
         let max_cells = object_count;
-
         let cell_object_count: TypedBuffer<u32> = TypedBuffer::new(
             &device,
             max_cells,
             "cell object count",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         );
-        let cell_offsets: TypedBuffer<u32> =
+        let _cell_offsets: TypedBuffer<u32> =
             TypedBuffer::new(&device, max_cells, "cell offsets", BufferUsages::STORAGE);
-        let assign_object_cells = AssignObjectCells::new(
+
+        let mut calculate_grid_position = CalculateGridPosition::new(
             &device,
             object_count,
+            object_count_buffer.clone(),
+            grid_position_x.clone(),
+            grid_position_y.clone(),
+        );
+        let _assign_object_cells = AssignObjectCells::new(
+            &device,
+            object_count,
+            object_count_buffer.clone(),
             cell_object_count.clone(),
             // object_cells.clone(),
         );
@@ -577,10 +594,11 @@ fn spawn_simulation_thread(
             phase_state_ring_guard.advance_compute();
             drop(phase_state_ring_guard);
 
-            bvh_builder.prepare(phase_state_index, &device, &current_phase_state);
-            broad_phase.prepare(phase_state_index, &device, &current_phase_state);
-            narrow_phase.prepare(phase_state_index, &device, &current_phase_state);
-            integrator.prepare(phase_state_index, &device, &current_phase_state, &next_phase_state);
+            bvh_builder.prepare(&device, phase_state_index, &current_phase_state);
+            calculate_grid_position.prepare(&device, phase_state_index, &current_phase_state);
+            broad_phase.prepare(&device, phase_state_index, &current_phase_state);
+            narrow_phase.prepare(&device, phase_state_index, &current_phase_state);
+            integrator.prepare(&device, phase_state_index, &current_phase_state, &next_phase_state);
 
             // Run the bvh builder and the integrator
 
@@ -591,6 +609,7 @@ fn spawn_simulation_thread(
             });
             bvh_builder.compute(&mut compute_pass);
             candidate_count.write(&queue, &[0]);
+            calculate_grid_position.compute(&mut compute_pass);
             broad_phase.compute(&queue, &mut compute_pass);
             narrow_phase_dispatch_dimensions_calculator.compute(&mut compute_pass);
             collision_reset.compute(&mut compute_pass);
@@ -607,6 +626,22 @@ fn spawn_simulation_thread(
                 BufferUsages::COPY_DST | BufferUsages::MAP_READ,
             );
             candidate_count_readback.copy(0..1, &candidate_count, 0..1, &mut encoder);
+
+            let grid_position_x_readback: TypedBuffer<f32> = TypedBuffer::new(
+                &device,
+                1,
+                "grid_position_x readback",
+                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+            );
+            grid_position_x_readback.copy(0..1, &grid_position_x, 0..1, &mut encoder);
+
+            let grid_position_y_readback: TypedBuffer<f32> = TypedBuffer::new(
+                &device,
+                1,
+                "grid_position_y readback",
+                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+            );
+            grid_position_y_readback.copy(0..1, &grid_position_y, 0..1, &mut encoder);
 
             // Submit work
 
@@ -646,6 +681,13 @@ fn spawn_simulation_thread(
 
             candidate_count_readback
                 .read(1, |candidate_count| println!("candidate_count: {:?}", candidate_count.unwrap()[0]));
+            grid_position_x_readback.read(1, move |grid_position_x| {
+                let grid_position_x = grid_position_x.unwrap()[0];
+                grid_position_y_readback.read(1, move |grid_position_y| {
+                    let grid_position_y = grid_position_y.unwrap()[0];
+                    println!("grid_position: ({grid_position_x}, {grid_position_y})");
+                })
+            });
         }
     });
 }

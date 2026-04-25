@@ -1,9 +1,7 @@
-use std::array::from_fn;
-
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
-    phase_state::{PhaseState, PhaseStateRing},
+    phase_state::PhaseState,
     shaders::{
         collision_narrow_phase::{
             WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
@@ -13,6 +11,7 @@ use crate::{
         common::{CollisionCandidate, DispatchIndirectArgs, Mass},
     },
     typed_buffer::TypedBuffer,
+    util::PhaseStateCache,
 };
 
 pub struct NarrowPhase {
@@ -21,8 +20,7 @@ pub struct NarrowPhase {
     output_bind_group: WgpuBindGroup2,
     pipeline: ComputePipeline,
     masses: TypedBuffer<Mass>,
-    phase_state_bind_groups: [Option<WgpuBindGroup0>; PhaseStateRing::CAPACITY],
-    phase_state_index: Option<usize>,
+    phase_state_cache: PhaseStateCache<WgpuBindGroup0>,
 }
 
 impl NarrowPhase {
@@ -48,19 +46,19 @@ impl NarrowPhase {
             }),
         );
         let pipeline = create_narrow_phase_pipeline_embed_source(device);
+        let phase_state_cache = PhaseStateCache::new();
         Self {
             dispatch_dimensions,
             input_bind_group,
             output_bind_group,
             pipeline,
             masses,
-            phase_state_bind_groups: from_fn(|_| None),
-            phase_state_index: None,
+            phase_state_cache,
         }
     }
 
-    pub fn prepare(&mut self, phase_state_index: usize, device: &Device, phase_state: &PhaseState) {
-        self.phase_state_bind_groups[phase_state_index].get_or_insert_with(|| {
+    pub fn prepare(&mut self, device: &Device, phase_state_index: usize, phase_state: &PhaseState) {
+        self.phase_state_cache.update(phase_state_index, || {
             WgpuBindGroup0::from_bindings(
                 device,
                 WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
@@ -70,13 +68,11 @@ impl NarrowPhase {
                 }),
             )
         });
-        self.phase_state_index = Some(phase_state_index);
     }
 
     pub fn compute(&self, compute_pass: &mut ComputePass) {
         let pipeline = self.pipeline.clone();
-        let phase_state_index = self.phase_state_index.expect("prepare() must be called every frame");
-        let phase_state_bind_group = self.phase_state_bind_groups[phase_state_index].as_ref().unwrap();
+        let phase_state_bind_group = self.phase_state_cache.get_current();
         compute_pass.set_pipeline(&pipeline);
         phase_state_bind_group.set(compute_pass);
         self.input_bind_group.set(compute_pass);

@@ -1,9 +1,7 @@
-use std::array::from_fn;
-
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 use crate::{
-    phase_state::{PhaseState, PhaseStateRing},
+    phase_state::PhaseState,
     shaders::{
         common::Mass,
         integrate::{
@@ -14,7 +12,7 @@ use crate::{
         },
     },
     typed_buffer::TypedBuffer,
-    util::dispatch_dimensions,
+    util::{PhaseStateCache, dispatch_dimensions},
 };
 
 pub struct Integrator {
@@ -23,8 +21,7 @@ pub struct Integrator {
     blackhole_bind_group: WgpuBindGroup1,
     collision_bind_group: WgpuBindGroup2,
     pipeline: ComputePipeline,
-    phase_state_bind_groups: [Option<WgpuBindGroup3>; PhaseStateRing::CAPACITY],
-    phase_state_index: Option<usize>,
+    phase_state_cache: PhaseStateCache<WgpuBindGroup3>,
 }
 
 impl Integrator {
@@ -99,19 +96,19 @@ impl Integrator {
                 collision_forces: collision_forces.buffer().as_entire_buffer_binding(),
             }),
         );
+        let phase_state_cache = PhaseStateCache::new();
         Self {
             object_count: object_count.try_into().unwrap(),
             main_bind_group,
             blackhole_bind_group,
             collision_bind_group,
             pipeline,
-            phase_state_bind_groups: from_fn(|_| None),
-            phase_state_index: None,
+            phase_state_cache,
         }
     }
 
-    pub fn prepare(&mut self, phase_state_index: usize, device: &Device, src: &PhaseState, dst: &PhaseState) {
-        self.phase_state_bind_groups[phase_state_index].get_or_insert_with(|| {
+    pub fn prepare(&mut self, device: &Device, phase_state_index: usize, src: &PhaseState, dst: &PhaseState) {
+        self.phase_state_cache.update(phase_state_index, || {
             WgpuBindGroup3::from_bindings(
                 device,
                 WgpuBindGroup3Entries::new(WgpuBindGroup3EntriesParams {
@@ -124,12 +121,10 @@ impl Integrator {
                 }),
             )
         });
-        self.phase_state_index = Some(phase_state_index);
     }
 
     pub fn compute(&self, compute_pass: &mut ComputePass) {
-        let phase_state_index = self.phase_state_index.expect("prepare() must be called every frame");
-        let phase_state_bind_group = self.phase_state_bind_groups[phase_state_index].as_ref().unwrap();
+        let phase_state_bind_group = self.phase_state_cache.get_current();
         compute_pass.set_pipeline(&self.pipeline);
         self.main_bind_group.set(compute_pass);
         self.blackhole_bind_group.set(compute_pass);

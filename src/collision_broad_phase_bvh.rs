@@ -1,9 +1,7 @@
-use std::array::from_fn;
-
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device, Queue};
 
 use crate::{
-    phase_state::{PhaseState, PhaseStateRing},
+    phase_state::PhaseState,
     shaders::{
         collision_broad_phase_bvh::{
             WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
@@ -12,7 +10,7 @@ use crate::{
         common::{BvhNode, CollisionCandidate, MAX_CANDIDATES_PER_OBJECT},
     },
     typed_buffer::TypedBuffer,
-    util::dispatch_dimensions,
+    util::{PhaseStateCache, dispatch_dimensions},
 };
 
 pub struct BroadPhaseBVH {
@@ -20,21 +18,19 @@ pub struct BroadPhaseBVH {
     candidate_bind_group: WgpuBindGroup0,
     pipeline: ComputePipeline,
     candidate_count: TypedBuffer<u32>,
-    phase_state_bind_groups: [Option<WgpuBindGroup1>; PhaseStateRing::CAPACITY],
-    phase_state_index: Option<usize>,
+    phase_state_cache: PhaseStateCache<WgpuBindGroup1>,
 }
 
 impl BroadPhaseBVH {
     pub fn new(
         device: &Device,
         object_count: usize,
+        object_count_buffer: TypedBuffer<u32>,
         candidates: TypedBuffer<CollisionCandidate>,
         candidate_count: TypedBuffer<u32>,
         nodes: TypedBuffer<BvhNode>,
     ) -> Self {
         let object_count: u32 = object_count.try_into().unwrap();
-        let object_count_buffer =
-            TypedBuffer::from_data(device, &[object_count], "object count", BufferUsages::UNIFORM);
         let max_candidates_buffer: TypedBuffer<u32> = TypedBuffer::from_data(
             device,
             &[object_count * MAX_CANDIDATES_PER_OBJECT],
@@ -51,20 +47,19 @@ impl BroadPhaseBVH {
                 nodes: nodes.buffer().as_entire_buffer_binding(),
             }),
         );
-
         let pipeline = create_broad_phase_pipeline_embed_source(device);
+        let phase_state_cache = PhaseStateCache::new();
         Self {
             object_count,
             candidate_bind_group,
             pipeline,
             candidate_count,
-            phase_state_bind_groups: from_fn(|_| None),
-            phase_state_index: None,
+            phase_state_cache,
         }
     }
 
-    pub fn prepare(&mut self, phase_state_index: usize, device: &Device, phase_state: &PhaseState) {
-        self.phase_state_bind_groups[phase_state_index].get_or_insert_with(|| {
+    pub fn prepare(&mut self, device: &Device, phase_state_index: usize, phase_state: &PhaseState) {
+        self.phase_state_cache.update(phase_state_index, || {
             WgpuBindGroup1::from_bindings(
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
@@ -73,13 +68,11 @@ impl BroadPhaseBVH {
                 }),
             )
         });
-        self.phase_state_index = Some(phase_state_index);
     }
 
     pub fn compute(&self, queue: &Queue, compute_pass: &mut ComputePass) {
         let pipeline = self.pipeline.clone();
-        let phase_state_index = self.phase_state_index.expect("prepare() must be called every frame");
-        let phase_state_bind_group = self.phase_state_bind_groups[phase_state_index].as_ref().unwrap();
+        let phase_state_bind_group = self.phase_state_cache.get_current();
         self.candidate_count.write(queue, &[0]);
         compute_pass.set_pipeline(&pipeline);
         self.candidate_bind_group.set(compute_pass);

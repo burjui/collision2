@@ -24,7 +24,7 @@ fn mock_bvh() {
 
     let build_params = BvhBuildParameters::new(N);
     assert_eq!(
-        build_params.passes(),
+        build_params.passes,
         &[
             CombineNodePass {
                 src_start: 0,
@@ -52,7 +52,7 @@ fn mock_bvh() {
         src_start,
         dst_start,
         parent_count,
-    } in build_params.passes()
+    } in &build_params.passes
     {
         for i in 0..parent_count {
             let src = src_start + i * 2;
@@ -62,7 +62,7 @@ fn mock_bvh() {
         }
     }
 
-    let node_count = build_params.node_count();
+    let node_count = build_params.node_count;
     assert_eq!(
         &nodes[0..node_count],
         &[

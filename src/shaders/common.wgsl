@@ -45,7 +45,7 @@ struct CollisionCandidate {
     b: u32,
 }
 
-struct Position {
+struct GridPosition {
     inner: vec2f
 }
 

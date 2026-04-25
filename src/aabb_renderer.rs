@@ -1,12 +1,10 @@
-use std::array::from_fn;
-
 use wgpu::{
     BlendState, ColorTargetState, Device, MultisampleState, PrimitiveState, RenderPass, RenderPipeline,
     RenderPipelineDescriptor, TextureFormat,
 };
 
 use crate::{
-    phase_state::{PhaseState, PhaseStateRing},
+    phase_state::PhaseState,
     shaders::{
         common::Camera,
         render_aabb::{
@@ -16,14 +14,14 @@ use crate::{
         },
     },
     typed_buffer::TypedBuffer,
+    util::PhaseStateCache,
 };
 
 pub struct AabbRenderer {
     node_count: u32,
     pipeline: RenderPipeline,
     main_bind_group: WgpuBindGroup0,
-    phase_state_bind_groups: [Option<WgpuBindGroup1>; PhaseStateRing::CAPACITY],
-    phase_state_index: Option<usize>,
+    phase_state_cache: PhaseStateCache<WgpuBindGroup1>,
 }
 
 impl AabbRenderer {
@@ -64,17 +62,17 @@ impl AabbRenderer {
                 camera: camera_buffer.buffer().as_entire_buffer_binding(),
             }),
         );
+        let phase_state_cache = PhaseStateCache::new();
         Self {
             node_count: u32::try_from(node_count).unwrap(),
             pipeline: render_pipeline,
             main_bind_group,
-            phase_state_bind_groups: from_fn(|_| None),
-            phase_state_index: None,
+            phase_state_cache,
         }
     }
 
     pub fn prepare(&mut self, phase_state_index: usize, device: &Device, phase_state: &PhaseState) {
-        self.phase_state_bind_groups[phase_state_index].get_or_insert_with(|| {
+        self.phase_state_cache.update(phase_state_index, || {
             WgpuBindGroup1::from_bindings(
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
@@ -83,12 +81,10 @@ impl AabbRenderer {
                 }),
             )
         });
-        self.phase_state_index = Some(phase_state_index);
     }
 
     pub fn render(&self, render_pass: &mut RenderPass<'_>) {
-        let phase_state_index = self.phase_state_index.expect("prepare() must be called every frame");
-        let phase_state_bind_group = self.phase_state_bind_groups[phase_state_index].as_ref().unwrap();
+        let phase_state_bind_group = self.phase_state_cache.get_current();
         render_pass.set_pipeline(&self.pipeline);
         self.main_bind_group.set(render_pass);
         phase_state_bind_group.set(render_pass);

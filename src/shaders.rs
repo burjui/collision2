@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 967655d0da60bcbc921fbb50d72c4b9db3a17a7985b9692156bdb6765ac10d3f
+// SourceHash: c1f235058bcabf93d1b64516f39fed9a906ff0f17cdd25ca64726dd1e0682491
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -122,10 +122,6 @@ pub mod layout_asserts {
         assert!(std::mem::offset_of!(common::CollisionCandidate, a) == 0);
         assert!(std::mem::offset_of!(common::CollisionCandidate, b) == 4);
         assert!(std::mem::size_of::<common::CollisionCandidate>() == 8);
-    };
-    const COMMON_POSITION_ASSERTS: () = {
-        assert!(std::mem::offset_of!(common::Position, inner) == 0);
-        assert!(std::mem::size_of::<common::Position>() == 8);
     };
     const COMMON_DISPATCH_INDIRECT_ARGS_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::DispatchIndirectArgs, x) == 0);
@@ -253,17 +249,6 @@ pub mod common {
             Self { a, b }
         }
     }
-    #[repr(C, align(8))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct Position {
-        #[doc = "offset: 0, size: 8, type: `vec2<f32>`"]
-        pub inner: [f32; 2],
-    }
-    impl Position {
-        pub const fn new(inner: [f32; 2]) -> Self {
-            Self { inner }
-        }
-    }
     #[repr(C, align(4))]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct DispatchIndirectArgs {
@@ -345,7 +330,7 @@ struct CollisionCandidate {
     b: u32,
 }
 
-struct Position {
+struct GridPosition {
     inner: vec2<f32>,
 }
 
@@ -390,8 +375,6 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for build_bvh::CombineNodePass {}
     unsafe impl bytemuck::Zeroable for common::CollisionCandidate {}
     unsafe impl bytemuck::Pod for common::CollisionCandidate {}
-    unsafe impl bytemuck::Zeroable for common::Position {}
-    unsafe impl bytemuck::Pod for common::Position {}
     unsafe impl bytemuck::Zeroable for common::DispatchIndirectArgs {}
     unsafe impl bytemuck::Pod for common::DispatchIndirectArgs {}
     unsafe impl bytemuck::Zeroable for integrate::BlackHole {}
@@ -1928,23 +1911,35 @@ pub mod calculate_grid_position {
     pub const ENTRY_CALCULATE_GRID_POSITION: &str = "calculate_grid_position";
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub grid_position: wgpu::BufferBinding<'a>,
+        pub object_count: wgpu::BufferBinding<'a>,
+        pub grid_position_x: wgpu::BufferBinding<'a>,
+        pub grid_position_y: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
-        pub grid_position: wgpu::BindGroupEntry<'a>,
+        pub object_count: wgpu::BindGroupEntry<'a>,
+        pub grid_position_x: wgpu::BindGroupEntry<'a>,
+        pub grid_position_y: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
             Self {
-                grid_position: wgpu::BindGroupEntry {
+                object_count: wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.grid_position),
+                    resource: wgpu::BindingResource::Buffer(params.object_count),
+                },
+                grid_position_x: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.grid_position_x),
+                },
+                grid_position_y: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.grid_position_y),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 1] {
-            [self.grid_position]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
+            [self.object_count, self.grid_position_x, self.grid_position_y]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -1956,14 +1951,36 @@ pub mod calculate_grid_position {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("CalculateGridPosition::BindGroup0::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(0): \"grid_position\""]
+                #[doc = " @binding(0): \"object_count\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"grid_position_x\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::Position>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"grid_position_y\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -1986,6 +2003,66 @@ pub mod calculate_grid_position {
             pass.set_bind_group(0, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1EntriesParams<'a> {
+        pub aabbs: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup1Entries<'a> {
+        pub aabbs: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup1Entries<'a> {
+        pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
+            Self {
+                aabbs: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.aabbs),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 1] {
+            [self.aabbs]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1(wgpu::BindGroup);
+    impl WgpuBindGroup1 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("CalculateGridPosition::BindGroup1::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"aabbs\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup1Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("CalculateGridPosition::BindGroup1"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(1, &self.0, &[]);
+        }
+    }
     #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
     #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
     #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
@@ -1995,23 +2072,28 @@ pub mod calculate_grid_position {
     #[derive(Debug, Copy, Clone)]
     pub struct WgpuBindGroups<'a> {
         pub bind_group0: &'a WgpuBindGroup0,
+        pub bind_group1: &'a WgpuBindGroup1,
     }
     impl<'a> WgpuBindGroups<'a> {
         pub fn set(&self, pass: &mut impl SetBindGroup) {
             self.bind_group0.set(pass);
+            self.bind_group1.set(pass);
         }
     }
     #[derive(Debug)]
     pub struct WgpuPipelineLayout;
     impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 2]) -> [wgpu::BindGroupLayout; 2] {
             entries
         }
     }
     pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("CalculateGridPosition::PipelineLayout"),
-            bind_group_layouts: &[Some(&WgpuBindGroup0::get_bind_group_layout(device))],
+            bind_group_layouts: &[
+                Some(&WgpuBindGroup0::get_bind_group_layout(device)),
+                Some(&WgpuBindGroup1::get_bind_group_layout(device)),
+            ],
             immediate_size: 0u32,
         })
     }
@@ -2023,17 +2105,76 @@ pub mod calculate_grid_position {
         })
     }
     pub const SHADER_STRING: &str = r#"
-struct PositionX_naga_oil_mod_XMNXW23LPNYX {
-    inner: vec2<f32>,
+struct AABBX_naga_oil_mod_XMNXW23LPNYX {
+    min: vec2<f32>,
+    max: vec2<f32>,
 }
 
 const WORKGROUP_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 
-var<storage, read_write> grid_position: PositionX_naga_oil_mod_XMNXW23LPNYX;
+var<uniform> object_count: u32;
+@group(0) @binding(1) 
+var<storage, read_write> grid_position_x: atomic<u32>;
+@group(0) @binding(2) 
+var<storage, read_write> grid_position_y: atomic<u32>;
+@group(1) @binding(0) 
+var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
+
+fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
+    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
+}
+
+fn atomicMinF32x(value: f32) {
+    var old: u32;
+
+    let _e1 = atomicLoad((&grid_position_x));
+    old = _e1;
+    loop {
+        let _e3 = old;
+        let old_f32_ = bitcast<f32>(_e3);
+        let new_f32_ = min(old_f32_, value);
+        let new_u32_ = bitcast<u32>(new_f32_);
+        let _e8 = old;
+        let _e10 = atomicCompareExchangeWeak((&grid_position_x), _e8, new_u32_);
+        if _e10.exchanged {
+            break;
+        }
+        old = _e10.old_value;
+    }
+    return;
+}
+
+fn atomicMinF32y(value_1: f32) {
+    var old_1: u32;
+
+    let _e1 = atomicLoad((&grid_position_y));
+    old_1 = _e1;
+    loop {
+        let _e3 = old_1;
+        let old_f32_1 = bitcast<f32>(_e3);
+        let new_f32_1 = min(old_f32_1, value_1);
+        let new_u32_1 = bitcast<u32>(new_f32_1);
+        let _e8 = old_1;
+        let _e10 = atomicCompareExchangeWeak((&grid_position_y), _e8, new_u32_1);
+        if _e10.exchanged {
+            break;
+        }
+        old_1 = _e10.old_value;
+    }
+    return;
+}
 
 @compute @workgroup_size(64, 1, 1) 
 fn calculate_grid_position(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
+    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
+    let _e5 = object_count;
+    if (_e3 >= _e5) {
+        return;
+    }
+    let aabb = aabbs[_e3];
+    atomicMinF32x(aabb.min.x);
+    atomicMinF32y(aabb.min.y);
     return;
 }
 "#;
