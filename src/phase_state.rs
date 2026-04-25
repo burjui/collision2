@@ -49,7 +49,12 @@ impl PhaseState {
                 TypedBuffer::new(device, initial_flags.len(), &flags_name, BufferUsages::STORAGE),
             )
         };
-        let aabbs = TypedBuffer::new(device, node_count, &aabbs_name, BufferUsages::STORAGE | BufferUsages::COPY_DST);
+        let aabbs = TypedBuffer::new(
+            device,
+            node_count,
+            &aabbs_name,
+            BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
+        );
         aabbs.write(queue, initial_aabbs);
         Self {
             aabbs,

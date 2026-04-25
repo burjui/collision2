@@ -49,9 +49,14 @@ struct GridPosition {
     inner: vec2f
 }
 
+struct GridSize {
+    inner: vec2u
+}
+
 struct CellPosition {
     inner: vec2u
 }
+
 
 const UNIT_QUAD_VERTICES = array<vec2f, 6>(
     vec2f(0.5, 0.5),

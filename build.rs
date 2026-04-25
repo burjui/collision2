@@ -13,14 +13,16 @@ fn main() {
 
 fn generate_shader_bindings() -> Result<(), Box<dyn std::error::Error>> {
     WgslBindgenOptionBuilder::default()
-        .ir_capabilities(WgslShaderIrCapabilities::IMMEDIATES)
+        .ir_capabilities(WgslShaderIrCapabilities::IMMEDIATES | WgslShaderIrCapabilities::SUBGROUP)
         .workspace_root("src/shaders")
         .add_entry_point("src/shaders/common.wgsl")
         .add_entry_point("src/shaders/render_shape.wgsl")
         .add_entry_point("src/shaders/render_aabb.wgsl")
         .add_entry_point("src/shaders/build_bvh.wgsl")
+        .add_entry_point("src/shaders/reset_grid_aabb.wgsl")
+        .add_entry_point("src/shaders/calculate_grid_aabb.wgsl")
+        .add_entry_point("src/shaders/calculate_grid_size.wgsl")
         .add_entry_point("src/shaders/collision_broad_phase_bvh.wgsl")
-        .add_entry_point("src/shaders/calculate_grid_position.wgsl")
         .add_entry_point("src/shaders/assign_object_cells.wgsl")
         .add_entry_point("src/shaders/collision_narrow_phase_dispatch_dimensions.wgsl")
         .add_entry_point("src/shaders/collision_forces_reset.wgsl")

@@ -5,6 +5,8 @@ use itertools::Itertools as _;
 use nalgebra::Vector2;
 use rand::{random, random_range};
 
+pub const PARTICLE_RADIUS: f32 = 3.0;
+
 use crate::{
     objects::{ObjectPrototype, Objects},
     shaders::{
@@ -19,7 +21,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         max: (world_aabb.max() * 0.6).into(),
     };
     let circles = {
-        const RADIUS: f32 = 3.0;
+        const RADIUS: f32 = PARTICLE_RADIUS;
         const PADDING: f32 = 1.0;
         const POSITION_RAND_FACTOR: f32 = 0.1;
         const RADIUS_RAND_FACTOR: f32 = 0.0;
