@@ -1,10 +1,10 @@
-#import common::{ AABB, GridSize, CellPosition, flat_invocation_index }
+#import common::{ AABB, GridSize, CellPosition, flat_invocation_index, i32_to_f32 }
 
 const WORKGROUP_SIZE: u32 = 64;
 
 @group(0) @binding(0) var<uniform> object_count: u32;
-@group(0) @binding(1) var<uniform> grid_position_x: f32;
-@group(0) @binding(2) var<uniform> grid_position_y: f32;
+@group(0) @binding(1) var<uniform> grid_min_x: i32;
+@group(0) @binding(2) var<uniform> grid_min_y: i32;
 @group(0) @binding(3) var<uniform> grid_size: GridSize;
 @group(0) @binding(4) var<uniform> cell_size: f32;
 @group(0) @binding(5) var<storage, read_write> cell_object_count: array<atomic<u32>>;
@@ -17,15 +17,15 @@ fn assign_object_cells(
     @builtin(global_invocation_id) gid: vec3u,
     @builtin(num_workgroups) nwg: vec3u
 ) {
-    let i = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
-    if i >= object_count {
+    let object_index = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
+    if object_index >= object_count {
         return;
     }
 
-    let aabb = aabbs[i];
-    let cell_x = u32((aabb.min.x - grid_position_x) / cell_size);
-    let cell_y = u32((aabb.min.y - grid_position_y) / cell_size);
-    let cell_offset = cell_x + cell_y * grid_size.inner.x;
-    atomicAdd(&cell_object_count[cell_offset], 1);
-    object_cells[i] = CellPosition(vec2u(cell_x, cell_y));
+    let aabb = aabbs[object_index];
+    let cell_x = u32(max(0, ((aabb.min.x + aabb.max.x) / 2 - i32_to_f32(grid_min_x)) / cell_size));
+    let cell_y = u32(max(0, ((aabb.min.y + aabb.max.y) / 2 - i32_to_f32(grid_min_y)) / cell_size));
+    let cell_index = cell_x + cell_y * grid_size.x;
+    let offset = atomicAdd(&cell_object_count[cell_index], 1);
+    object_cells[object_index] = CellPosition(vec2u(cell_x, cell_y), offset);
 }

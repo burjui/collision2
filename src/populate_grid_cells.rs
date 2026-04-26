@@ -24,8 +24,8 @@ impl PopulateGridCells {
         object_count: usize,
         object_count_buffer: TypedBuffer<u32>,
         grid_size: TypedBuffer<GridSize>,
-        cell_object_count: TypedBuffer<u32>,
         object_cells: TypedBuffer<CellPosition>,
+        cell_offsets: TypedBuffer<u32>,
         cells: TypedBuffer<u32>,
     ) -> Self {
         let object_count: u32 = object_count.try_into().unwrap();
@@ -34,8 +34,8 @@ impl PopulateGridCells {
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.buffer().as_entire_buffer_binding(),
                 grid_size: grid_size.buffer().as_entire_buffer_binding(),
-                cell_object_count: cell_object_count.buffer().as_entire_buffer_binding(),
                 object_cells: object_cells.buffer().as_entire_buffer_binding(),
+                cell_offsets: cell_offsets.buffer().as_entire_buffer_binding(),
                 cells: cells.buffer().as_entire_buffer_binding(),
             }),
         );

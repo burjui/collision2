@@ -2,21 +2,21 @@ use wgpu::{ComputePipeline, Device};
 
 use crate::{
     shaders::{
-        calculate_cell_offsets_dispatch_dimensions::{
+        calculate_cell_iteration_dispatch_dimensions::{
             WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
-            compute::create_calculate_cell_offsets_dispatch_dimensions_pipeline_embed_source,
+            compute::create_calculate_cell_iteration_dispatch_dimensions_pipeline_embed_source,
         },
         common::{DispatchIndirectArgs, GridSize},
     },
     typed_buffer::TypedBuffer,
 };
 
-pub struct CalculateCellOffsetsDispatchDimensions {
+pub struct CalculateCellIterationDispatchDimensions {
     bind_group: WgpuBindGroup0,
     pipeline: ComputePipeline,
 }
 
-impl CalculateCellOffsetsDispatchDimensions {
+impl CalculateCellIterationDispatchDimensions {
     pub fn new(
         device: &Device,
         grid_size: TypedBuffer<GridSize>,
@@ -29,7 +29,7 @@ impl CalculateCellOffsetsDispatchDimensions {
                 cell_offsets_dispatch_dimensions: cell_offsets_dispatch_dimensions.buffer().as_entire_buffer_binding(),
             }),
         );
-        let pipeline = create_calculate_cell_offsets_dispatch_dimensions_pipeline_embed_source(device);
+        let pipeline = create_calculate_cell_iteration_dispatch_dimensions_pipeline_embed_source(device);
         Self { bind_group, pipeline }
     }
 

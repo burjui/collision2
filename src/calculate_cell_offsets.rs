@@ -1,4 +1,4 @@
-use wgpu::{ComputePass, ComputePipeline, Device, Queue};
+use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
     shaders::{
@@ -13,7 +13,6 @@ use crate::{
 
 pub struct CalculateCellOffsets {
     dispatch_dimensions: TypedBuffer<DispatchIndirectArgs>,
-    current_cell_offset: TypedBuffer<u32>,
     bind_group: WgpuBindGroup0,
     pipeline: ComputePipeline,
 }
@@ -39,14 +38,12 @@ impl CalculateCellOffsets {
         let pipeline = create_calculate_cell_offsets_pipeline_embed_source(device);
         Self {
             dispatch_dimensions,
-            current_cell_offset,
             bind_group,
             pipeline,
         }
     }
 
-    pub fn compute(&self, compute_pass: &mut ComputePass, queue: &Queue) {
-        self.current_cell_offset.write(queue, &[0]);
+    pub fn compute(&self, compute_pass: &mut ComputePass) {
         compute_pass.set_pipeline(&self.pipeline);
         self.bind_group.set(compute_pass);
         compute_pass.dispatch_workgroups_indirect(self.dispatch_dimensions.buffer(), 0);

@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: ade5d5580a94090b19abbf974628109d25577d9fcc1c2c2fa5051f47f104127c
+// SourceHash: 84c128abe6582094c91fd4206576ab5044b0819e5929b1ab616af9a5d006fe67
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -16,9 +16,10 @@ pub enum ShaderEntry {
     CalculateGridSize,
     ResetCellObjectCount,
     AssignObjectCells,
-    CalculateCellOffsetsDispatchDimensions,
+    CalculateCellIterationDispatchDimensions,
     CalculateCellOffsets,
     PopulateGridCells,
+    CollisionBroadPhaseGrid,
     CollisionBroadPhaseBvh,
     CollisionNarrowPhaseDispatchDimensions,
     CollisionForcesReset,
@@ -37,11 +38,12 @@ impl ShaderEntry {
             Self::CalculateGridSize => calculate_grid_size::create_pipeline_layout(device),
             Self::ResetCellObjectCount => reset_cell_object_count::create_pipeline_layout(device),
             Self::AssignObjectCells => assign_object_cells::create_pipeline_layout(device),
-            Self::CalculateCellOffsetsDispatchDimensions => {
-                calculate_cell_offsets_dispatch_dimensions::create_pipeline_layout(device)
+            Self::CalculateCellIterationDispatchDimensions => {
+                calculate_cell_iteration_dispatch_dimensions::create_pipeline_layout(device)
             }
             Self::CalculateCellOffsets => calculate_cell_offsets::create_pipeline_layout(device),
             Self::PopulateGridCells => populate_grid_cells::create_pipeline_layout(device),
+            Self::CollisionBroadPhaseGrid => collision_broad_phase_grid::create_pipeline_layout(device),
             Self::CollisionBroadPhaseBvh => collision_broad_phase_bvh::create_pipeline_layout(device),
             Self::CollisionNarrowPhaseDispatchDimensions => {
                 collision_narrow_phase_dispatch_dimensions::create_pipeline_layout(device)
@@ -62,11 +64,12 @@ impl ShaderEntry {
             Self::CalculateGridSize => calculate_grid_size::create_shader_module_embed_source(device),
             Self::ResetCellObjectCount => reset_cell_object_count::create_shader_module_embed_source(device),
             Self::AssignObjectCells => assign_object_cells::create_shader_module_embed_source(device),
-            Self::CalculateCellOffsetsDispatchDimensions => {
-                calculate_cell_offsets_dispatch_dimensions::create_shader_module_embed_source(device)
+            Self::CalculateCellIterationDispatchDimensions => {
+                calculate_cell_iteration_dispatch_dimensions::create_shader_module_embed_source(device)
             }
             Self::CalculateCellOffsets => calculate_cell_offsets::create_shader_module_embed_source(device),
             Self::PopulateGridCells => populate_grid_cells::create_shader_module_embed_source(device),
+            Self::CollisionBroadPhaseGrid => collision_broad_phase_grid::create_shader_module_embed_source(device),
             Self::CollisionBroadPhaseBvh => collision_broad_phase_bvh::create_shader_module_embed_source(device),
             Self::CollisionNarrowPhaseDispatchDimensions => {
                 collision_narrow_phase_dispatch_dimensions::create_shader_module_embed_source(device)
@@ -141,12 +144,14 @@ pub mod layout_asserts {
         assert!(std::mem::size_of::<build_bvh::CombineNodePass>() == 12);
     };
     const COMMON_GRID_SIZE_ASSERTS: () = {
-        assert!(std::mem::offset_of!(common::GridSize, inner) == 0);
+        assert!(std::mem::offset_of!(common::GridSize, x) == 0);
+        assert!(std::mem::offset_of!(common::GridSize, y) == 4);
         assert!(std::mem::size_of::<common::GridSize>() == 8);
     };
     const COMMON_CELL_POSITION_ASSERTS: () = {
-        assert!(std::mem::offset_of!(common::CellPosition, inner) == 0);
-        assert!(std::mem::size_of::<common::CellPosition>() == 8);
+        assert!(std::mem::offset_of!(common::CellPosition, cell) == 0);
+        assert!(std::mem::offset_of!(common::CellPosition, offset) == 8);
+        assert!(std::mem::size_of::<common::CellPosition>() == 16);
     };
     const COMMON_DISPATCH_INDIRECT_ARGS_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::DispatchIndirectArgs, x) == 0);
@@ -176,6 +181,7 @@ pub mod common {
     pub const MAX_OBJECTS_PER_CELL: u32 = 4u32;
     pub const BVH_NODE_TREE_FLAG: u32 = 2147483648u32;
     pub const MAX_DISPATCH_DIMENSION: u32 = 65535u32;
+    pub const INFINITY: f32 = 1000000000f32;
     #[repr(C, align(16))]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct Camera {
@@ -266,26 +272,55 @@ pub mod common {
             Self { index }
         }
     }
-    #[repr(C, align(8))]
+    #[repr(C, align(4))]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct GridSize {
-        #[doc = "offset: 0, size: 8, type: `vec2<u32>`"]
-        pub inner: [u32; 2],
+        #[doc = "offset: 0, size: 4, type: `u32`"]
+        pub x: u32,
+        #[doc = "offset: 4, size: 4, type: `u32`"]
+        pub y: u32,
     }
     impl GridSize {
-        pub const fn new(inner: [u32; 2]) -> Self {
-            Self { inner }
+        pub const fn new(x: u32, y: u32) -> Self {
+            Self { x, y }
         }
     }
     #[repr(C, align(8))]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct CellPosition {
         #[doc = "offset: 0, size: 8, type: `vec2<u32>`"]
-        pub inner: [u32; 2],
+        pub cell: [u32; 2],
+        #[doc = "offset: 8, size: 4, type: `u32`"]
+        pub offset: u32,
+        pub _pad_offset: [u8; 0x4],
     }
     impl CellPosition {
-        pub const fn new(inner: [u32; 2]) -> Self {
-            Self { inner }
+        pub const fn new(cell: [u32; 2], offset: u32) -> Self {
+            Self {
+                cell,
+                offset,
+                _pad_offset: [0; 0x4],
+            }
+        }
+    }
+    #[repr(C)]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub struct CellPositionInit {
+        pub cell: [u32; 2],
+        pub offset: u32,
+    }
+    impl CellPositionInit {
+        pub fn build(&self) -> CellPosition {
+            CellPosition {
+                cell: self.cell,
+                offset: self.offset,
+                _pad_offset: [0; 0x4],
+            }
+        }
+    }
+    impl From<CellPositionInit> for CellPosition {
+        fn from(data: CellPositionInit) -> Self {
+            data.build()
         }
     }
     #[repr(C, align(4))]
@@ -382,16 +417,14 @@ struct CollisionCandidate {
     b: u32,
 }
 
-struct GridPosition {
-    inner: vec2<f32>,
-}
-
 struct GridSize {
-    inner: vec2<u32>,
+    x: u32,
+    y: u32,
 }
 
 struct CellPosition {
-    inner: vec2<u32>,
+    cell: vec2<u32>,
+    offset: u32,
 }
 
 const UNIT_QUAD_VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
@@ -402,9 +435,18 @@ const MAX_CANDIDATES_PER_OBJECT: u32 = 16u;
 const MAX_OBJECTS_PER_CELL: u32 = 4u;
 const BVH_NODE_TREE_FLAG: u32 = 2147483648u;
 const MAX_DISPATCH_DIMENSION: u32 = 65535u;
+const INFINITY: f32 = 1000000000f;
 
 fn flat_invocation_index(gid: vec3<u32>, nwg: vec3<u32>, workgroup_size: u32) -> u32 {
     return ((gid.x + ((gid.y * workgroup_size) * nwg.x)) + ((((gid.z * workgroup_size) * nwg.x) * workgroup_size) * nwg.y));
+}
+
+fn f32_to_i32_(x: f32) -> i32 {
+    return i32((x * 1000f));
+}
+
+fn i32_to_f32_(x_1: i32) -> f32 {
+    return (f32(x_1) / 1000f);
 }
 
 "#;
@@ -1499,10 +1541,9 @@ fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_wor
 }
 pub mod reset_grid_aabb {
     use super::{_root, _root::*};
-    pub const WORKGROUP_SIZE: u32 = 64u32;
     pub mod compute {
         use super::{_root, _root::*};
-        pub const RESET_GRID_AABB_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
+        pub const RESET_GRID_AABB_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
         pub fn create_reset_grid_aabb_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
             let module = super::create_shader_module_embed_source(device);
             let layout = super::create_pipeline_layout(device);
@@ -1595,7 +1636,7 @@ pub mod reset_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -1606,7 +1647,7 @@ pub mod reset_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -1617,7 +1658,7 @@ pub mod reset_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -1628,7 +1669,7 @@ pub mod reset_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -1693,29 +1734,35 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
     max: vec2<f32>,
 }
 
-const WORKGROUP_SIZE: u32 = 64u;
-
 @group(0) @binding(0) 
 var<uniform> first_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(1) 
-var<storage, read_write> grid_min_x: f32;
+var<storage, read_write> grid_min_x: i32;
 @group(0) @binding(2) 
-var<storage, read_write> grid_min_y: f32;
+var<storage, read_write> grid_min_y: i32;
 @group(0) @binding(3) 
-var<storage, read_write> grid_max_x: f32;
+var<storage, read_write> grid_max_x: i32;
 @group(0) @binding(4) 
-var<storage, read_write> grid_max_y: f32;
+var<storage, read_write> grid_max_y: i32;
 
-@compute @workgroup_size(64, 1, 1) 
+fn f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(x: f32) -> i32 {
+    return i32((x * 1000f));
+}
+
+@compute @workgroup_size(1, 1, 1) 
 fn reset_grid_aabb() {
     let _e3 = first_aabb.min.x;
-    grid_min_x = _e3;
-    let _e8 = first_aabb.min.y;
-    grid_min_y = _e8;
-    let _e13 = first_aabb.max.x;
-    grid_max_x = _e13;
-    let _e18 = first_aabb.max.y;
-    grid_max_y = _e18;
+    let _e4 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(_e3);
+    grid_min_x = _e4;
+    let _e9 = first_aabb.min.y;
+    let _e10 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(_e9);
+    grid_min_y = _e10;
+    let _e15 = first_aabb.max.x;
+    let _e16 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(_e15);
+    grid_max_x = _e16;
+    let _e21 = first_aabb.max.y;
+    let _e22 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(_e21);
+    grid_max_y = _e22;
     return;
 }
 "#;
@@ -1818,7 +1865,7 @@ pub mod calculate_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -1829,7 +1876,7 @@ pub mod calculate_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -1840,7 +1887,7 @@ pub mod calculate_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -1851,7 +1898,7 @@ pub mod calculate_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -1981,18 +2028,19 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
     max: vec2<f32>,
 }
 
+const INFINITYX_naga_oil_mod_XMNXW23LPNYX: f32 = 1000000000f;
 const WORKGROUP_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
-var<storage, read_write> grid_min_x: atomic<u32>;
+var<storage, read_write> grid_min_x: atomic<i32>;
 @group(0) @binding(2) 
-var<storage, read_write> grid_min_y: atomic<u32>;
+var<storage, read_write> grid_min_y: atomic<i32>;
 @group(0) @binding(3) 
-var<storage, read_write> grid_max_x: atomic<u32>;
+var<storage, read_write> grid_max_x: atomic<i32>;
 @group(0) @binding(4) 
-var<storage, read_write> grid_max_y: atomic<u32>;
+var<storage, read_write> grid_max_y: atomic<i32>;
 @group(1) @binding(0) 
 var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
@@ -2000,116 +2048,38 @@ fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec
     return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
 }
 
-fn atomicGridMinX(value: f32) {
-    var old: u32;
-
-    let _e1 = atomicLoad((&grid_min_x));
-    old = _e1;
-    loop {
-        let _e3 = old;
-        let old_f32_ = bitcast<f32>(_e3);
-        let new_f32_ = min(old_f32_, value);
-        let new_u32_ = bitcast<u32>(new_f32_);
-        let _e8 = old;
-        let _e10 = atomicCompareExchangeWeak((&grid_min_x), _e8, new_u32_);
-        if _e10.exchanged {
-            break;
-        }
-        old = _e10.old_value;
-    }
-    return;
-}
-
-fn atomicGridMinY(value_1: f32) {
-    var old_1: u32;
-
-    let _e1 = atomicLoad((&grid_min_y));
-    old_1 = _e1;
-    loop {
-        let _e3 = old_1;
-        let old_f32_1 = bitcast<f32>(_e3);
-        let new_f32_1 = min(old_f32_1, value_1);
-        let new_u32_1 = bitcast<u32>(new_f32_1);
-        let _e8 = old_1;
-        let _e10 = atomicCompareExchangeWeak((&grid_min_y), _e8, new_u32_1);
-        if _e10.exchanged {
-            break;
-        }
-        old_1 = _e10.old_value;
-    }
-    return;
-}
-
-fn atomicGridMaxX(value_2: f32) {
-    var old_2: u32;
-
-    let _e1 = atomicLoad((&grid_max_x));
-    old_2 = _e1;
-    loop {
-        let _e3 = old_2;
-        let old_f32_2 = bitcast<f32>(_e3);
-        let new_f32_2 = max(old_f32_2, value_2);
-        let new_u32_2 = bitcast<u32>(new_f32_2);
-        let _e8 = old_2;
-        let _e10 = atomicCompareExchangeWeak((&grid_max_x), _e8, new_u32_2);
-        if _e10.exchanged {
-            break;
-        }
-        old_2 = _e10.old_value;
-    }
-    return;
-}
-
-fn atomicGridMaxY(value_3: f32) {
-    var old_3: u32;
-
-    let _e1 = atomicLoad((&grid_max_y));
-    old_3 = _e1;
-    loop {
-        let _e3 = old_3;
-        let old_f32_3 = bitcast<f32>(_e3);
-        let new_f32_3 = max(old_f32_3, value_3);
-        let new_u32_3 = bitcast<u32>(new_f32_3);
-        let _e8 = old_3;
-        let _e10 = atomicCompareExchangeWeak((&grid_max_y), _e8, new_u32_3);
-        if _e10.exchanged {
-            break;
-        }
-        old_3 = _e10.old_value;
-    }
-    return;
+fn f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(x: f32) -> i32 {
+    return i32((x * 1000f));
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn calculate_grid_aabb(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(subgroup_invocation_id) sid: u32) {
+fn calculate_grid_aabb(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
     let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
     let _e5 = object_count;
-    if (_e3 >= _e5) {
-        return;
-    }
-    let aabb = aabbs[_e3];
-    if (sid == 0u) {
-        let _e15 = subgroupMin(aabb.min.x);
-        atomicGridMinX(_e15);
-        let _e18 = subgroupMin(aabb.min.y);
-        atomicGridMinY(_e18);
-        let _e21 = subgroupMax(aabb.max.x);
-        atomicGridMaxX(_e21);
-        let _e24 = subgroupMax(aabb.max.y);
-        atomicGridMaxY(_e24);
-        return;
-    } else {
-        return;
-    }
+    let i_is_valid = (_e3 < _e5);
+    let i = select(0u, _e3, i_is_valid);
+    let aabb = aabbs[i];
+    let masked_min_x = select(INFINITYX_naga_oil_mod_XMNXW23LPNYX, aabb.min.x, i_is_valid);
+    let masked_min_y = select(INFINITYX_naga_oil_mod_XMNXW23LPNYX, aabb.min.y, i_is_valid);
+    let masked_max_x = select(-1000000000f, aabb.max.x, i_is_valid);
+    let masked_max_y = select(-1000000000f, aabb.max.y, i_is_valid);
+    let _e28 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(masked_min_x);
+    let _e30 = atomicMin((&grid_min_x), _e28);
+    let _e31 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(masked_min_y);
+    let _e33 = atomicMin((&grid_min_y), _e31);
+    let _e34 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(masked_max_x);
+    let _e36 = atomicMax((&grid_max_x), _e34);
+    let _e37 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(masked_max_y);
+    let _e39 = atomicMax((&grid_max_y), _e37);
+    return;
 }
 "#;
 }
 pub mod calculate_grid_size {
     use super::{_root, _root::*};
-    pub const WORKGROUP_SIZE: u32 = 64u32;
     pub mod compute {
         use super::{_root, _root::*};
-        pub const CALCULATE_GRID_SIZE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
+        pub const CALCULATE_GRID_SIZE_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
         pub fn create_calculate_grid_size_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
             let module = super::create_shader_module_embed_source(device);
             let layout = super::create_pipeline_layout(device);
@@ -2198,7 +2168,7 @@ pub mod calculate_grid_size {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -2209,7 +2179,7 @@ pub mod calculate_grid_size {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -2220,7 +2190,7 @@ pub mod calculate_grid_size {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -2231,7 +2201,7 @@ pub mod calculate_grid_size {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -2314,45 +2284,54 @@ pub mod calculate_grid_size {
     }
     pub const SHADER_STRING: &str = r#"
 struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    inner: vec2<u32>,
+    x: u32,
+    y: u32,
 }
 
-const WORKGROUP_SIZE: u32 = 64u;
-
 @group(0) @binding(1) 
-var<uniform> grid_min_x: f32;
+var<uniform> grid_min_x: i32;
 @group(0) @binding(2) 
-var<uniform> grid_min_y: f32;
+var<uniform> grid_min_y: i32;
 @group(0) @binding(3) 
-var<uniform> grid_max_x: f32;
+var<uniform> grid_max_x: i32;
 @group(0) @binding(4) 
-var<uniform> grid_max_y: f32;
+var<uniform> grid_max_y: i32;
 @group(0) @binding(5) 
 var<uniform> cell_size: f32;
 @group(0) @binding(6) 
 var<storage, read_write> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
 
-@compute @workgroup_size(64, 1, 1) 
+fn i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(x: i32) -> f32 {
+    return (f32(x) / 1000f);
+}
+
+@compute @workgroup_size(1, 1, 1) 
 fn calculate_grid_size() {
     let _e1 = grid_max_x;
-    let _e3 = grid_min_x;
-    let size_x = (_e1 - _e3);
-    let _e6 = grid_max_y;
-    let _e8 = grid_min_y;
-    let size_y = (_e6 - _e8);
-    let _e13 = cell_size;
-    let _e17 = cell_size;
-    grid_size.inner = vec2<u32>(u32((size_x / _e13)), u32((size_y / _e17)));
+    let _e2 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e1);
+    let _e4 = grid_min_x;
+    let _e5 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e4);
+    let width = (_e2 - _e5);
+    let _e8 = grid_max_y;
+    let _e9 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e8);
+    let _e11 = grid_min_y;
+    let _e12 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e11);
+    let height = (_e9 - _e12);
+    let _e15 = cell_size;
+    let size_x = max(1u, u32(ceil((width / _e15))));
+    let _e22 = cell_size;
+    let size_y = max(1u, u32(ceil((height / _e22))));
+    grid_size = GridSizeX_naga_oil_mod_XMNXW23LPNYX(size_x, size_y);
     return;
 }
 "#;
 }
 pub mod reset_cell_object_count {
     use super::{_root, _root::*};
-    pub const WORKGROUP_SIZE: u32 = 64u32;
+    pub const WORKGROUP_SIZE: u32 = 1u32;
     pub mod compute {
         use super::{_root, _root::*};
-        pub const RESET_CELL_OBJECT_COUNT_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
+        pub const RESET_CELL_OBJECT_COUNT_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
         pub fn create_reset_cell_object_count_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
             let module = super::create_shader_module_embed_source(device);
             let layout = super::create_pipeline_layout(device);
@@ -2369,20 +2348,20 @@ pub mod reset_cell_object_count {
     pub const ENTRY_RESET_CELL_OBJECT_COUNT: &str = "reset_cell_object_count";
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub object_count: wgpu::BufferBinding<'a>,
+        pub grid_size: wgpu::BufferBinding<'a>,
         pub cell_object_count: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
-        pub object_count: wgpu::BindGroupEntry<'a>,
+        pub grid_size: wgpu::BindGroupEntry<'a>,
         pub cell_object_count: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
             Self {
-                object_count: wgpu::BindGroupEntry {
+                grid_size: wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.object_count),
+                    resource: wgpu::BindingResource::Buffer(params.grid_size),
                 },
                 cell_object_count: wgpu::BindGroupEntry {
                     binding: 1,
@@ -2391,7 +2370,7 @@ pub mod reset_cell_object_count {
             }
         }
         pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
-            [self.object_count, self.cell_object_count]
+            [self.grid_size, self.cell_object_count]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -2403,14 +2382,14 @@ pub mod reset_cell_object_count {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("ResetCellObjectCount::BindGroup0::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(0): \"object_count\""]
+                #[doc = " @binding(0): \"grid_size\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::GridSize>() as _),
                     },
                     count: None,
                 },
@@ -2481,25 +2460,27 @@ pub mod reset_cell_object_count {
         })
     }
     pub const SHADER_STRING: &str = r#"
-const WORKGROUP_SIZE: u32 = 64u;
+struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
+    x: u32,
+    y: u32,
+}
+
+const WORKGROUP_SIZE: u32 = 1u;
 
 @group(0) @binding(0) 
-var<uniform> object_count: u32;
+var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(1) 
 var<storage, read_write> cell_object_count: array<u32>;
 
-fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
-}
-
-@compute @workgroup_size(64, 1, 1) 
-fn reset_cell_object_count(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
-    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let _e5 = object_count;
-    if (_e3 >= _e5) {
-        return;
-    }
-    cell_object_count[_e3] = 0u;
+@compute @workgroup_size(1, 1, 1) 
+fn reset_cell_object_count(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let _e5 = grid_size.x;
+    let original_i = (gid.x + (gid.y * _e5));
+    let _e10 = grid_size.x;
+    let _e13 = grid_size.y;
+    let cell_count = (_e10 * _e13);
+    let i = select(0u, original_i, (original_i < cell_count));
+    cell_object_count[i] = 0u;
     return;
 }
 "#;
@@ -2527,8 +2508,8 @@ pub mod assign_object_cells {
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub object_count: wgpu::BufferBinding<'a>,
-        pub grid_position_x: wgpu::BufferBinding<'a>,
-        pub grid_position_y: wgpu::BufferBinding<'a>,
+        pub grid_min_x: wgpu::BufferBinding<'a>,
+        pub grid_min_y: wgpu::BufferBinding<'a>,
         pub grid_size: wgpu::BufferBinding<'a>,
         pub cell_size: wgpu::BufferBinding<'a>,
         pub cell_object_count: wgpu::BufferBinding<'a>,
@@ -2537,8 +2518,8 @@ pub mod assign_object_cells {
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub object_count: wgpu::BindGroupEntry<'a>,
-        pub grid_position_x: wgpu::BindGroupEntry<'a>,
-        pub grid_position_y: wgpu::BindGroupEntry<'a>,
+        pub grid_min_x: wgpu::BindGroupEntry<'a>,
+        pub grid_min_y: wgpu::BindGroupEntry<'a>,
         pub grid_size: wgpu::BindGroupEntry<'a>,
         pub cell_size: wgpu::BindGroupEntry<'a>,
         pub cell_object_count: wgpu::BindGroupEntry<'a>,
@@ -2551,13 +2532,13 @@ pub mod assign_object_cells {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.object_count),
                 },
-                grid_position_x: wgpu::BindGroupEntry {
+                grid_min_x: wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.grid_position_x),
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_x),
                 },
-                grid_position_y: wgpu::BindGroupEntry {
+                grid_min_y: wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.grid_position_y),
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_y),
                 },
                 grid_size: wgpu::BindGroupEntry {
                     binding: 3,
@@ -2580,8 +2561,8 @@ pub mod assign_object_cells {
         pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 7] {
             [
                 self.object_count,
-                self.grid_position_x,
-                self.grid_position_y,
+                self.grid_min_x,
+                self.grid_min_y,
                 self.grid_size,
                 self.cell_size,
                 self.cell_object_count,
@@ -2609,25 +2590,25 @@ pub mod assign_object_cells {
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"grid_position_x\""]
+                #[doc = " @binding(1): \"grid_min_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"grid_position_y\""]
+                #[doc = " @binding(2): \"grid_min_y\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
                     },
                     count: None,
                 },
@@ -2802,11 +2783,13 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    inner: vec2<u32>,
+    x: u32,
+    y: u32,
 }
 
 struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
-    inner: vec2<u32>,
+    cell: vec2<u32>,
+    offset: u32,
 }
 
 const WORKGROUP_SIZE: u32 = 64u;
@@ -2814,9 +2797,9 @@ const WORKGROUP_SIZE: u32 = 64u;
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
-var<uniform> grid_position_x: f32;
+var<uniform> grid_min_x: i32;
 @group(0) @binding(2) 
-var<uniform> grid_position_y: f32;
+var<uniform> grid_min_y: i32;
 @group(0) @binding(3) 
 var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(4) 
@@ -2832,6 +2815,10 @@ fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec
     return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
 }
 
+fn i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(x: i32) -> f32 {
+    return (f32(x) / 1000f);
+}
+
 @compute @workgroup_size(64, 1, 1) 
 fn assign_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
     let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
@@ -2840,26 +2827,190 @@ fn assign_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(n
         return;
     }
     let aabb = aabbs[_e3];
-    let _e13 = grid_position_x;
-    let _e16 = cell_size;
-    let cell_x = u32(((aabb.min.x - _e13) / _e16));
-    let _e22 = grid_position_y;
-    let _e25 = cell_size;
-    let cell_y = u32(((aabb.min.y - _e22) / _e25));
-    let _e31 = grid_size.inner.x;
-    let cell_offset = (cell_x + (cell_y * _e31));
-    let _e37 = atomicAdd((&cell_object_count[cell_offset]), 1u);
-    object_cells[_e3] = CellPositionX_naga_oil_mod_XMNXW23LPNYX(vec2<u32>(cell_x, cell_y));
+    let _e18 = grid_min_x;
+    let _e19 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e18);
+    let _e22 = cell_size;
+    let cell_x = u32(max(0f, ((((aabb.min.x + aabb.max.x) / 2f) - _e19) / _e22)));
+    let _e35 = grid_min_y;
+    let _e36 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e35);
+    let _e39 = cell_size;
+    let cell_y = u32(max(0f, ((((aabb.min.y + aabb.max.y) / 2f) - _e36) / _e39)));
+    let _e46 = grid_size.x;
+    let cell_index = (cell_x + (cell_y * _e46));
+    let _e52 = atomicAdd((&cell_object_count[cell_index]), 1u);
+    object_cells[_e3] = CellPositionX_naga_oil_mod_XMNXW23LPNYX(vec2<u32>(cell_x, cell_y), _e52);
+    return;
+}
+"#;
+}
+pub mod calculate_cell_iteration_dispatch_dimensions {
+    use super::{_root, _root::*};
+    pub mod compute {
+        use super::{_root, _root::*};
+        pub const CALCULATE_CELL_ITERATION_DISPATCH_DIMENSIONS_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
+        pub fn create_calculate_cell_iteration_dispatch_dimensions_pipeline_embed_source(
+            device: &wgpu::Device,
+        ) -> wgpu::ComputePipeline {
+            let module = super::create_shader_module_embed_source(device);
+            let layout = super::create_pipeline_layout(device);
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline calculate_cell_iteration_dispatch_dimensions"),
+                layout: Some(&layout),
+                module: &module,
+                entry_point: Some("calculate_cell_iteration_dispatch_dimensions"),
+                compilation_options: Default::default(),
+                cache: None,
+            })
+        }
+    }
+    pub const ENTRY_CALCULATE_CELL_ITERATION_DISPATCH_DIMENSIONS: &str = "calculate_cell_iteration_dispatch_dimensions";
+    #[derive(Debug)]
+    pub struct WgpuBindGroup0EntriesParams<'a> {
+        pub grid_size: wgpu::BufferBinding<'a>,
+        pub cell_offsets_dispatch_dimensions: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup0Entries<'a> {
+        pub grid_size: wgpu::BindGroupEntry<'a>,
+        pub cell_offsets_dispatch_dimensions: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup0Entries<'a> {
+        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
+            Self {
+                grid_size: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.grid_size),
+                },
+                cell_offsets_dispatch_dimensions: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.cell_offsets_dispatch_dimensions),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
+            [self.grid_size, self.cell_offsets_dispatch_dimensions]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup0(wgpu::BindGroup);
+    impl WgpuBindGroup0 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("CalculateCellIterationDispatchDimensions::BindGroup0::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"grid_size\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::GridSize>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"cell_offsets_dispatch_dimensions\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<
+                            _root::common::DispatchIndirectArgs,
+                        >() as _),
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("CalculateCellIterationDispatchDimensions::BindGroup0"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(0, &self.0, &[]);
+        }
+    }
+    #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
+    #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
+    #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
+    #[doc = "   - Bind group 1: More frequent updates"]
+    #[doc = "   - Bind group 2: More frequent updates"]
+    #[doc = "   - Bind group 3: Most frequent updates (e.g. per draw resources)"]
+    #[derive(Debug, Copy, Clone)]
+    pub struct WgpuBindGroups<'a> {
+        pub bind_group0: &'a WgpuBindGroup0,
+    }
+    impl<'a> WgpuBindGroups<'a> {
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            self.bind_group0.set(pass);
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuPipelineLayout;
+    impl WgpuPipelineLayout {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
+            entries
+        }
+    }
+    pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
+        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("CalculateCellIterationDispatchDimensions::PipelineLayout"),
+            bind_group_layouts: &[Some(&WgpuBindGroup0::get_bind_group_layout(device))],
+            immediate_size: 0u32,
+        })
+    }
+    pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
+        let source = std::borrow::Cow::Borrowed(SHADER_STRING);
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("calculate_cell_iteration_dispatch_dimensions.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(source),
+        })
+    }
+    pub const SHADER_STRING: &str = r#"
+struct DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX {
+    x: u32,
+    y: u32,
+    z: u32,
+}
+
+struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
+    x: u32,
+    y: u32,
+}
+
+@group(0) @binding(0) 
+var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
+@group(0) @binding(1) 
+var<storage, read_write> cell_offsets_dispatch_dimensions: DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX;
+
+@compute @workgroup_size(1, 1, 1) 
+fn calculate_cell_iteration_dispatch_dimensions() {
+    let _e2 = grid_size.x;
+    let _e5 = grid_size.y;
+    cell_offsets_dispatch_dimensions = DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX(_e2, _e5, 1u);
     return;
 }
 "#;
 }
 pub mod calculate_cell_offsets {
     use super::{_root, _root::*};
-    pub const WORKGROUP_SIZE: u32 = 64u32;
+    pub const WORKGROUP_SIZE: u32 = 1u32;
     pub mod compute {
         use super::{_root, _root::*};
-        pub const CALCULATE_CELL_OFFSETS_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
+        pub const CALCULATE_CELL_OFFSETS_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
         pub fn create_calculate_cell_offsets_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
             let module = super::create_shader_module_embed_source(device);
             let layout = super::create_pipeline_layout(device);
@@ -3028,10 +3179,11 @@ pub mod calculate_cell_offsets {
     }
     pub const SHADER_STRING: &str = r#"
 struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    inner: vec2<u32>,
+    x: u32,
+    y: u32,
 }
 
-const WORKGROUP_SIZE: u32 = 64u;
+const WORKGROUP_SIZE: u32 = 1u;
 
 @group(0) @binding(0) 
 var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
@@ -3042,195 +3194,19 @@ var<storage, read_write> current_cell_offset: atomic<u32>;
 @group(0) @binding(3) 
 var<storage, read_write> cell_offsets: array<u32>;
 
-fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
-}
-
-@compute @workgroup_size(64, 1, 1) 
-fn calculate_cell_offsets(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
-    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let grid_size_1 = grid_size.inner;
-    let cell_count = (grid_size_1.x * grid_size_1.y);
-    if (_e3 >= cell_count) {
-        return;
-    }
-    let cell_object_count_1 = cell_object_count[_e3];
-    if (cell_object_count_1 == 0u) {
-        return;
-    }
-    let _e19 = atomicAdd((&current_cell_offset), cell_object_count_1);
-    cell_offsets[_e3] = _e19;
-    return;
-}
-"#;
-}
-pub mod calculate_cell_offsets_dispatch_dimensions {
-    use super::{_root, _root::*};
-    pub mod compute {
-        use super::{_root, _root::*};
-        pub const CALCULATE_CELL_OFFSETS_DISPATCH_DIMENSIONS_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
-        pub fn create_calculate_cell_offsets_dispatch_dimensions_pipeline_embed_source(
-            device: &wgpu::Device,
-        ) -> wgpu::ComputePipeline {
-            let module = super::create_shader_module_embed_source(device);
-            let layout = super::create_pipeline_layout(device);
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Compute Pipeline calculate_cell_offsets_dispatch_dimensions"),
-                layout: Some(&layout),
-                module: &module,
-                entry_point: Some("calculate_cell_offsets_dispatch_dimensions"),
-                compilation_options: Default::default(),
-                cache: None,
-            })
-        }
-    }
-    pub const ENTRY_CALCULATE_CELL_OFFSETS_DISPATCH_DIMENSIONS: &str = "calculate_cell_offsets_dispatch_dimensions";
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub grid_size: wgpu::BufferBinding<'a>,
-        pub cell_offsets_dispatch_dimensions: wgpu::BufferBinding<'a>,
-    }
-    #[derive(Clone, Debug)]
-    pub struct WgpuBindGroup0Entries<'a> {
-        pub grid_size: wgpu::BindGroupEntry<'a>,
-        pub cell_offsets_dispatch_dimensions: wgpu::BindGroupEntry<'a>,
-    }
-    impl<'a> WgpuBindGroup0Entries<'a> {
-        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
-            Self {
-                grid_size: wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.grid_size),
-                },
-                cell_offsets_dispatch_dimensions: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.cell_offsets_dispatch_dimensions),
-                },
-            }
-        }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
-            [self.grid_size, self.cell_offsets_dispatch_dimensions]
-        }
-        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
-            self.into_array().into_iter().collect()
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0(wgpu::BindGroup);
-    impl WgpuBindGroup0 {
-        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("CalculateCellOffsetsDispatchDimensions::BindGroup0::LayoutDescriptor"),
-            entries: &[
-                #[doc = " @binding(0): \"grid_size\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::GridSize>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(1): \"cell_offsets_dispatch_dimensions\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<
-                            _root::common::DispatchIndirectArgs,
-                        >() as _),
-                    },
-                    count: None,
-                },
-            ],
-        };
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
-            let bind_group_layout = Self::get_bind_group_layout(device);
-            let entries = bindings.into_array();
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("CalculateCellOffsetsDispatchDimensions::BindGroup0"),
-                layout: &bind_group_layout,
-                entries: &entries,
-            });
-            Self(bind_group)
-        }
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            pass.set_bind_group(0, &self.0, &[]);
-        }
-    }
-    #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
-    #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
-    #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
-    #[doc = "   - Bind group 1: More frequent updates"]
-    #[doc = "   - Bind group 2: More frequent updates"]
-    #[doc = "   - Bind group 3: Most frequent updates (e.g. per draw resources)"]
-    #[derive(Debug, Copy, Clone)]
-    pub struct WgpuBindGroups<'a> {
-        pub bind_group0: &'a WgpuBindGroup0,
-    }
-    impl<'a> WgpuBindGroups<'a> {
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            self.bind_group0.set(pass);
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuPipelineLayout;
-    impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
-            entries
-        }
-    }
-    pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
-        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("CalculateCellOffsetsDispatchDimensions::PipelineLayout"),
-            bind_group_layouts: &[Some(&WgpuBindGroup0::get_bind_group_layout(device))],
-            immediate_size: 0u32,
-        })
-    }
-    pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
-        let source = std::borrow::Cow::Borrowed(SHADER_STRING);
-        device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("calculate_cell_offsets_dispatch_dimensions.wgsl"),
-            source: wgpu::ShaderSource::Wgsl(source),
-        })
-    }
-    pub const SHADER_STRING: &str = r#"
-struct DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX {
-    x: u32,
-    y: u32,
-    z: u32,
-}
-
-struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    inner: vec2<u32>,
-}
-
-const MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 65535u;
-const WORKGROUP_SIZEX_naga_oil_mod_XMNQWYY3VNRQXIZK7MNSWY3C7N5TGM43FORZQX: u32 = 64u;
-
-@group(0) @binding(0) 
-var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
-@group(0) @binding(1) 
-var<storage, read_write> cell_offsets_dispatch_dimensions: DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX;
-
-fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid: vec3<u32>, nwg: vec3<u32>, workgroup_size: u32) -> u32 {
-    return ((gid.x + ((gid.y * workgroup_size) * nwg.x)) + ((((gid.z * workgroup_size) * nwg.x) * workgroup_size) * nwg.y));
-}
-
 @compute @workgroup_size(1, 1, 1) 
-fn calculate_cell_offsets_dispatch_dimensions() {
-    let grid_size_1 = grid_size.inner;
-    let total_workgroups = ((((grid_size_1.x * grid_size_1.y) + WORKGROUP_SIZEX_naga_oil_mod_XMNQWYY3VNRQXIZK7MNSWY3C7N5TGM43FORZQX) - 1u) / WORKGROUP_SIZEX_naga_oil_mod_XMNQWYY3VNRQXIZK7MNSWY3C7N5TGM43FORZQX);
-    let x = min(total_workgroups, MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX);
-    let y = min((((total_workgroups + x) - 1u) / x), MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX);
-    let z = min((((total_workgroups + (x * y)) - 1u) / (x * y)), MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX);
-    cell_offsets_dispatch_dimensions = DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX(x, y, z);
+fn calculate_cell_offsets(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let _e5 = grid_size.x;
+    let cell_index = (gid.x + (gid.y * _e5));
+    let _e10 = grid_size.x;
+    let _e13 = grid_size.y;
+    let cell_count = (_e10 * _e13);
+    if (cell_index >= cell_count) {
+        return;
+    }
+    let count = cell_object_count[cell_index];
+    let _e22 = atomicAdd((&current_cell_offset), count);
+    cell_offsets[cell_index] = _e22;
     return;
 }
 "#;
@@ -3260,7 +3236,7 @@ pub mod populate_grid_cells {
         pub object_count: wgpu::BufferBinding<'a>,
         pub grid_size: wgpu::BufferBinding<'a>,
         pub object_cells: wgpu::BufferBinding<'a>,
-        pub cell_object_count: wgpu::BufferBinding<'a>,
+        pub cell_offsets: wgpu::BufferBinding<'a>,
         pub cells: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
@@ -3268,7 +3244,7 @@ pub mod populate_grid_cells {
         pub object_count: wgpu::BindGroupEntry<'a>,
         pub grid_size: wgpu::BindGroupEntry<'a>,
         pub object_cells: wgpu::BindGroupEntry<'a>,
-        pub cell_object_count: wgpu::BindGroupEntry<'a>,
+        pub cell_offsets: wgpu::BindGroupEntry<'a>,
         pub cells: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
@@ -3286,9 +3262,9 @@ pub mod populate_grid_cells {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.object_cells),
                 },
-                cell_object_count: wgpu::BindGroupEntry {
+                cell_offsets: wgpu::BindGroupEntry {
                     binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.cell_object_count),
+                    resource: wgpu::BindingResource::Buffer(params.cell_offsets),
                 },
                 cells: wgpu::BindGroupEntry {
                     binding: 4,
@@ -3301,7 +3277,7 @@ pub mod populate_grid_cells {
                 self.object_count,
                 self.grid_size,
                 self.object_cells,
-                self.cell_object_count,
+                self.cell_offsets,
                 self.cells,
             ]
         }
@@ -3348,12 +3324,12 @@ pub mod populate_grid_cells {
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"cell_object_count\""]
+                #[doc = " @binding(3): \"cell_offsets\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -3427,14 +3403,15 @@ pub mod populate_grid_cells {
     }
     pub const SHADER_STRING: &str = r#"
 struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    inner: vec2<u32>,
+    x: u32,
+    y: u32,
 }
 
 struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
-    inner: vec2<u32>,
+    cell: vec2<u32>,
+    offset: u32,
 }
 
-const MAX_OBJECTS_PER_CELLX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 
@@ -3444,9 +3421,9 @@ var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(2) 
 var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(3) 
-var<storage, read_write> cell_object_count: array<atomic<u32>>;
+var<storage> cell_offsets: array<u32>;
 @group(0) @binding(4) 
-var<storage, read_write> cells: array<array<u32, 4>>;
+var<storage, read_write> cells: array<u32>;
 
 fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
@@ -3459,12 +3436,557 @@ fn populate_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin
     if (_e3 >= _e5) {
         return;
     }
-    let cell_position = object_cells[_e3].inner;
-    let grid_size_1 = grid_size.inner;
-    let cell_offset = (cell_position.x + (cell_position.y * grid_size_1.x));
-    let _e22 = atomicAdd((&cell_object_count[0]), 1u);
-    cells[cell_offset][_e22] = _e3;
+    let cell_position = object_cells[_e3];
+    let _e16 = grid_size.x;
+    let cell_index = (cell_position.cell.x + (cell_position.cell.y * _e16));
+    let cell_offset = cell_offsets[cell_index];
+    cells[(cell_offset + cell_position.offset)] = _e3;
     return;
+}
+"#;
+}
+pub mod collision_broad_phase_grid {
+    use super::{_root, _root::*};
+    pub const WORKGROUP_SIZE: u32 = 64u32;
+    pub const MAX_WG_CANDIDATES: u32 = 1024u32;
+    pub mod compute {
+        use super::{_root, _root::*};
+        pub const BROAD_PHASE_GRID_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
+        pub fn create_broad_phase_grid_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
+            let module = super::create_shader_module_embed_source(device);
+            let layout = super::create_pipeline_layout(device);
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline broad_phase_grid"),
+                layout: Some(&layout),
+                module: &module,
+                entry_point: Some("broad_phase_grid"),
+                compilation_options: Default::default(),
+                cache: None,
+            })
+        }
+    }
+    pub const ENTRY_BROAD_PHASE_GRID: &str = "broad_phase_grid";
+    #[derive(Debug)]
+    pub struct WgpuBindGroup0EntriesParams<'a> {
+        pub object_count: wgpu::BufferBinding<'a>,
+        pub grid_size: wgpu::BufferBinding<'a>,
+        pub object_cells: wgpu::BufferBinding<'a>,
+        pub cell_object_count: wgpu::BufferBinding<'a>,
+        pub cell_offsets: wgpu::BufferBinding<'a>,
+        pub cells: wgpu::BufferBinding<'a>,
+        pub candidates: wgpu::BufferBinding<'a>,
+        pub candidate_count: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup0Entries<'a> {
+        pub object_count: wgpu::BindGroupEntry<'a>,
+        pub grid_size: wgpu::BindGroupEntry<'a>,
+        pub object_cells: wgpu::BindGroupEntry<'a>,
+        pub cell_object_count: wgpu::BindGroupEntry<'a>,
+        pub cell_offsets: wgpu::BindGroupEntry<'a>,
+        pub cells: wgpu::BindGroupEntry<'a>,
+        pub candidates: wgpu::BindGroupEntry<'a>,
+        pub candidate_count: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup0Entries<'a> {
+        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
+            Self {
+                object_count: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.object_count),
+                },
+                grid_size: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.grid_size),
+                },
+                object_cells: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.object_cells),
+                },
+                cell_object_count: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.cell_object_count),
+                },
+                cell_offsets: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.cell_offsets),
+                },
+                cells: wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Buffer(params.cells),
+                },
+                candidates: wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Buffer(params.candidates),
+                },
+                candidate_count: wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: wgpu::BindingResource::Buffer(params.candidate_count),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 8] {
+            [
+                self.object_count,
+                self.grid_size,
+                self.object_cells,
+                self.cell_object_count,
+                self.cell_offsets,
+                self.cells,
+                self.candidates,
+                self.candidate_count,
+            ]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup0(wgpu::BindGroup);
+    impl WgpuBindGroup0 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("CollisionBroadPhaseGrid::BindGroup0::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"object_count\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"grid_size\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::GridSize>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"object_cells\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"cell_object_count\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(4): \"cell_offsets\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(5): \"cells\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(6): \"candidates\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(7): \"candidate_count\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("CollisionBroadPhaseGrid::BindGroup0"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(0, &self.0, &[]);
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1EntriesParams<'a> {
+        pub aabbs: wgpu::BufferBinding<'a>,
+        pub flags: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup1Entries<'a> {
+        pub aabbs: wgpu::BindGroupEntry<'a>,
+        pub flags: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup1Entries<'a> {
+        pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
+            Self {
+                aabbs: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.aabbs),
+                },
+                flags: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.flags),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
+            [self.aabbs, self.flags]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1(wgpu::BindGroup);
+    impl WgpuBindGroup1 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("CollisionBroadPhaseGrid::BindGroup1::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(1): \"aabbs\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup1Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("CollisionBroadPhaseGrid::BindGroup1"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(1, &self.0, &[]);
+        }
+    }
+    #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
+    #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
+    #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
+    #[doc = "   - Bind group 1: More frequent updates"]
+    #[doc = "   - Bind group 2: More frequent updates"]
+    #[doc = "   - Bind group 3: Most frequent updates (e.g. per draw resources)"]
+    #[derive(Debug, Copy, Clone)]
+    pub struct WgpuBindGroups<'a> {
+        pub bind_group0: &'a WgpuBindGroup0,
+        pub bind_group1: &'a WgpuBindGroup1,
+    }
+    impl<'a> WgpuBindGroups<'a> {
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            self.bind_group0.set(pass);
+            self.bind_group1.set(pass);
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuPipelineLayout;
+    impl WgpuPipelineLayout {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 2]) -> [wgpu::BindGroupLayout; 2] {
+            entries
+        }
+    }
+    pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
+        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("CollisionBroadPhaseGrid::PipelineLayout"),
+            bind_group_layouts: &[
+                Some(&WgpuBindGroup0::get_bind_group_layout(device)),
+                Some(&WgpuBindGroup1::get_bind_group_layout(device)),
+            ],
+            immediate_size: 0u32,
+        })
+    }
+    pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
+        let source = std::borrow::Cow::Borrowed(SHADER_STRING);
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("collision_broad_phase_grid.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(source),
+        })
+    }
+    pub const SHADER_STRING: &str = r#"
+struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
+    inner: u32,
+}
+
+struct AABBX_naga_oil_mod_XMNXW23LPNYX {
+    min: vec2<f32>,
+    max: vec2<f32>,
+}
+
+struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
+    a: u32,
+    b: u32,
+}
+
+struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
+    x: u32,
+    y: u32,
+}
+
+struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
+    cell: vec2<u32>,
+    offset: u32,
+}
+
+const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
+const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
+const WORKGROUP_SIZE: u32 = 64u;
+const MAX_WG_CANDIDATES: u32 = 1024u;
+
+@group(0) @binding(0) 
+var<uniform> object_count: u32;
+@group(0) @binding(1) 
+var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
+@group(0) @binding(2) 
+var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(3) 
+var<storage> cell_object_count: array<u32>;
+@group(0) @binding(4) 
+var<storage> cell_offsets: array<u32>;
+@group(0) @binding(5) 
+var<storage> cells: array<u32>;
+@group(0) @binding(6) 
+var<storage, read_write> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(7) 
+var<storage, read_write> candidate_count: atomic<u32>;
+@group(1) @binding(1) 
+var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
+@group(1) @binding(2) 
+var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+var<workgroup> wg_candidate_count: atomic<u32>;
+var<workgroup> wg_candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX, 1024>;
+
+fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
+    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
+}
+
+fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW23LPNYX) -> bool {
+    var local_1: bool;
+    var local_2: bool;
+    var local_3: bool;
+
+    if (a.min.x < b.max.x) {
+        local_1 = (a.max.x > b.min.x);
+    } else {
+        local_1 = false;
+    }
+    let _e15 = local_1;
+    if _e15 {
+        local_2 = (a.min.y < b.max.y);
+    } else {
+        local_2 = false;
+    }
+    let _e24 = local_2;
+    if _e24 {
+        local_3 = (a.max.y > b.min.y);
+    } else {
+        local_3 = false;
+    }
+    let _e33 = local_3;
+    return _e33;
+}
+
+@compute @workgroup_size(64, 1, 1) 
+fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
+    var local: bool;
+    var i: u32;
+    var j: u32;
+    var k: u32;
+    var j_1: u32 = 0u;
+
+    if (local_invocation_index == 0u) {
+        atomicStore((&wg_candidate_count), 0u);
+    }
+    workgroupBarrier();
+    let _e9 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
+    let _e11 = object_count;
+    if !((_e9 >= _e11)) {
+        let _e17 = flags[_e9].inner;
+        local = ((_e17 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u);
+    } else {
+        local = true;
+    }
+    let _e25 = local;
+    if _e25 {
+        return;
+    }
+    let cell = object_cells[_e9].cell;
+    let can_decrement = vec2<bool>((cell.x > 0u), (cell.y > 0u));
+    let min_cell = select(cell, (cell - vec2<u32>(1u, 1u)), can_decrement);
+    let _e47 = grid_size.x;
+    let _e54 = grid_size.y;
+    let can_increment = vec2<bool>(((cell.x + 1u) < _e47), ((cell.y + 1u) < _e54));
+    let max_cell = select(cell, (cell + vec2<u32>(1u, 1u)), can_increment);
+    let aabb = aabbs[_e9];
+    let _e66 = object_count;
+    let max_candidates = (_e66 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
+    i = min_cell.x;
+    loop {
+        let _e71 = i;
+        if (_e71 <= max_cell.x) {
+        } else {
+            break;
+        }
+        {
+            j = min_cell.y;
+            loop {
+                let _e76 = j;
+                if (_e76 <= max_cell.y) {
+                } else {
+                    break;
+                }
+                {
+                    let _e79 = i;
+                    let _e80 = j;
+                    let _e83 = grid_size.x;
+                    let cell_index = (_e79 + (_e80 * _e83));
+                    let object_count_1 = cell_object_count[cell_index];
+                    if (object_count_1 == 0u) {
+                        continue;
+                    }
+                    let cell_offset = cell_offsets[cell_index];
+                    k = 0u;
+                    loop {
+                        let _e96 = k;
+                        if (_e96 < object_count_1) {
+                        } else {
+                            break;
+                        }
+                        {
+                            let _e99 = k;
+                            let other_object_index = cells[(cell_offset + _e99)];
+                            if (other_object_index >= _e9) {
+                                continue;
+                            }
+                            let _e107 = flags[other_object_index].inner;
+                            if ((_e107 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+                                continue;
+                            }
+                            let object_aabb = aabbs[other_object_index];
+                            let _e115 = aabb_overlaps(aabb, object_aabb);
+                            if !(_e115) {
+                                continue;
+                            }
+                            let _e119 = atomicAdd((&wg_candidate_count), 1u);
+                            if (_e119 >= MAX_WG_CANDIDATES) {
+                                continue;
+                            }
+                            wg_candidates[_e119] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(_e9, other_object_index);
+                        }
+                        continuing {
+                            let _e126 = k;
+                            k = (_e126 + 1u);
+                        }
+                    }
+                }
+                continuing {
+                    let _e129 = j;
+                    j = (_e129 + 1u);
+                }
+            }
+        }
+        continuing {
+            let _e132 = i;
+            i = (_e132 + 1u);
+        }
+    }
+    workgroupBarrier();
+    if (local_invocation_index == 0u) {
+        let count = atomicLoad((&wg_candidate_count));
+        let _e139 = atomicAdd((&candidate_count), count);
+        loop {
+            let _e141 = j_1;
+            if (_e141 < count) {
+            } else {
+                break;
+            }
+            {
+                let _e143 = j_1;
+                if ((_e139 + _e143) < max_candidates) {
+                    let _e147 = j_1;
+                    let _e151 = j_1;
+                    let _e153 = wg_candidates[_e151];
+                    candidates[(_e139 + _e147)] = _e153;
+                }
+            }
+            continuing {
+                let _e155 = j_1;
+                j_1 = (_e155 + 1u);
+            }
+        }
+        return;
+    } else {
+        return;
+    }
 }
 "#;
 }
@@ -3474,21 +3996,21 @@ pub mod collision_broad_phase_bvh {
     pub const MAX_WG_CANDIDATES: u32 = 1024u32;
     pub mod compute {
         use super::{_root, _root::*};
-        pub const BROAD_PHASE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
-        pub fn create_broad_phase_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
+        pub const BROAD_PHASE_BVH_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
+        pub fn create_broad_phase_bvh_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
             let module = super::create_shader_module_embed_source(device);
             let layout = super::create_pipeline_layout(device);
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Compute Pipeline broad_phase"),
+                label: Some("Compute Pipeline broad_phase_bvh"),
                 layout: Some(&layout),
                 module: &module,
-                entry_point: Some("broad_phase"),
+                entry_point: Some("broad_phase_bvh"),
                 compilation_options: Default::default(),
                 cache: None,
             })
         }
     }
-    pub const ENTRY_BROAD_PHASE: &str = "broad_phase";
+    pub const ENTRY_BROAD_PHASE_BVH: &str = "broad_phase_bvh";
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub object_count: wgpu::BufferBinding<'a>,
@@ -3637,11 +4159,11 @@ pub mod collision_broad_phase_bvh {
         pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
             Self {
                 aabbs: wgpu::BindGroupEntry {
-                    binding: 1,
+                    binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.aabbs),
                 },
                 flags: wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.flags),
                 },
             }
@@ -3659,9 +4181,9 @@ pub mod collision_broad_phase_bvh {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("CollisionBroadPhaseBvh::BindGroup1::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(1): \"aabbs\""]
+                #[doc = " @binding(0): \"aabbs\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 1,
+                    binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -3670,9 +4192,9 @@ pub mod collision_broad_phase_bvh {
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"flags\""]
+                #[doc = " @binding(1): \"flags\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 2,
+                    binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -3776,9 +4298,9 @@ var<storage, read_write> candidates: array<CollisionCandidateX_naga_oil_mod_XMNX
 var<storage, read_write> candidate_count: atomic<u32>;
 @group(0) @binding(4) 
 var<storage> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(1) 
+@group(1) @binding(0) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(2) 
+@group(1) @binding(1) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 var<workgroup> wg_candidate_count: atomic<u32>;
 var<workgroup> wg_candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX, 1024>;
@@ -3814,7 +4336,7 @@ fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn broad_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
+fn broad_phase_bvh(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
     var local: bool;
     var stack: array<u32, 64>;
     var sp: u32 = 0u;

@@ -1,5 +1,5 @@
 #import common::{
-    FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB, MAX_CANDIDATES_PER_OBJECT,
+    FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB,
     AABB, Mass, Velocity, Position, Flags, Force,
     flat_invocation_index
 }

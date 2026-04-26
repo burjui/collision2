@@ -10,8 +10,8 @@
 @group(0) @binding(3) var<storage, read_write> candidate_count: atomic<u32>;
 @group(0) @binding(4) var<storage, read> nodes: array<BvhNode>;
 
-@group(1) @binding(1) var<storage, read> aabbs: array<AABB>;
-@group(1) @binding(2) var<storage, read> flags: array<Flags>;
+@group(1) @binding(0) var<storage, read> aabbs: array<AABB>;
+@group(1) @binding(1) var<storage, read> flags: array<Flags>;
 
 const WORKGROUP_SIZE: u32 = 64;
 const MAX_WG_CANDIDATES: u32 = WORKGROUP_SIZE * MAX_CANDIDATES_PER_OBJECT;
@@ -20,7 +20,7 @@ var<workgroup> wg_candidate_count: atomic<u32>;
 var<workgroup> wg_candidates: array<CollisionCandidate, MAX_WG_CANDIDATES>;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
-fn broad_phase(
+fn broad_phase_bvh(
     @builtin(global_invocation_id) gid: vec3u,
     @builtin(num_workgroups) nwg: vec3u,
     @builtin(local_invocation_index) local_invocation_index: u32,

@@ -5,7 +5,7 @@ use crate::{
     shaders::{
         collision_broad_phase_bvh::{
             WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
-            WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, compute::create_broad_phase_pipeline_embed_source,
+            WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, compute::create_broad_phase_bvh_pipeline_embed_source,
         },
         common::{BvhNode, CollisionCandidate, MAX_CANDIDATES_PER_OBJECT},
     },
@@ -13,7 +13,7 @@ use crate::{
     util::{PhaseStateCache, dispatch_dimensions},
 };
 
-pub struct BroadPhaseBVH {
+pub struct CollisionBroadPhaseBVH {
     object_count: u32,
     candidate_bind_group: WgpuBindGroup0,
     pipeline: ComputePipeline,
@@ -21,7 +21,7 @@ pub struct BroadPhaseBVH {
     phase_state_cache: PhaseStateCache<WgpuBindGroup1>,
 }
 
-impl BroadPhaseBVH {
+impl CollisionBroadPhaseBVH {
     pub fn new(
         device: &Device,
         object_count: usize,
@@ -47,7 +47,7 @@ impl BroadPhaseBVH {
                 nodes: nodes.buffer().as_entire_buffer_binding(),
             }),
         );
-        let pipeline = create_broad_phase_pipeline_embed_source(device);
+        let pipeline = create_broad_phase_bvh_pipeline_embed_source(device);
         let phase_state_cache = PhaseStateCache::new();
         Self {
             object_count,

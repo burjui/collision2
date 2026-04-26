@@ -1,8 +1,7 @@
 #define_import_path collision_narrow_phase
 
 #import common::{
-    FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB, BVH_NODE_TREE_FLAG, MAX_CANDIDATES_PER_OBJECT,
-    AABB, Mass, Velocity, BvhNode, CollisionCandidate, Force,
+    AABB, Mass, Velocity, CollisionCandidate, Force,
     flat_invocation_index
 }
 
