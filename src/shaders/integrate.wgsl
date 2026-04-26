@@ -7,7 +7,8 @@
 @group(0) @binding(0) var<uniform> dt: f32;
 @group(0) @binding(1) var<uniform> gravitational_constant: f32;
 @group(0) @binding(2) var<uniform> global_acceleration: vec2f;
-@group(0) @binding(3) var<storage, read> masses: array<Mass>;
+@group(0) @binding(3) var<uniform> object_count: u32;
+@group(0) @binding(4) var<storage, read> masses: array<Mass>;
 
 @group(1) @binding(0) var<uniform> blackhole_count: u32;
 @group(1) @binding(1) var<uniform> blackhole_mass_scale: f32;
@@ -37,19 +38,19 @@ fn integrate(
     @builtin(global_invocation_id) gid: vec3u,
     @builtin(num_workgroups) nwg: vec3u,
 ) {
-    let i = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
-    if i >= arrayLength(&masses) {
+    let object_index = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
+    if object_index >= object_count {
         return;
     }
 
-    let aabb = aabbs[i];
+    let aabb = aabbs[object_index];
     let initial_position = (aabb.min + aabb.max) / 2;
-    let initial_velocity = velocities[i].inner;
-    let mass = masses[i].inner;
-    var f = flags[i].inner;
-    var state = ObjectPhaseState(initial_position, velocities[i].inner);
+    let initial_velocity = velocities[object_index].inner;
+    let mass = masses[object_index].inner;
+    var f = flags[object_index].inner;
+    var state = ObjectPhaseState(initial_position, velocities[object_index].inner);
     if (f & FLAG_PHYSICAL) != 0 {
-        state = integrate_euler_symplectic(state, i, aabb, mass);
+        state = integrate_euler_symplectic(state, object_index, aabb, mass);
     }
 
     let size = aabb.max - aabb.min;
@@ -90,9 +91,9 @@ fn integrate(
         new_aabb.max.y -= overshoot * 0.5;
         state.velocity.y *= -1;
     }
-    integrated_flags[i].inner = f;
-    integrated_aabbs[i] = new_aabb;
-    integrated_velocities[i].inner = state.velocity;
+    integrated_flags[object_index].inner = f;
+    integrated_aabbs[object_index] = new_aabb;
+    integrated_velocities[object_index].inner = state.velocity;
 }
 
 struct ObjectPhaseState {

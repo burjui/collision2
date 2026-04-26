@@ -10,10 +10,10 @@ fn reset_collision_forces(
     @builtin(global_invocation_id) gid: vec3u,
     @builtin(num_workgroups) nwg: vec3u
 ) {
-    let i = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
-    if i >= object_count {
+    let object_index = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
+    if object_index >= object_count {
         return;
     }
-    collision_forces[i * 2] = 0;
-    collision_forces[i * 2 + 1] = 0;
+    collision_forces[object_index * 2] = 0;
+    collision_forces[object_index * 2 + 1] = 0;
 }

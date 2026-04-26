@@ -18,7 +18,7 @@ const WORKGROUP_SIZE: u32 = 64;
 const BATCH_SIZE: u32 = 1;
 
 const STIFFNESS: f32 = 100000;
-const RESTITUTION: f32 = 0.3;
+const RESTITUTION: f32 = 0.0;
 const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(5.0) * sqrt(STIFFNESS);
 
 @compute @workgroup_size(WORKGROUP_SIZE)
@@ -27,21 +27,20 @@ fn narrow_phase(
     @builtin(num_workgroups) nwg: vec3u,
     @builtin(local_invocation_index) local_invocation_index: u32,
 ) {
-    let fii = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
+    let i = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
     for (var batch_i: u32 = 0; batch_i < BATCH_SIZE; batch_i += 1) {
-        let i = fii * BATCH_SIZE + batch_i;
-        if i >= candidate_count {
+        let candidate_index = i * BATCH_SIZE + batch_i;
+        if candidate_index >= candidate_count {
             continue;
         }
 
-        let candidates = candidates[i];
+        let candidates = candidates[candidate_index];
         let a = candidates.a;
         let b = candidates.b;
         let f = collision_repulsion_pair(
             aabbs[a], velocities[a].inner, masses[a].inner,
             aabbs[b], velocities[b].inner, masses[b].inner
         );
-
         cas_add_force(a, f);
         cas_add_force(b, -f);
     }

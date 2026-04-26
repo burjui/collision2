@@ -532,25 +532,25 @@ fn spawn_simulation_thread(
             nodes.clone(),
         );
 
-        let grid_min_x: TypedBuffer<i32> = TypedBuffer::new(
+        let grid_min_x: TypedBuffer<f32> = TypedBuffer::new(
             &device,
             1,
             "grid min x",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
-        let grid_min_y: TypedBuffer<i32> = TypedBuffer::new(
+        let grid_min_y: TypedBuffer<f32> = TypedBuffer::new(
             &device,
             1,
             "grid min y",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
-        let grid_max_x: TypedBuffer<i32> = TypedBuffer::new(
+        let grid_max_x: TypedBuffer<f32> = TypedBuffer::new(
             &device,
             1,
             "grid max x",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
-        let grid_max_y: TypedBuffer<i32> = TypedBuffer::new(
+        let grid_max_y: TypedBuffer<f32> = TypedBuffer::new(
             &device,
             1,
             "grid max y",
@@ -702,7 +702,14 @@ fn spawn_simulation_thread(
             masses.clone(),
             collision_forces.clone(),
         );
-        let mut integrator = Integrator::new(&device, object_count, dt, masses.clone(), collision_forces.clone());
+        let mut integrator = Integrator::new(
+            &device,
+            object_count,
+            object_count_buffer.clone(),
+            dt,
+            masses.clone(),
+            collision_forces.clone(),
+        );
 
         let (tx, rx) = channel::bounded(PhaseStateRing::CAPACITY);
         let mut sim_step_count: usize = 0;
@@ -775,56 +782,6 @@ fn spawn_simulation_thread(
             integrator.compute(&mut compute_pass);
             drop(compute_pass);
 
-            // Debug
-
-            let candidate_count_readback: TypedBuffer<u32> = TypedBuffer::new(
-                &device,
-                1,
-                "candidate_count readback",
-                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            );
-            candidate_count_readback.copy(0..1, &candidate_count, 0..1, &mut encoder);
-
-            let grid_min_x_readback: TypedBuffer<i32> = TypedBuffer::new(
-                &device,
-                1,
-                "grid_position_x readback",
-                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            );
-            grid_min_x_readback.copy(0..1, &grid_min_x, 0..1, &mut encoder);
-
-            let grid_min_y_readback: TypedBuffer<i32> = TypedBuffer::new(
-                &device,
-                1,
-                "grid_position_y readback",
-                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            );
-            grid_min_y_readback.copy(0..1, &grid_min_y, 0..1, &mut encoder);
-
-            let grid_max_x_readback: TypedBuffer<i32> =
-                TypedBuffer::new(&device, 1, "grid_max_x readback", BufferUsages::COPY_DST | BufferUsages::MAP_READ);
-            grid_max_x_readback.copy(0..1, &grid_max_x, 0..1, &mut encoder);
-
-            let grid_max_y_readback: TypedBuffer<i32> =
-                TypedBuffer::new(&device, 1, "grid_max_y readback", BufferUsages::COPY_DST | BufferUsages::MAP_READ);
-            grid_max_y_readback.copy(0..1, &grid_max_y, 0..1, &mut encoder);
-
-            let grid_size_readback: TypedBuffer<GridSize> =
-                TypedBuffer::new(&device, 1, "grid_size readback", BufferUsages::COPY_DST | BufferUsages::MAP_READ);
-            grid_size_readback.copy(0..1, &grid_size, 0..1, &mut encoder);
-
-            let current_cell_offset_readback: TypedBuffer<u32> = TypedBuffer::new(
-                &device,
-                1,
-                "current_cell_offset readback",
-                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            );
-            current_cell_offset_readback.copy(0..1, &current_cell_offset, 0..1, &mut encoder);
-
-            let object_cells_readback: TypedBuffer<CellPosition> =
-                TypedBuffer::new(&device, 3, "object_cells readback", BufferUsages::COPY_DST | BufferUsages::MAP_READ);
-            object_cells_readback.copy(0..3, &object_cells, 0..3, &mut encoder);
-
             // Submit work
 
             let start = Instant::now();
@@ -858,41 +815,6 @@ fn spawn_simulation_thread(
                 std::io::stdout().flush().unwrap();
                 std::process::exit(1);
             }
-
-            // Debug
-
-            candidate_count_readback
-                .read(1, |candidate_count| println!("candidate_count: {:?}", candidate_count.unwrap()[0]));
-            grid_min_x_readback.read(1, move |grid_min_x| {
-                let grid_min_x = grid_min_x.unwrap()[0];
-                grid_min_y_readback.read(1, move |grid_min_y| {
-                    let grid_min_y = grid_min_y.unwrap()[0];
-                    grid_max_x_readback.read(1, move |grid_max_x| {
-                        let grid_max_x = grid_max_x.unwrap()[0];
-                        grid_max_y_readback.read(1, move |grid_max_y| {
-                            let grid_max_y = grid_max_y.unwrap()[0];
-                            fn ordered_u32_to_float(x: i32) -> f32 {
-                                x as f32 / 1000.0
-                            }
-                            let grid_min_x = ordered_u32_to_float(grid_min_x);
-                            let grid_min_y = ordered_u32_to_float(grid_min_y);
-                            let grid_max_x = ordered_u32_to_float(grid_max_x);
-                            let grid_max_y = ordered_u32_to_float(grid_max_y);
-                            println!("grid_min: ({grid_min_x}, {grid_min_y})");
-                            println!("grid_max: ({grid_max_x}, {grid_max_y})");
-                        });
-                    })
-                })
-            });
-            grid_size_readback.read(1, |grid_size| println!("grid_size: {:?}", grid_size.unwrap()[0]));
-            current_cell_offset_readback.read(1, |current_cell_offset| {
-                let current_cell_offset = current_cell_offset.unwrap()[0];
-                println!("current_cell_offset: {current_cell_offset}");
-            });
-            object_cells_readback.read(3, |object_cells| {
-                let object_cells = object_cells.unwrap();
-                println!("object_cells: {object_cells:?}");
-            });
         }
     });
 }

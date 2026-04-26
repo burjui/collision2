@@ -25,8 +25,8 @@ fn broad_phase_bvh(
     @builtin(num_workgroups) nwg: vec3u,
     @builtin(local_invocation_index) local_invocation_index: u32,
 ) {
-    let i = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
-    if i >= object_count || (flags[i].inner & FLAG_PHYSICAL) == 0 {
+    let object_index = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
+    if object_index >= object_count || (flags[object_index].inner & FLAG_PHYSICAL) == 0 {
         return;
     }
 
@@ -44,7 +44,7 @@ fn broad_phase_bvh(
     stack[sp] = arrayLength(&nodes) - 1; // root
     sp++;
 
-    let aabb = aabbs[i];
+    let aabb = aabbs[object_index];
 
     while sp > 0 {
         let node_index = stack[sp - 1];
@@ -65,10 +65,10 @@ fn broad_phase_bvh(
             stack[sp] = child;
             stack[sp + 1] = child + 1;
             sp += 2;
-        } else if other_index > i && (flags[other_index].inner & FLAG_PHYSICAL) != 0 {
+        } else if other_index > object_index && (flags[other_index].inner & FLAG_PHYSICAL) != 0 {
             let candidates_index = atomicAdd(&wg_candidate_count, 1);
             if candidates_index < MAX_WG_CANDIDATES {
-                wg_candidates[candidates_index] = CollisionCandidate(i, other_index);
+                wg_candidates[candidates_index] = CollisionCandidate(object_index, other_index);
             }
         }
     }

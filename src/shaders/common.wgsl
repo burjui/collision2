@@ -76,19 +76,9 @@ const BVH_NODE_TREE_FLAG: u32 = 1 << 31;
 
 const MAX_DISPATCH_DIMENSION: u32 = 65535;
 
-const INFINITY: f32 = 1e9;
-
 // TODO: replace with global_invocation_index when supported
 fn flat_invocation_index(gid: vec3u, nwg: vec3u, workgroup_size: u32) -> u32 {
     return gid.x +
           (gid.y * workgroup_size * nwg.x) +
           (gid.z * workgroup_size * nwg.x * workgroup_size * nwg.y);
-}
-
-fn f32_to_i32(x: f32) -> i32 {
-    return i32(x * 1000);
-}
-
-fn i32_to_f32(x: i32) -> f32 {
-    return f32(x) / 1000;
 }

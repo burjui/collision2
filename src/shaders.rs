@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 84c128abe6582094c91fd4206576ab5044b0819e5929b1ab616af9a5d006fe67
+// SourceHash: e93a9f6bb4efe546195a94243634902b9de0298ff610855e776fa004f7ee154f
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -181,7 +181,6 @@ pub mod common {
     pub const MAX_OBJECTS_PER_CELL: u32 = 4u32;
     pub const BVH_NODE_TREE_FLAG: u32 = 2147483648u32;
     pub const MAX_DISPATCH_DIMENSION: u32 = 65535u32;
-    pub const INFINITY: f32 = 1000000000f32;
     #[repr(C, align(16))]
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub struct Camera {
@@ -435,18 +434,9 @@ const MAX_CANDIDATES_PER_OBJECT: u32 = 16u;
 const MAX_OBJECTS_PER_CELL: u32 = 4u;
 const BVH_NODE_TREE_FLAG: u32 = 2147483648u;
 const MAX_DISPATCH_DIMENSION: u32 = 65535u;
-const INFINITY: f32 = 1000000000f;
 
 fn flat_invocation_index(gid: vec3<u32>, nwg: vec3<u32>, workgroup_size: u32) -> u32 {
     return ((gid.x + ((gid.y * workgroup_size) * nwg.x)) + ((((gid.z * workgroup_size) * nwg.x) * workgroup_size) * nwg.y));
-}
-
-fn f32_to_i32_(x: f32) -> i32 {
-    return i32((x * 1000f));
-}
-
-fn i32_to_f32_(x_1: i32) -> f32 {
-    return (f32(x_1) / 1000f);
 }
 
 "#;
@@ -1636,7 +1626,7 @@ pub mod reset_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -1647,7 +1637,7 @@ pub mod reset_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -1658,7 +1648,7 @@ pub mod reset_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -1669,7 +1659,7 @@ pub mod reset_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -1737,32 +1727,24 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
 @group(0) @binding(0) 
 var<uniform> first_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(1) 
-var<storage, read_write> grid_min_x: i32;
+var<storage, read_write> grid_min_x: u32;
 @group(0) @binding(2) 
-var<storage, read_write> grid_min_y: i32;
+var<storage, read_write> grid_min_y: u32;
 @group(0) @binding(3) 
-var<storage, read_write> grid_max_x: i32;
+var<storage, read_write> grid_max_x: u32;
 @group(0) @binding(4) 
-var<storage, read_write> grid_max_y: i32;
-
-fn f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(x: f32) -> i32 {
-    return i32((x * 1000f));
-}
+var<storage, read_write> grid_max_y: u32;
 
 @compute @workgroup_size(1, 1, 1) 
 fn reset_grid_aabb() {
     let _e3 = first_aabb.min.x;
-    let _e4 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(_e3);
-    grid_min_x = _e4;
+    grid_min_x = bitcast<u32>(_e3);
     let _e9 = first_aabb.min.y;
-    let _e10 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(_e9);
-    grid_min_y = _e10;
+    grid_min_y = bitcast<u32>(_e9);
     let _e15 = first_aabb.max.x;
-    let _e16 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(_e15);
-    grid_max_x = _e16;
+    grid_max_x = bitcast<u32>(_e15);
     let _e21 = first_aabb.max.y;
-    let _e22 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(_e21);
-    grid_max_y = _e22;
+    grid_max_y = bitcast<u32>(_e21);
     return;
 }
 "#;
@@ -1865,7 +1847,7 @@ pub mod calculate_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -1876,7 +1858,7 @@ pub mod calculate_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -1887,7 +1869,7 @@ pub mod calculate_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -1898,7 +1880,7 @@ pub mod calculate_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -2028,19 +2010,18 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
     max: vec2<f32>,
 }
 
-const INFINITYX_naga_oil_mod_XMNXW23LPNYX: f32 = 1000000000f;
 const WORKGROUP_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
-var<storage, read_write> grid_min_x: atomic<i32>;
+var<storage, read_write> grid_min_x: atomic<u32>;
 @group(0) @binding(2) 
-var<storage, read_write> grid_min_y: atomic<i32>;
+var<storage, read_write> grid_min_y: atomic<u32>;
 @group(0) @binding(3) 
-var<storage, read_write> grid_max_x: atomic<i32>;
+var<storage, read_write> grid_max_x: atomic<u32>;
 @group(0) @binding(4) 
-var<storage, read_write> grid_max_y: atomic<i32>;
+var<storage, read_write> grid_max_y: atomic<u32>;
 @group(1) @binding(0) 
 var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
@@ -2048,30 +2029,105 @@ fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec
     return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
 }
 
-fn f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(x: f32) -> i32 {
-    return i32((x * 1000f));
+fn atomicGridMinX(value: f32) {
+    var old: u32;
+
+    let _e1 = atomicLoad((&grid_min_x));
+    old = _e1;
+    loop {
+        let _e3 = old;
+        let old_f32_ = bitcast<f32>(_e3);
+        let new_f32_ = min(old_f32_, value);
+        let new_value = bitcast<u32>(new_f32_);
+        let _e8 = old;
+        let _e10 = atomicCompareExchangeWeak((&grid_min_x), _e8, new_value);
+        if _e10.exchanged {
+            break;
+        }
+        old = _e10.old_value;
+    }
+    return;
+}
+
+fn atomicGridMinY(value_1: f32) {
+    var old_1: u32;
+
+    let _e1 = atomicLoad((&grid_min_y));
+    old_1 = _e1;
+    loop {
+        let _e3 = old_1;
+        let old_f32_1 = bitcast<f32>(_e3);
+        let new_f32_1 = min(old_f32_1, value_1);
+        let new_value_1 = bitcast<u32>(new_f32_1);
+        let _e8 = old_1;
+        let _e10 = atomicCompareExchangeWeak((&grid_min_y), _e8, new_value_1);
+        if _e10.exchanged {
+            break;
+        }
+        old_1 = _e10.old_value;
+    }
+    return;
+}
+
+fn atomicGridMaxX(value_2: f32) {
+    var old_2: u32;
+
+    let _e1 = atomicLoad((&grid_max_x));
+    old_2 = _e1;
+    loop {
+        let _e3 = old_2;
+        let old_f32_2 = bitcast<f32>(_e3);
+        let new_f32_2 = max(old_f32_2, value_2);
+        let new_value_2 = bitcast<u32>(new_f32_2);
+        let _e8 = old_2;
+        let _e10 = atomicCompareExchangeWeak((&grid_max_x), _e8, new_value_2);
+        if _e10.exchanged {
+            break;
+        }
+        old_2 = _e10.old_value;
+    }
+    return;
+}
+
+fn atomicGridMaxY(value_3: f32) {
+    var old_3: u32;
+
+    let _e1 = atomicLoad((&grid_max_y));
+    old_3 = _e1;
+    loop {
+        let _e3 = old_3;
+        let old_f32_3 = bitcast<f32>(_e3);
+        let new_f32_3 = max(old_f32_3, value_3);
+        let new_value_3 = bitcast<u32>(new_f32_3);
+        let _e8 = old_3;
+        let _e10 = atomicCompareExchangeWeak((&grid_max_y), _e8, new_value_3);
+        if _e10.exchanged {
+            break;
+        }
+        old_3 = _e10.old_value;
+    }
+    return;
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn calculate_grid_aabb(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
+fn calculate_grid_aabb(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(subgroup_invocation_id) sid: u32) {
     let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
     let _e5 = object_count;
-    let i_is_valid = (_e3 < _e5);
-    let i = select(0u, _e3, i_is_valid);
-    let aabb = aabbs[i];
-    let masked_min_x = select(INFINITYX_naga_oil_mod_XMNXW23LPNYX, aabb.min.x, i_is_valid);
-    let masked_min_y = select(INFINITYX_naga_oil_mod_XMNXW23LPNYX, aabb.min.y, i_is_valid);
-    let masked_max_x = select(-1000000000f, aabb.max.x, i_is_valid);
-    let masked_max_y = select(-1000000000f, aabb.max.y, i_is_valid);
-    let _e28 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(masked_min_x);
-    let _e30 = atomicMin((&grid_min_x), _e28);
-    let _e31 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(masked_min_y);
-    let _e33 = atomicMin((&grid_min_y), _e31);
-    let _e34 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(masked_max_x);
-    let _e36 = atomicMax((&grid_max_x), _e34);
-    let _e37 = f32_to_i32X_naga_oil_mod_XMNXW23LPNYX(masked_max_y);
-    let _e39 = atomicMax((&grid_max_y), _e37);
-    return;
+    let object_index = select(0u, _e3, (_e3 < _e5));
+    let aabb = aabbs[object_index];
+    let _e14 = subgroupMin(aabb.min.x);
+    let _e17 = subgroupMin(aabb.min.y);
+    let _e20 = subgroupMax(aabb.max.x);
+    let _e23 = subgroupMax(aabb.max.y);
+    if (sid == 0u) {
+        atomicGridMinX(_e14);
+        atomicGridMinY(_e17);
+        atomicGridMaxX(_e20);
+        atomicGridMaxY(_e23);
+        return;
+    } else {
+        return;
+    }
 }
 "#;
 }
@@ -2168,7 +2224,7 @@ pub mod calculate_grid_size {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -2179,7 +2235,7 @@ pub mod calculate_grid_size {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -2190,7 +2246,7 @@ pub mod calculate_grid_size {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -2201,7 +2257,7 @@ pub mod calculate_grid_size {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -2289,34 +2345,26 @@ struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 @group(0) @binding(1) 
-var<uniform> grid_min_x: i32;
+var<uniform> grid_min_x: u32;
 @group(0) @binding(2) 
-var<uniform> grid_min_y: i32;
+var<uniform> grid_min_y: u32;
 @group(0) @binding(3) 
-var<uniform> grid_max_x: i32;
+var<uniform> grid_max_x: u32;
 @group(0) @binding(4) 
-var<uniform> grid_max_y: i32;
+var<uniform> grid_max_y: u32;
 @group(0) @binding(5) 
 var<uniform> cell_size: f32;
 @group(0) @binding(6) 
 var<storage, read_write> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
 
-fn i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(x: i32) -> f32 {
-    return (f32(x) / 1000f);
-}
-
 @compute @workgroup_size(1, 1, 1) 
 fn calculate_grid_size() {
     let _e1 = grid_max_x;
-    let _e2 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e1);
     let _e4 = grid_min_x;
-    let _e5 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e4);
-    let width = (_e2 - _e5);
+    let width = (bitcast<f32>(_e1) - bitcast<f32>(_e4));
     let _e8 = grid_max_y;
-    let _e9 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e8);
     let _e11 = grid_min_y;
-    let _e12 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e11);
-    let height = (_e9 - _e12);
+    let height = (bitcast<f32>(_e8) - bitcast<f32>(_e11));
     let _e15 = cell_size;
     let size_x = max(1u, u32(ceil((width / _e15))));
     let _e22 = cell_size;
@@ -2597,7 +2645,7 @@ pub mod assign_object_cells {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -2608,7 +2656,7 @@ pub mod assign_object_cells {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<i32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
                     },
                     count: None,
                 },
@@ -2797,9 +2845,9 @@ const WORKGROUP_SIZE: u32 = 64u;
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
-var<uniform> grid_min_x: i32;
+var<uniform> grid_min_x: u32;
 @group(0) @binding(2) 
-var<uniform> grid_min_y: i32;
+var<uniform> grid_min_y: u32;
 @group(0) @binding(3) 
 var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(4) 
@@ -2815,10 +2863,6 @@ fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec
     return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
 }
 
-fn i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(x: i32) -> f32 {
-    return (f32(x) / 1000f);
-}
-
 @compute @workgroup_size(64, 1, 1) 
 fn assign_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
     let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
@@ -2827,14 +2871,14 @@ fn assign_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(n
         return;
     }
     let aabb = aabbs[_e3];
-    let _e18 = grid_min_x;
-    let _e19 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e18);
-    let _e22 = cell_size;
-    let cell_x = u32(max(0f, ((((aabb.min.x + aabb.max.x) / 2f) - _e19) / _e22)));
+    let center_x = ((aabb.min.x + aabb.max.x) / 2f);
+    let center_y = ((aabb.min.y + aabb.max.y) / 2f);
+    let _e25 = grid_min_x;
+    let _e29 = cell_size;
+    let cell_x = u32(max(0f, ((center_x - bitcast<f32>(_e25)) / _e29)));
     let _e35 = grid_min_y;
-    let _e36 = i32_to_f32X_naga_oil_mod_XMNXW23LPNYX(_e35);
     let _e39 = cell_size;
-    let cell_y = u32(max(0f, ((((aabb.min.y + aabb.max.y) / 2f) - _e36) / _e39)));
+    let cell_y = u32(max(0f, ((center_y - bitcast<f32>(_e35)) / _e39)));
     let _e46 = grid_size.x;
     let cell_index = (cell_x + (cell_y * _e46));
     let _e52 = atomicAdd((&cell_object_count[cell_index]), 1u);
@@ -4447,8 +4491,8 @@ pub mod collision_narrow_phase {
     pub const WORKGROUP_SIZE: u32 = 64u32;
     pub const BATCH_SIZE: u32 = 1u32;
     pub const STIFFNESS: f32 = 100000f32;
-    pub const RESTITUTION: f32 = 0.3f32;
-    pub const GAMMA_COEFF: f32 = 193.04015f32;
+    pub const RESTITUTION: f32 = 0f32;
+    pub const GAMMA_COEFF: f32 = 212.13202f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const NARROW_PHASE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -4763,8 +4807,8 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 const WORKGROUP_SIZE: u32 = 64u;
 const BATCH_SIZE: u32 = 1u;
 const STIFFNESS: f32 = 100000f;
-const RESTITUTION: f32 = 0.3f;
-const GAMMA_COEFF: f32 = 193.04015f;
+const RESTITUTION: f32 = 0f;
+const GAMMA_COEFF: f32 = 212.13202f;
 
 @group(0) @binding(0) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
@@ -4802,7 +4846,7 @@ fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f
     let v_rel = (v1_ - v2_);
     let v_n = dot(v_rel, n);
     let m_eff = ((m1_ * m2_) / (m1_ + m2_));
-    f_damping = (((-193.04015f * sqrt(m_eff)) * min(0f, v_n)) * n);
+    f_damping = (((-212.13202f * sqrt(m_eff)) * min(0f, v_n)) * n);
     let _e54 = f_elastic;
     let _e55 = f_damping;
     return (_e54 + _e55);
@@ -4847,12 +4891,12 @@ fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_work
         }
         {
             let _e11 = batch_i;
-            let i_2 = ((_e4 * BATCH_SIZE) + _e11);
+            let candidate_index = ((_e4 * BATCH_SIZE) + _e11);
             let _e14 = candidate_count;
-            if (i_2 >= _e14) {
+            if (candidate_index >= _e14) {
                 continue;
             }
-            let candidates_1 = candidates[i_2];
+            let candidates_1 = candidates[candidate_index];
             let a = candidates_1.a;
             let b = candidates_1.b;
             let _e23 = aabbs[a];
@@ -5293,6 +5337,7 @@ pub mod integrate {
         pub dt: wgpu::BufferBinding<'a>,
         pub gravitational_constant: wgpu::BufferBinding<'a>,
         pub global_acceleration: wgpu::BufferBinding<'a>,
+        pub object_count: wgpu::BufferBinding<'a>,
         pub masses: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
@@ -5300,6 +5345,7 @@ pub mod integrate {
         pub dt: wgpu::BindGroupEntry<'a>,
         pub gravitational_constant: wgpu::BindGroupEntry<'a>,
         pub global_acceleration: wgpu::BindGroupEntry<'a>,
+        pub object_count: wgpu::BindGroupEntry<'a>,
         pub masses: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
@@ -5317,17 +5363,22 @@ pub mod integrate {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.global_acceleration),
                 },
-                masses: wgpu::BindGroupEntry {
+                object_count: wgpu::BindGroupEntry {
                     binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.object_count),
+                },
+                masses: wgpu::BindGroupEntry {
+                    binding: 4,
                     resource: wgpu::BindingResource::Buffer(params.masses),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
             [
                 self.dt,
                 self.gravitational_constant,
                 self.global_acceleration,
+                self.object_count,
                 self.masses,
             ]
         }
@@ -5374,9 +5425,20 @@ pub mod integrate {
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"masses\""]
+                #[doc = " @binding(3): \"object_count\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(4): \"masses\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -5821,6 +5883,8 @@ var<uniform> gravitational_constant: f32;
 @group(0) @binding(2) 
 var<uniform> global_acceleration: vec2<f32>;
 @group(0) @binding(3) 
+var<uniform> object_count: u32;
+@group(0) @binding(4) 
 var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(0) 
 var<uniform> blackhole_count: u32;
@@ -5931,7 +5995,8 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
     var new_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX;
 
     let _e4 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    if (_e4 >= arrayLength((&masses))) {
+    let _e6 = object_count;
+    if (_e4 >= _e6) {
         return;
     }
     let aabb_2 = aabbs[_e4];

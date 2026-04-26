@@ -43,6 +43,7 @@ impl Integrator {
     pub fn new(
         device: &Device,
         object_count: usize,
+        object_count_buffer: TypedBuffer<u32>,
         dt: TypedBuffer<f32>,
         masses: TypedBuffer<Mass>,
         collision_forces: TypedBuffer<u32>,
@@ -78,6 +79,7 @@ impl Integrator {
                 dt: dt.buffer().as_entire_buffer_binding(),
                 gravitational_constant: gravitational_constant.buffer().as_entire_buffer_binding(),
                 global_acceleration: global_acceleration.buffer().as_entire_buffer_binding(),
+                object_count: object_count_buffer.buffer().as_entire_buffer_binding(),
                 masses: masses.buffer().as_entire_buffer_binding(),
             }),
         );
