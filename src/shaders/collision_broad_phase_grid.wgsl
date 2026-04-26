@@ -18,23 +18,12 @@ const WORKGROUP_SIZE: u32 = 64;
 @group(1) @binding(1) var<storage, read> aabbs: array<AABB>;
 @group(1) @binding(2) var<storage, read> flags: array<Flags>;
 
-const MAX_WG_CANDIDATES: u32 = WORKGROUP_SIZE * MAX_CANDIDATES_PER_OBJECT;
-
-var<workgroup> wg_candidate_count: atomic<u32>;
-var<workgroup> wg_candidates: array<CollisionCandidate, MAX_WG_CANDIDATES>;
-
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn broad_phase_grid(
     @builtin(global_invocation_id) gid: vec3u,
     @builtin(num_workgroups) nwg: vec3u,
     @builtin(local_invocation_index) local_invocation_index: u32
 ) {
-    if local_invocation_index == 0 {
-        atomicStore(&wg_candidate_count, 0);
-    }
-
-    workgroupBarrier();
-
     let object_index = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
     if object_index >= object_count || (flags[object_index].inner & FLAG_PHYSICAL) == 0 {
         return;
@@ -70,23 +59,11 @@ fn broad_phase_grid(
                 if !aabb_overlaps(aabb, object_aabb) {
                     continue;
                 }
-                let candidates_index = atomicAdd(&wg_candidate_count, 1);
-                if candidates_index >= MAX_WG_CANDIDATES {
-                    continue;
+                let candidates_index = atomicAdd(&candidate_count, 1);
+                if candidates_index >= max_candidates {
+                    return;
                 }
-                wg_candidates[candidates_index] = CollisionCandidate(object_index, other_object_index);
-            }
-        }
-    }
-
-    workgroupBarrier();
-
-    if local_invocation_index == 0 {
-        let count = atomicLoad(&wg_candidate_count);
-        let base = atomicAdd(&candidate_count, count);
-        for (var j = 0u; j < count; j++) {
-            if base + j < max_candidates {
-                candidates[base + j] = wg_candidates[j];
+                candidates[candidates_index] = CollisionCandidate(object_index, other_object_index);
             }
         }
     }

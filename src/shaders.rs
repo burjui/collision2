@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: e93a9f6bb4efe546195a94243634902b9de0298ff610855e776fa004f7ee154f
+// SourceHash: 8e4af21bf262e3ffce3186df871b1b2c9a90c939d849f6f772fa095ddbee666d
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -3492,7 +3492,6 @@ fn populate_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin
 pub mod collision_broad_phase_grid {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const MAX_WG_CANDIDATES: u32 = 1024u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const BROAD_PHASE_GRID_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -3844,7 +3843,6 @@ struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 const WORKGROUP_SIZE: u32 = 64u;
-const MAX_WG_CANDIDATES: u32 = 1024u;
 
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
@@ -3866,8 +3864,6 @@ var<storage, read_write> candidate_count: atomic<u32>;
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(2) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-var<workgroup> wg_candidate_count: atomic<u32>;
-var<workgroup> wg_candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX, 1024>;
 
 fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
     return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
@@ -3905,54 +3901,49 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_
     var i: u32;
     var j: u32;
     var k: u32;
-    var j_1: u32 = 0u;
 
-    if (local_invocation_index == 0u) {
-        atomicStore((&wg_candidate_count), 0u);
-    }
-    workgroupBarrier();
-    let _e9 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let _e11 = object_count;
-    if !((_e9 >= _e11)) {
-        let _e17 = flags[_e9].inner;
-        local = ((_e17 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u);
+    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
+    let _e5 = object_count;
+    if !((_e3 >= _e5)) {
+        let _e11 = flags[_e3].inner;
+        local = ((_e11 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u);
     } else {
         local = true;
     }
-    let _e25 = local;
-    if _e25 {
+    let _e19 = local;
+    if _e19 {
         return;
     }
-    let cell = object_cells[_e9].cell;
+    let cell = object_cells[_e3].cell;
     let can_decrement = vec2<bool>((cell.x > 0u), (cell.y > 0u));
     let min_cell = select(cell, (cell - vec2<u32>(1u, 1u)), can_decrement);
-    let _e47 = grid_size.x;
-    let _e54 = grid_size.y;
-    let can_increment = vec2<bool>(((cell.x + 1u) < _e47), ((cell.y + 1u) < _e54));
+    let _e41 = grid_size.x;
+    let _e48 = grid_size.y;
+    let can_increment = vec2<bool>(((cell.x + 1u) < _e41), ((cell.y + 1u) < _e48));
     let max_cell = select(cell, (cell + vec2<u32>(1u, 1u)), can_increment);
-    let aabb = aabbs[_e9];
-    let _e66 = object_count;
-    let max_candidates = (_e66 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
+    let aabb = aabbs[_e3];
+    let _e60 = object_count;
+    let max_candidates = (_e60 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
     i = min_cell.x;
     loop {
-        let _e71 = i;
-        if (_e71 <= max_cell.x) {
+        let _e65 = i;
+        if (_e65 <= max_cell.x) {
         } else {
             break;
         }
         {
             j = min_cell.y;
             loop {
-                let _e76 = j;
-                if (_e76 <= max_cell.y) {
+                let _e70 = j;
+                if (_e70 <= max_cell.y) {
                 } else {
                     break;
                 }
                 {
-                    let _e79 = i;
-                    let _e80 = j;
-                    let _e83 = grid_size.x;
-                    let cell_index = (_e79 + (_e80 * _e83));
+                    let _e73 = i;
+                    let _e74 = j;
+                    let _e77 = grid_size.x;
+                    let cell_index = (_e73 + (_e74 * _e77));
                     let object_count_1 = cell_object_count[cell_index];
                     if (object_count_1 == 0u) {
                         continue;
@@ -3960,77 +3951,50 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_
                     let cell_offset = cell_offsets[cell_index];
                     k = 0u;
                     loop {
-                        let _e96 = k;
-                        if (_e96 < object_count_1) {
+                        let _e90 = k;
+                        if (_e90 < object_count_1) {
                         } else {
                             break;
                         }
                         {
-                            let _e99 = k;
-                            let other_object_index = cells[(cell_offset + _e99)];
-                            if (other_object_index >= _e9) {
+                            let _e93 = k;
+                            let other_object_index = cells[(cell_offset + _e93)];
+                            if (other_object_index >= _e3) {
                                 continue;
                             }
-                            let _e107 = flags[other_object_index].inner;
-                            if ((_e107 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+                            let _e101 = flags[other_object_index].inner;
+                            if ((_e101 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
                                 continue;
                             }
                             let object_aabb = aabbs[other_object_index];
-                            let _e115 = aabb_overlaps(aabb, object_aabb);
-                            if !(_e115) {
+                            let _e109 = aabb_overlaps(aabb, object_aabb);
+                            if !(_e109) {
                                 continue;
                             }
-                            let _e119 = atomicAdd((&wg_candidate_count), 1u);
-                            if (_e119 >= MAX_WG_CANDIDATES) {
-                                continue;
+                            let _e113 = atomicAdd((&candidate_count), 1u);
+                            if (_e113 >= max_candidates) {
+                                return;
                             }
-                            wg_candidates[_e119] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(_e9, other_object_index);
+                            candidates[_e113] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(_e3, other_object_index);
                         }
                         continuing {
-                            let _e126 = k;
-                            k = (_e126 + 1u);
+                            let _e119 = k;
+                            k = (_e119 + 1u);
                         }
                     }
                 }
                 continuing {
-                    let _e129 = j;
-                    j = (_e129 + 1u);
+                    let _e122 = j;
+                    j = (_e122 + 1u);
                 }
             }
         }
         continuing {
-            let _e132 = i;
-            i = (_e132 + 1u);
+            let _e125 = i;
+            i = (_e125 + 1u);
         }
     }
-    workgroupBarrier();
-    if (local_invocation_index == 0u) {
-        let count = atomicLoad((&wg_candidate_count));
-        let _e139 = atomicAdd((&candidate_count), count);
-        loop {
-            let _e141 = j_1;
-            if (_e141 < count) {
-            } else {
-                break;
-            }
-            {
-                let _e143 = j_1;
-                if ((_e139 + _e143) < max_candidates) {
-                    let _e147 = j_1;
-                    let _e151 = j_1;
-                    let _e153 = wg_candidates[_e151];
-                    candidates[(_e139 + _e147)] = _e153;
-                }
-            }
-            continuing {
-                let _e155 = j_1;
-                j_1 = (_e155 + 1u);
-            }
-        }
-        return;
-    } else {
-        return;
-    }
+    return;
 }
 "#;
 }
