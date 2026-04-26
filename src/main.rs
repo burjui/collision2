@@ -145,6 +145,7 @@ struct SimState<'a> {
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     exit_requested: Arc<AtomicBool>,
     prioritize_compute: Arc<AtomicBool>,
+    use_grid_broad_phase: Arc<AtomicBool>,
 
     window: Arc<Window>,
     surface: wgpu::Surface<'a>,
@@ -199,6 +200,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), node_count);
         let exit_requested = Arc::new(AtomicBool::new(false));
         let prioritize_compute = Arc::new(AtomicBool::new(true));
+        let use_grid_broad_phase = Arc::new(AtomicBool::new(true));
 
         spawn_simulation_thread(
             device.clone(),
@@ -211,6 +213,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             bvh_build_params,
             exit_requested.clone(),
             prioritize_compute.clone(),
+            use_grid_broad_phase.clone(),
             self.event_loop_proxy.clone(),
         );
 
@@ -236,6 +239,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             phase_state_ring,
             exit_requested,
             prioritize_compute,
+            use_grid_broad_phase,
 
             window,
             surface,
@@ -292,6 +296,12 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::KeyC) => {
                 if let Some(state) = &self.sim_state {
                     state.prioritize_compute.fetch_not(Ordering::SeqCst);
+                }
+            }
+
+            WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::KeyG) => {
+                if let Some(state) = &self.sim_state {
+                    state.use_grid_broad_phase.fetch_not(Ordering::SeqCst);
                 }
             }
 
@@ -493,10 +503,11 @@ fn spawn_simulation_thread(
     bvh_build_params: BvhBuildParameters,
     exit_requested: Arc<AtomicBool>,
     prioritize_compute: Arc<AtomicBool>,
+    use_grid_broad_phase: Arc<AtomicBool>,
     event_loop_proxy: EventLoopProxy<AppEvent>,
 ) {
     thread::spawn({
-        const DT: f32 = 0.001;
+        const DT: f32 = 0.002;
         const MAX_SIM_TIME: Option<f32> = None;
 
         let dt = TypedBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
@@ -561,7 +572,7 @@ fn spawn_simulation_thread(
         );
         let object_cells: TypedBuffer<CellPosition> =
             TypedBuffer::new(&device, object_count, "object cells", BufferUsages::STORAGE | BufferUsages::COPY_SRC);
-        let max_cells = object_count * 10;
+        let max_cells = object_count * 10; // TODO: calculate properly
         let cell_object_count: TypedBuffer<u32> = TypedBuffer::new(
             &device,
             max_cells,
@@ -720,10 +731,13 @@ fn spawn_simulation_thread(
             phase_state_ring_guard.advance_compute();
             drop(phase_state_ring_guard);
 
-            calculate_grid_aabb.prepare(&device, phase_state_index, &current_phase_state);
-            assign_object_cells.prepare(&device, phase_state_index, &current_phase_state);
-            // bvh_builder.prepare(&device, phase_state_index, &current_phase_state);
-            // broad_phase_bvh.prepare(&device, phase_state_index, &current_phase_state);
+            if use_grid_broad_phase.load(Ordering::Relaxed) {
+                calculate_grid_aabb.prepare(&device, phase_state_index, &current_phase_state);
+                assign_object_cells.prepare(&device, phase_state_index, &current_phase_state);
+            } else {
+                bvh_builder.prepare(&device, phase_state_index, &current_phase_state);
+                broad_phase_bvh.prepare(&device, phase_state_index, &current_phase_state);
+            }
             broad_phase_grid.prepare(&device, phase_state_index, &current_phase_state);
             narrow_phase.prepare(&device, phase_state_index, &current_phase_state);
             integrator.prepare(&device, phase_state_index, &current_phase_state, &next_phase_state);
@@ -748,10 +762,12 @@ fn spawn_simulation_thread(
             populate_grid_cells.compute(&mut compute_pass);
 
             candidate_count.write(&queue, &[0]);
-
-            // bvh_builder.compute(&mut compute_pass);
-            // broad_phase_bvh.compute(&queue, &mut compute_pass);
-            broad_phase_grid.compute(&mut compute_pass);
+            if use_grid_broad_phase.load(Ordering::Relaxed) {
+                broad_phase_grid.compute(&mut compute_pass);
+            } else {
+                bvh_builder.compute(&mut compute_pass);
+                broad_phase_bvh.compute(&queue, &mut compute_pass);
+            }
 
             narrow_phase_dispatch_dimensions_calculator.compute(&mut compute_pass);
             collision_reset.compute(&mut compute_pass);
