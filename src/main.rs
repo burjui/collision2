@@ -675,9 +675,9 @@ fn spawn_simulation_thread(
             candidate_count.clone(),
         );
 
-        let narrow_phase_dispatch_dimensions = TypedBuffer::from_data(
+        let narrow_phase_dispatch_dimensions = TypedBuffer::new(
             &device,
-            &[DispatchIndirectArgs::new(0, 0, 0)],
+            1,
             "narrow phase dispatch dimensions",
             BufferUsages::STORAGE | BufferUsages::INDIRECT | BufferUsages::COPY_SRC,
         );

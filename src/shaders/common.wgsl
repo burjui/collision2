@@ -55,7 +55,6 @@ struct CellPosition {
     offset: u32
 }
 
-
 const UNIT_QUAD_VERTICES = array<vec2f, 6>(
     vec2f(0.5, 0.5),
     vec2f(-0.5, 0.5),

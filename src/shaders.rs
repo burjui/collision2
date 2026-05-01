@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 8e4af21bf262e3ffce3186df871b1b2c9a90c939d849f6f772fa095ddbee666d
+// SourceHash: 0e092558616eaf06a790673368d9d0710a5803f4bb6599cf6882760a828d3783
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -2376,7 +2376,6 @@ fn calculate_grid_size() {
 }
 pub mod reset_cell_object_count {
     use super::{_root, _root::*};
-    pub const WORKGROUP_SIZE: u32 = 1u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const RESET_CELL_OBJECT_COUNT_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
@@ -2512,8 +2511,6 @@ struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
     x: u32,
     y: u32,
 }
-
-const WORKGROUP_SIZE: u32 = 1u;
 
 @group(0) @binding(0) 
 var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
@@ -3051,7 +3048,6 @@ fn calculate_cell_iteration_dispatch_dimensions() {
 }
 pub mod calculate_cell_offsets {
     use super::{_root, _root::*};
-    pub const WORKGROUP_SIZE: u32 = 1u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CALCULATE_CELL_OFFSETS_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
@@ -3226,8 +3222,6 @@ struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
     x: u32,
     y: u32,
 }
-
-const WORKGROUP_SIZE: u32 = 1u;
 
 @group(0) @binding(0) 
 var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
