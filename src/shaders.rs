@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 279e3c1ace82459619dd1c41c9db5c841755e0b9710515006733e89555122692
+// SourceHash: b33e5ccf55ff6559dabbd6e1328dafce78cb1fb28133962725c7564d880dc9c3
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -10,7 +10,6 @@ pub enum ShaderEntry {
     Common,
     RenderShape,
     RenderAabb,
-    BuildBvh,
     ResetGridAabb,
     CalculateGridAabb,
     CalculateGridSize,
@@ -20,7 +19,6 @@ pub enum ShaderEntry {
     CalculateCellOffsets,
     PopulateGridCells,
     CollisionBroadPhaseGrid,
-    CollisionBroadPhaseBvh,
     CollisionNarrowPhaseDispatchDimensions,
     CollisionForcesReset,
     CollisionNarrowPhase,
@@ -32,7 +30,6 @@ impl ShaderEntry {
             Self::Common => common::create_pipeline_layout(device),
             Self::RenderShape => render_shape::create_pipeline_layout(device),
             Self::RenderAabb => render_aabb::create_pipeline_layout(device),
-            Self::BuildBvh => build_bvh::create_pipeline_layout(device),
             Self::ResetGridAabb => reset_grid_aabb::create_pipeline_layout(device),
             Self::CalculateGridAabb => calculate_grid_aabb::create_pipeline_layout(device),
             Self::CalculateGridSize => calculate_grid_size::create_pipeline_layout(device),
@@ -44,7 +41,6 @@ impl ShaderEntry {
             Self::CalculateCellOffsets => calculate_cell_offsets::create_pipeline_layout(device),
             Self::PopulateGridCells => populate_grid_cells::create_pipeline_layout(device),
             Self::CollisionBroadPhaseGrid => collision_broad_phase_grid::create_pipeline_layout(device),
-            Self::CollisionBroadPhaseBvh => collision_broad_phase_bvh::create_pipeline_layout(device),
             Self::CollisionNarrowPhaseDispatchDimensions => {
                 collision_narrow_phase_dispatch_dimensions::create_pipeline_layout(device)
             }
@@ -58,7 +54,6 @@ impl ShaderEntry {
             Self::Common => common::create_shader_module_embed_source(device),
             Self::RenderShape => render_shape::create_shader_module_embed_source(device),
             Self::RenderAabb => render_aabb::create_shader_module_embed_source(device),
-            Self::BuildBvh => build_bvh::create_shader_module_embed_source(device),
             Self::ResetGridAabb => reset_grid_aabb::create_shader_module_embed_source(device),
             Self::CalculateGridAabb => calculate_grid_aabb::create_shader_module_embed_source(device),
             Self::CalculateGridSize => calculate_grid_size::create_shader_module_embed_source(device),
@@ -70,7 +65,6 @@ impl ShaderEntry {
             Self::CalculateCellOffsets => calculate_cell_offsets::create_shader_module_embed_source(device),
             Self::PopulateGridCells => populate_grid_cells::create_shader_module_embed_source(device),
             Self::CollisionBroadPhaseGrid => collision_broad_phase_grid::create_shader_module_embed_source(device),
-            Self::CollisionBroadPhaseBvh => collision_broad_phase_bvh::create_shader_module_embed_source(device),
             Self::CollisionNarrowPhaseDispatchDimensions => {
                 collision_narrow_phase_dispatch_dimensions::create_shader_module_embed_source(device)
             }
@@ -133,16 +127,6 @@ pub mod layout_asserts {
         assert!(std::mem::offset_of!(common::AABB, max) == 8);
         assert!(std::mem::size_of::<common::AABB>() == 16);
     };
-    const COMMON_BVH_NODE_ASSERTS: () = {
-        assert!(std::mem::offset_of!(common::BvhNode, index) == 0);
-        assert!(std::mem::size_of::<common::BvhNode>() == 4);
-    };
-    const BUILD_BVH_COMBINE_NODE_PASS_ASSERTS: () = {
-        assert!(std::mem::offset_of!(build_bvh::CombineNodePass, src_start) == 0);
-        assert!(std::mem::offset_of!(build_bvh::CombineNodePass, dst_start) == 4);
-        assert!(std::mem::offset_of!(build_bvh::CombineNodePass, parent_count) == 8);
-        assert!(std::mem::size_of::<build_bvh::CombineNodePass>() == 12);
-    };
     const COMMON_GRID_SIZE_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::GridSize, x) == 0);
         assert!(std::mem::offset_of!(common::GridSize, y) == 4);
@@ -179,7 +163,6 @@ pub mod common {
     pub const FLAG_PHYSICAL: u32 = 4u32;
     pub const MAX_CANDIDATES_PER_OBJECT: u32 = 16u32;
     pub const MAX_OBJECTS_PER_CELL: u32 = 4u32;
-    pub const BVH_NODE_TREE_FLAG: u32 = 2147483648u32;
     pub const MAX_DISPATCH_DIMENSION: u32 = 65535u32;
     #[repr(C, align(16))]
     #[derive(Debug, PartialEq, Clone, Copy)]
@@ -258,17 +241,6 @@ pub mod common {
     impl AABB {
         pub const fn new(min: [f32; 2], max: [f32; 2]) -> Self {
             Self { min, max }
-        }
-    }
-    #[repr(C, align(4))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct BvhNode {
-        #[doc = "offset: 0, size: 4, type: `u32`"]
-        pub index: u32,
-    }
-    impl BvhNode {
-        pub const fn new(index: u32) -> Self {
-            Self { index }
         }
     }
     #[repr(C, align(4))]
@@ -407,10 +379,6 @@ struct DispatchIndirectArgs {
     z: u32,
 }
 
-struct BvhNode {
-    index: u32,
-}
-
 struct CollisionCandidate {
     a: u32,
     b: u32,
@@ -432,7 +400,6 @@ const FLAG_DRAW_AABB: u32 = 2u;
 const FLAG_PHYSICAL: u32 = 4u;
 const MAX_CANDIDATES_PER_OBJECT: u32 = 16u;
 const MAX_OBJECTS_PER_CELL: u32 = 4u;
-const BVH_NODE_TREE_FLAG: u32 = 2147483648u;
 const MAX_DISPATCH_DIMENSION: u32 = 65535u;
 
 fn flat_invocation_index(gid: vec3<u32>, nwg: vec3<u32>, workgroup_size: u32) -> u32 {
@@ -457,10 +424,6 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for common::Shape {}
     unsafe impl bytemuck::Zeroable for common::AABB {}
     unsafe impl bytemuck::Pod for common::AABB {}
-    unsafe impl bytemuck::Zeroable for common::BvhNode {}
-    unsafe impl bytemuck::Pod for common::BvhNode {}
-    unsafe impl bytemuck::Zeroable for build_bvh::CombineNodePass {}
-    unsafe impl bytemuck::Pod for build_bvh::CombineNodePass {}
     unsafe impl bytemuck::Zeroable for common::GridSize {}
     unsafe impl bytemuck::Pod for common::GridSize {}
     unsafe impl bytemuck::Zeroable for common::CellPosition {}
@@ -1276,256 +1239,6 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     }
     let intensity = min(1f, (length(in.scale) / 2000f));
     return FragmentOutput(vec4<f32>(intensity, intensity, intensity, intensity));
-}
-"#;
-}
-pub mod build_bvh {
-    use super::{_root, _root::*};
-    #[repr(C, align(4))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct CombineNodePass {
-        #[doc = "offset: 0, size: 4, type: `u32`"]
-        pub src_start: u32,
-        #[doc = "offset: 4, size: 4, type: `u32`"]
-        pub dst_start: u32,
-        #[doc = "offset: 8, size: 4, type: `u32`"]
-        pub parent_count: u32,
-    }
-    impl CombineNodePass {
-        pub const fn new(src_start: u32, dst_start: u32, parent_count: u32) -> Self {
-            Self {
-                src_start,
-                dst_start,
-                parent_count,
-            }
-        }
-    }
-    pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub mod compute {
-        use super::{_root, _root::*};
-        pub const COMBINE_NODES_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
-        pub fn create_combine_nodes_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
-            let module = super::create_shader_module_embed_source(device);
-            let layout = super::create_pipeline_layout(device);
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Compute Pipeline combine_nodes"),
-                layout: Some(&layout),
-                module: &module,
-                entry_point: Some("combine_nodes"),
-                compilation_options: Default::default(),
-                cache: None,
-            })
-        }
-    }
-    pub const ENTRY_COMBINE_NODES: &str = "combine_nodes";
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub nodes: wgpu::BufferBinding<'a>,
-    }
-    #[derive(Clone, Debug)]
-    pub struct WgpuBindGroup0Entries<'a> {
-        pub nodes: wgpu::BindGroupEntry<'a>,
-    }
-    impl<'a> WgpuBindGroup0Entries<'a> {
-        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
-            Self {
-                nodes: wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.nodes),
-                },
-            }
-        }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 1] {
-            [self.nodes]
-        }
-        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
-            self.into_array().into_iter().collect()
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0(wgpu::BindGroup);
-    impl WgpuBindGroup0 {
-        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("BuildBvh::BindGroup0::LayoutDescriptor"),
-            entries: &[
-                #[doc = " @binding(0): \"nodes\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        };
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
-            let bind_group_layout = Self::get_bind_group_layout(device);
-            let entries = bindings.into_array();
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("BuildBvh::BindGroup0"),
-                layout: &bind_group_layout,
-                entries: &entries,
-            });
-            Self(bind_group)
-        }
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            pass.set_bind_group(0, &self.0, &[]);
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuBindGroup1EntriesParams<'a> {
-        pub aabbs: wgpu::BufferBinding<'a>,
-    }
-    #[derive(Clone, Debug)]
-    pub struct WgpuBindGroup1Entries<'a> {
-        pub aabbs: wgpu::BindGroupEntry<'a>,
-    }
-    impl<'a> WgpuBindGroup1Entries<'a> {
-        pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
-            Self {
-                aabbs: wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.aabbs),
-                },
-            }
-        }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 1] {
-            [self.aabbs]
-        }
-        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
-            self.into_array().into_iter().collect()
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuBindGroup1(wgpu::BindGroup);
-    impl WgpuBindGroup1 {
-        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("BuildBvh::BindGroup1::LayoutDescriptor"),
-            entries: &[
-                #[doc = " @binding(0): \"aabbs\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        };
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup1Entries) -> Self {
-            let bind_group_layout = Self::get_bind_group_layout(device);
-            let entries = bindings.into_array();
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("BuildBvh::BindGroup1"),
-                layout: &bind_group_layout,
-                entries: &entries,
-            });
-            Self(bind_group)
-        }
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            pass.set_bind_group(1, &self.0, &[]);
-        }
-    }
-    #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
-    #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
-    #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
-    #[doc = "   - Bind group 1: More frequent updates"]
-    #[doc = "   - Bind group 2: More frequent updates"]
-    #[doc = "   - Bind group 3: Most frequent updates (e.g. per draw resources)"]
-    #[derive(Debug, Copy, Clone)]
-    pub struct WgpuBindGroups<'a> {
-        pub bind_group0: &'a WgpuBindGroup0,
-        pub bind_group1: &'a WgpuBindGroup1,
-    }
-    impl<'a> WgpuBindGroups<'a> {
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            self.bind_group0.set(pass);
-            self.bind_group1.set(pass);
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuPipelineLayout;
-    impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 2]) -> [wgpu::BindGroupLayout; 2] {
-            entries
-        }
-    }
-    pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
-        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("BuildBvh::PipelineLayout"),
-            bind_group_layouts: &[
-                Some(&WgpuBindGroup0::get_bind_group_layout(device)),
-                Some(&WgpuBindGroup1::get_bind_group_layout(device)),
-            ],
-            immediate_size: 12u32,
-        })
-    }
-    pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
-        let source = std::borrow::Cow::Borrowed(SHADER_STRING);
-        device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("build_bvh.wgsl"),
-            source: wgpu::ShaderSource::Wgsl(source),
-        })
-    }
-    pub const SHADER_STRING: &str = r#"
-struct AABBX_naga_oil_mod_XMNXW23LPNYX {
-    min: vec2<f32>,
-    max: vec2<f32>,
-}
-
-struct BvhNodeX_naga_oil_mod_XMNXW23LPNYX {
-    index: u32,
-}
-
-struct CombineNodePass {
-    src_start: u32,
-    dst_start: u32,
-    parent_count: u32,
-}
-
-const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
-const WORKGROUP_SIZE: u32 = 64u;
-
-var<immediate> params: CombineNodePass;
-@group(0) @binding(0) 
-var<storage, read_write> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(0) 
-var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-
-fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
-}
-
-@compute @workgroup_size(64, 1, 1) 
-fn combine_nodes(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
-    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let _e6 = params.parent_count;
-    if (_e3 >= _e6) {
-        return;
-    }
-    let _e10 = params.src_start;
-    let src = (_e10 + (_e3 * 2u));
-    let _e16 = params.dst_start;
-    let dst = (_e16 + _e3);
-    nodes[dst] = BvhNodeX_naga_oil_mod_XMNXW23LPNYX((src | BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX));
-    let left_aabb = aabbs[src];
-    let right_aabb = aabbs[(src + 1u)];
-    let aabb_min = min(left_aabb.min, right_aabb.min);
-    let aabb_max = max(left_aabb.max, right_aabb.max);
-    aabbs[dst] = AABBX_naga_oil_mod_XMNXW23LPNYX(aabb_min, aabb_max);
-    return;
 }
 "#;
 }
@@ -3989,458 +3702,6 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_
         }
     }
     return;
-}
-"#;
-}
-pub mod collision_broad_phase_bvh {
-    use super::{_root, _root::*};
-    pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const MAX_WG_CANDIDATES: u32 = 1024u32;
-    pub mod compute {
-        use super::{_root, _root::*};
-        pub const BROAD_PHASE_BVH_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
-        pub fn create_broad_phase_bvh_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
-            let module = super::create_shader_module_embed_source(device);
-            let layout = super::create_pipeline_layout(device);
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Compute Pipeline broad_phase_bvh"),
-                layout: Some(&layout),
-                module: &module,
-                entry_point: Some("broad_phase_bvh"),
-                compilation_options: Default::default(),
-                cache: None,
-            })
-        }
-    }
-    pub const ENTRY_BROAD_PHASE_BVH: &str = "broad_phase_bvh";
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub object_count: wgpu::BufferBinding<'a>,
-        pub max_candidates: wgpu::BufferBinding<'a>,
-        pub candidates: wgpu::BufferBinding<'a>,
-        pub candidate_count: wgpu::BufferBinding<'a>,
-        pub nodes: wgpu::BufferBinding<'a>,
-    }
-    #[derive(Clone, Debug)]
-    pub struct WgpuBindGroup0Entries<'a> {
-        pub object_count: wgpu::BindGroupEntry<'a>,
-        pub max_candidates: wgpu::BindGroupEntry<'a>,
-        pub candidates: wgpu::BindGroupEntry<'a>,
-        pub candidate_count: wgpu::BindGroupEntry<'a>,
-        pub nodes: wgpu::BindGroupEntry<'a>,
-    }
-    impl<'a> WgpuBindGroup0Entries<'a> {
-        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
-            Self {
-                object_count: wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.object_count),
-                },
-                max_candidates: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.max_candidates),
-                },
-                candidates: wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.candidates),
-                },
-                candidate_count: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.candidate_count),
-                },
-                nodes: wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.nodes),
-                },
-            }
-        }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
-            [
-                self.object_count,
-                self.max_candidates,
-                self.candidates,
-                self.candidate_count,
-                self.nodes,
-            ]
-        }
-        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
-            self.into_array().into_iter().collect()
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0(wgpu::BindGroup);
-    impl WgpuBindGroup0 {
-        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("CollisionBroadPhaseBvh::BindGroup0::LayoutDescriptor"),
-            entries: &[
-                #[doc = " @binding(0): \"object_count\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(1): \"max_candidates\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(2): \"candidates\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(3): \"candidate_count\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(4): \"nodes\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        };
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
-            let bind_group_layout = Self::get_bind_group_layout(device);
-            let entries = bindings.into_array();
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("CollisionBroadPhaseBvh::BindGroup0"),
-                layout: &bind_group_layout,
-                entries: &entries,
-            });
-            Self(bind_group)
-        }
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            pass.set_bind_group(0, &self.0, &[]);
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuBindGroup1EntriesParams<'a> {
-        pub aabbs: wgpu::BufferBinding<'a>,
-        pub flags: wgpu::BufferBinding<'a>,
-    }
-    #[derive(Clone, Debug)]
-    pub struct WgpuBindGroup1Entries<'a> {
-        pub aabbs: wgpu::BindGroupEntry<'a>,
-        pub flags: wgpu::BindGroupEntry<'a>,
-    }
-    impl<'a> WgpuBindGroup1Entries<'a> {
-        pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
-            Self {
-                aabbs: wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.aabbs),
-                },
-                flags: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.flags),
-                },
-            }
-        }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
-            [self.aabbs, self.flags]
-        }
-        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
-            self.into_array().into_iter().collect()
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuBindGroup1(wgpu::BindGroup);
-    impl WgpuBindGroup1 {
-        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("CollisionBroadPhaseBvh::BindGroup1::LayoutDescriptor"),
-            entries: &[
-                #[doc = " @binding(0): \"aabbs\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(1): \"flags\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        };
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup1Entries) -> Self {
-            let bind_group_layout = Self::get_bind_group_layout(device);
-            let entries = bindings.into_array();
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("CollisionBroadPhaseBvh::BindGroup1"),
-                layout: &bind_group_layout,
-                entries: &entries,
-            });
-            Self(bind_group)
-        }
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            pass.set_bind_group(1, &self.0, &[]);
-        }
-    }
-    #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
-    #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
-    #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
-    #[doc = "   - Bind group 1: More frequent updates"]
-    #[doc = "   - Bind group 2: More frequent updates"]
-    #[doc = "   - Bind group 3: Most frequent updates (e.g. per draw resources)"]
-    #[derive(Debug, Copy, Clone)]
-    pub struct WgpuBindGroups<'a> {
-        pub bind_group0: &'a WgpuBindGroup0,
-        pub bind_group1: &'a WgpuBindGroup1,
-    }
-    impl<'a> WgpuBindGroups<'a> {
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            self.bind_group0.set(pass);
-            self.bind_group1.set(pass);
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuPipelineLayout;
-    impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 2]) -> [wgpu::BindGroupLayout; 2] {
-            entries
-        }
-    }
-    pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
-        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("CollisionBroadPhaseBvh::PipelineLayout"),
-            bind_group_layouts: &[
-                Some(&WgpuBindGroup0::get_bind_group_layout(device)),
-                Some(&WgpuBindGroup1::get_bind_group_layout(device)),
-            ],
-            immediate_size: 0u32,
-        })
-    }
-    pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
-        let source = std::borrow::Cow::Borrowed(SHADER_STRING);
-        device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("collision_broad_phase_bvh.wgsl"),
-            source: wgpu::ShaderSource::Wgsl(source),
-        })
-    }
-    pub const SHADER_STRING: &str = r#"
-struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
-    inner: u32,
-}
-
-struct AABBX_naga_oil_mod_XMNXW23LPNYX {
-    min: vec2<f32>,
-    max: vec2<f32>,
-}
-
-struct BvhNodeX_naga_oil_mod_XMNXW23LPNYX {
-    index: u32,
-}
-
-struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
-    a: u32,
-    b: u32,
-}
-
-const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
-const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
-const BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX: u32 = 2147483648u;
-const WORKGROUP_SIZE: u32 = 64u;
-const MAX_WG_CANDIDATES: u32 = 1024u;
-
-@group(0) @binding(0) 
-var<uniform> object_count: u32;
-@group(0) @binding(1) 
-var<uniform> max_candidates: u32;
-@group(0) @binding(2) 
-var<storage, read_write> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(3) 
-var<storage, read_write> candidate_count: atomic<u32>;
-@group(0) @binding(4) 
-var<storage> nodes: array<BvhNodeX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(0) 
-var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(1) 
-var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-var<workgroup> wg_candidate_count: atomic<u32>;
-var<workgroup> wg_candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX, 1024>;
-
-fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
-}
-
-fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW23LPNYX) -> bool {
-    var local_2: bool;
-    var local_3: bool;
-    var local_4: bool;
-
-    if (a.min.x < b.max.x) {
-        local_2 = (a.max.x > b.min.x);
-    } else {
-        local_2 = false;
-    }
-    let _e15 = local_2;
-    if _e15 {
-        local_3 = (a.min.y < b.max.y);
-    } else {
-        local_3 = false;
-    }
-    let _e24 = local_3;
-    if _e24 {
-        local_4 = (a.max.y > b.min.y);
-    } else {
-        local_4 = false;
-    }
-    let _e33 = local_4;
-    return _e33;
-}
-
-@compute @workgroup_size(64, 1, 1) 
-fn broad_phase_bvh(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
-    var local: bool;
-    var stack: array<u32, 64>;
-    var sp: u32 = 0u;
-    var local_1: bool;
-    var j: u32 = 0u;
-
-    let _e4 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let _e6 = object_count;
-    if !((_e4 >= _e6)) {
-        let _e12 = flags[_e4].inner;
-        local = ((_e12 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u);
-    } else {
-        local = true;
-    }
-    let _e20 = local;
-    if _e20 {
-        return;
-    }
-    if (local_invocation_index == 0u) {
-        atomicStore((&wg_candidate_count), 0u);
-    }
-    workgroupBarrier();
-    let _e28 = sp;
-    stack[_e28] = (arrayLength((&nodes)) - 1u);
-    let _e35 = sp;
-    sp = (_e35 + 1u);
-    let aabb = aabbs[_e4];
-    loop {
-        let _e40 = sp;
-        if (_e40 > 0u) {
-        } else {
-            break;
-        }
-        {
-            let _e43 = sp;
-            let node_index = stack[(_e43 - 1u)];
-            let _e49 = sp;
-            sp = (_e49 - 1u);
-            let other_aabb = aabbs[node_index];
-            let _e54 = aabb_overlaps(aabb, other_aabb);
-            if !(_e54) {
-                continue;
-            }
-            let other_index = nodes[node_index].index;
-            if ((other_index & BVH_NODE_TREE_FLAGX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
-                let _e64 = sp;
-                if (_e64 >= 62u) {
-                    break;
-                }
-                let child = (other_index & 2147483647u);
-                let _e69 = sp;
-                stack[_e69] = child;
-                let _e71 = sp;
-                stack[(_e71 + 1u)] = (child + 1u);
-                let _e77 = sp;
-                sp = (_e77 + 2u);
-            } else {
-                if (other_index > _e4) {
-                    let _e84 = flags[other_index].inner;
-                    local_1 = ((_e84 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u);
-                } else {
-                    local_1 = false;
-                }
-                let _e92 = local_1;
-                if _e92 {
-                    let _e95 = atomicAdd((&wg_candidate_count), 1u);
-                    if (_e95 < MAX_WG_CANDIDATES) {
-                        wg_candidates[_e95] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(_e4, other_index);
-                    }
-                }
-            }
-        }
-    }
-    workgroupBarrier();
-    if (local_invocation_index == 0u) {
-        let count = atomicLoad((&wg_candidate_count));
-        let _e106 = atomicAdd((&candidate_count), count);
-        loop {
-            let _e108 = j;
-            if (_e108 < count) {
-            } else {
-                break;
-            }
-            {
-                let _e110 = j;
-                let _e113 = max_candidates;
-                if ((_e106 + _e110) < _e113) {
-                    let _e116 = j;
-                    let _e120 = j;
-                    let _e122 = wg_candidates[_e120];
-                    candidates[(_e106 + _e116)] = _e122;
-                }
-            }
-            continuing {
-                let _e124 = j;
-                j = (_e124 + 1u);
-            }
-        }
-        return;
-    } else {
-        return;
-    }
 }
 "#;
 }

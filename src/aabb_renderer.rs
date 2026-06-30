@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub struct AabbRenderer {
-    node_count: u32,
+    n_aabbs: u32,
     pipeline: RenderPipeline,
     main_bind_group: WgpuBindGroup0,
     phase_state_cache: PhaseStateCache<WgpuBindGroup1>,
@@ -29,7 +29,7 @@ impl AabbRenderer {
         device: &Device,
         swapchain_format: TextureFormat,
         camera_buffer: TypedBuffer<Camera>,
-        node_count: usize,
+        n_aabbs: usize,
     ) -> Self {
         let pipeline_layout = create_pipeline_layout(device);
         let shader = create_shader_module_embed_source(device);
@@ -64,7 +64,7 @@ impl AabbRenderer {
         );
         let phase_state_cache = PhaseStateCache::new();
         Self {
-            node_count: u32::try_from(node_count).unwrap(),
+            n_aabbs: u32::try_from(n_aabbs).unwrap(),
             pipeline: render_pipeline,
             main_bind_group,
             phase_state_cache,
@@ -88,6 +88,6 @@ impl AabbRenderer {
         render_pass.set_pipeline(&self.pipeline);
         self.main_bind_group.set(render_pass);
         phase_state_bind_group.set(render_pass);
-        render_pass.draw(0..6, 0..self.node_count);
+        render_pass.draw(0..6, 0..self.n_aabbs);
     }
 }

@@ -2,19 +2,15 @@
 
 pub mod aabb_renderer;
 pub mod assign_object_cells;
-pub mod bvh_builder;
 pub mod calculate_cell_iteration_dispatch_dimensions;
 pub mod calculate_cell_offsets;
 pub mod calculate_grid_aabb;
 pub mod calculate_grid_size;
-pub mod collision_broad_phase_bvh;
 pub mod collision_broad_phase_grid;
 pub mod collision_forces_reset;
 pub mod collision_narrow_phase;
 pub mod collision_narrow_phase_dispatch_dimensions;
 pub mod integrator;
-#[cfg(test)]
-mod mock_bvh_test;
 pub mod objects;
 pub mod phase_state;
 pub mod populate_grid_cells;
@@ -59,12 +55,10 @@ use winit::{
 use crate::{
     aabb_renderer::AabbRenderer,
     assign_object_cells::AssignObjectCells,
-    bvh_builder::{BvhBuildParameters, BvhBuilder},
     calculate_cell_iteration_dispatch_dimensions::CalculateCellIterationDispatchDimensions,
     calculate_cell_offsets::CalculateCellOffsets,
     calculate_grid_aabb::CalculateGridAABB,
     calculate_grid_size::CalculateGridSize,
-    collision_broad_phase_bvh::CollisionBroadPhaseBVH,
     collision_broad_phase_grid::CollisionBroadPhaseGrid,
     collision_forces_reset::CollisionReset,
     collision_narrow_phase::NarrowPhase,
@@ -77,8 +71,7 @@ use crate::{
     reset_grid_aabb::ResetGridAABB,
     scene::{PARTICLE_RADIUS, create_scene},
     shaders::common::{
-        AABB, BvhNode, Camera, CellPosition, DispatchIndirectArgs, GridSize, MAX_CANDIDATES_PER_OBJECT,
-        MAX_OBJECTS_PER_CELL,
+        AABB, Camera, CellPosition, DispatchIndirectArgs, GridSize, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL,
     },
     shape_renderer::ShapeRenderer,
     typed_buffer::TypedBuffer,
@@ -145,7 +138,6 @@ struct SimState<'a> {
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     exit_requested: Arc<AtomicBool>,
     prioritize_compute: Arc<AtomicBool>,
-    use_grid_broad_phase: Arc<AtomicBool>,
 
     window: Arc<Window>,
     surface: wgpu::Surface<'a>,
@@ -173,34 +165,22 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
         let object_count_buffer: TypedBuffer<u32> =
             TypedBuffer::from_data(&device, &[object_count.try_into().unwrap()], "object_count", BufferUsages::UNIFORM);
-        let bvh_build_params = BvhBuildParameters::new(object_count);
         // TODO: don't store leaves
         let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
-
-        let node_count = bvh_build_params.node_count;
-        let nodes = TypedBuffer::new(&device, node_count, "nodes", storage_copy_dst);
-        nodes.write_iter(&queue, (0_u32..).take(object_count).map(BvhNode::new));
 
         let masses = TypedBuffer::from_data(&device, &objects.masses, "masses", storage_copy_dst);
         let colors = TypedBuffer::from_data(&device, &objects.colors, "colors", storage_copy_dst);
         let shapes = TypedBuffer::from_data(&device, &objects.shapes, "shapes", storage_copy_dst);
 
-        let phase_state_ring = Arc::new(Mutex::new(PhaseStateRing::new(
-            &device,
-            &queue,
-            &objects.flags,
-            &objects.aabbs,
-            &objects.velocities,
-            node_count,
-        )));
+        let phase_state_ring =
+            Arc::new(Mutex::new(PhaseStateRing::new(&device, &objects.flags, &objects.aabbs, &objects.velocities)));
 
         let camera = TypedBuffer::<Camera>::new(&device, 1, "camera", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
         let shape_renderer =
             ShapeRenderer::new(&device, swapchain_format, camera.clone(), colors, shapes, masses.clone());
-        let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), node_count);
+        let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), object_count);
         let exit_requested = Arc::new(AtomicBool::new(false));
         let prioritize_compute = Arc::new(AtomicBool::new(true));
-        let use_grid_broad_phase = Arc::new(AtomicBool::new(true));
 
         spawn_simulation_thread(
             device.clone(),
@@ -209,11 +189,8 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             object_count_buffer,
             phase_state_ring.clone(),
             masses,
-            nodes,
-            bvh_build_params,
             exit_requested.clone(),
             prioritize_compute.clone(),
-            use_grid_broad_phase.clone(),
             self.event_loop_proxy.clone(),
         );
 
@@ -239,7 +216,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             phase_state_ring,
             exit_requested,
             prioritize_compute,
-            use_grid_broad_phase,
 
             window,
             surface,
@@ -296,12 +272,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::KeyC) => {
                 if let Some(state) = &self.sim_state {
                     state.prioritize_compute.fetch_not(Ordering::SeqCst);
-                }
-            }
-
-            WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::KeyG) => {
-                if let Some(state) = &self.sim_state {
-                    state.use_grid_broad_phase.fetch_not(Ordering::SeqCst);
                 }
             }
 
@@ -499,11 +469,8 @@ fn spawn_simulation_thread(
     object_count_buffer: TypedBuffer<u32>,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: TypedBuffer<Mass>,
-    nodes: TypedBuffer<BvhNode>,
-    bvh_build_params: BvhBuildParameters,
     exit_requested: Arc<AtomicBool>,
     prioritize_compute: Arc<AtomicBool>,
-    use_grid_broad_phase: Arc<AtomicBool>,
     event_loop_proxy: EventLoopProxy<AppEvent>,
 ) {
     thread::spawn({
@@ -511,8 +478,6 @@ fn spawn_simulation_thread(
         const MAX_SIM_TIME: Option<f32> = None;
 
         let dt = TypedBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
-        let mut bvh_builder = BvhBuilder::new(bvh_build_params.passes, &device, nodes.clone());
-
         let max_candidates_per_object: usize = MAX_CANDIDATES_PER_OBJECT.try_into().unwrap();
         let max_candidates = object_count * max_candidates_per_object;
         let candidates =
@@ -522,14 +487,6 @@ fn spawn_simulation_thread(
             1,
             "candidate_count",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
-        );
-        let mut broad_phase_bvh = CollisionBroadPhaseBVH::new(
-            &device,
-            object_count,
-            object_count_buffer.clone(),
-            candidates.clone(),
-            candidate_count.clone(),
-            nodes.clone(),
         );
 
         let grid_min_x: TypedBuffer<f32> = TypedBuffer::new(
@@ -729,7 +686,7 @@ fn spawn_simulation_thread(
                 last_frame_instant = Instant::now();
             }
 
-            // Set up bvh and integrator buffers, advance the 2-state sliding window that the integrator uses
+            // Set integrator buffers, advance the 2-state sliding window that the integrator uses
 
             let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
             let phase_state_index = phase_state_ring_guard.current_compute_index();
@@ -738,25 +695,17 @@ fn spawn_simulation_thread(
             phase_state_ring_guard.advance_compute();
             drop(phase_state_ring_guard);
 
-            if use_grid_broad_phase.load(Ordering::Relaxed) {
-                calculate_grid_aabb.prepare(&device, phase_state_index, &current_phase_state);
-                assign_object_cells.prepare(&device, phase_state_index, &current_phase_state);
-            } else {
-                bvh_builder.prepare(&device, phase_state_index, &current_phase_state);
-                broad_phase_bvh.prepare(&device, phase_state_index, &current_phase_state);
-            }
+            calculate_grid_aabb.prepare(&device, phase_state_index, &current_phase_state);
+            assign_object_cells.prepare(&device, phase_state_index, &current_phase_state);
             broad_phase_grid.prepare(&device, phase_state_index, &current_phase_state);
             narrow_phase.prepare(&device, phase_state_index, &current_phase_state);
             integrator.prepare(&device, phase_state_index, &current_phase_state, &next_phase_state);
 
-            // Run the bvh builder and the integrator
+            // Run the integrator
 
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
             first_aabb.copy(0..1, current_phase_state.aabbs(), 0..1, &mut encoder);
-            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some("bvh pass"),
-                timestamp_writes: None,
-            });
+            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
 
             reset_grid_aabb.compute(&mut compute_pass);
             calculate_grid_aabb.compute(&mut compute_pass);
@@ -769,12 +718,7 @@ fn spawn_simulation_thread(
             populate_grid_cells.compute(&mut compute_pass);
 
             candidate_count.write(&queue, &[0]);
-            if use_grid_broad_phase.load(Ordering::Relaxed) {
-                broad_phase_grid.compute(&mut compute_pass);
-            } else {
-                bvh_builder.compute(&mut compute_pass);
-                broad_phase_bvh.compute(&queue, &mut compute_pass);
-            }
+            broad_phase_grid.compute(&mut compute_pass);
 
             narrow_phase_dispatch_dimensions_calculator.compute(&mut compute_pass);
             collision_reset.compute(&mut compute_pass);

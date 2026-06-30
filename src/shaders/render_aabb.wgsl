@@ -1,5 +1,3 @@
-// Needs to be a separate shader to render all BVH AABBs
-
 #import common::{ FLAG_DRAW_AABB, Camera, Flags, AABB }
 
 @group(0) @binding(0) var<uniform> camera: Camera;

@@ -35,11 +35,6 @@ struct DispatchIndirectArgs {
     z: u32,
 }
 
-// BVH_NODE_TREE_FLAG set -> tree(index, index + 1), otherwise leaf
-struct BvhNode {
-    index: u32,
-}
-
 struct CollisionCandidate {
     a: u32,
     b: u32,
@@ -70,8 +65,6 @@ const FLAG_PHYSICAL: u32 = 1 << 2;
 
 const MAX_CANDIDATES_PER_OBJECT: u32 = 16;
 const MAX_OBJECTS_PER_CELL: u32 = 4;
-
-const BVH_NODE_TREE_FLAG: u32 = 1 << 31;
 
 const MAX_DISPATCH_DIMENSION: u32 = 65535;
 
