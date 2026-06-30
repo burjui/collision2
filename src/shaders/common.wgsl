@@ -50,6 +50,8 @@ struct CellPosition {
     offset: u32
 }
 
+const WORKGROUP_SIZE: u32 = 64;
+
 const UNIT_QUAD_VERTICES = array<vec2f, 6>(
     vec2f(0.5, 0.5),
     vec2f(-0.5, 0.5),
@@ -68,7 +70,6 @@ const MAX_OBJECTS_PER_CELL: u32 = 4;
 
 const MAX_DISPATCH_DIMENSION: u32 = 65535;
 
-// TODO: replace with global_invocation_index when supported
 fn flat_invocation_index(gid: vec3u, nwg: vec3u, workgroup_size: u32) -> u32 {
     return gid.x +
           (gid.y * workgroup_size * nwg.x) +

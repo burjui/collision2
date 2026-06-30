@@ -6,6 +6,7 @@
 
 const CHUNK_SIZE: u32 = WORKGROUP_SIZE * BATCH_SIZE;
 
+// TODO: linearize dispatch
 @compute @workgroup_size(1)
 fn calculate_narrow_phase_dispatch_dimensions() {
     let total_workgroups = (candidate_count + CHUNK_SIZE - 1) / CHUNK_SIZE;

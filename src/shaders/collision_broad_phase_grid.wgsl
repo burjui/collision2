@@ -1,10 +1,11 @@
 #import common::{
     FLAG_PHYSICAL, MAX_CANDIDATES_PER_OBJECT,
     AABB, Flags, CollisionCandidate, GridSize, CellPosition,
-    flat_invocation_index
 }
 
 const WORKGROUP_SIZE: u32 = 64;
+
+var<immediate> thread_offset: u32;
 
 @group(0) @binding(0) var<uniform> object_count: u32;
 @group(0) @binding(1) var<uniform> grid_size: GridSize;
@@ -24,7 +25,7 @@ fn broad_phase_grid(
     @builtin(num_workgroups) nwg: vec3u,
     @builtin(local_invocation_index) local_invocation_index: u32
 ) {
-    let object_index = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
+    let object_index = gid.x + thread_offset;
     if object_index >= object_count || (flags[object_index].inner & FLAG_PHYSICAL) == 0 {
         return;
     }

@@ -5,14 +5,14 @@ use crate::{
     shaders::{
         common::Mass,
         integrate::{
-            BlackHole, WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
-            WgpuBindGroup1, WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries,
+            BlackHole, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
+            WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries,
             WgpuBindGroup2EntriesParams, WgpuBindGroup3, WgpuBindGroup3Entries, WgpuBindGroup3EntriesParams,
             compute::create_integrate_pipeline_embed_source,
         },
     },
     typed_buffer::TypedBuffer,
-    util::{DispatchArgs, PhaseStateCache, dispatch_workgroups},
+    util::{PhaseStateCache, dispatch_compute},
 };
 
 pub struct Integrator {
@@ -132,12 +132,6 @@ impl Integrator {
         self.blackhole_bind_group.set(compute_pass);
         self.collision_bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
-        dispatch_workgroups(
-            compute_pass,
-            DispatchArgs {
-                n_threads: self.object_count,
-                workgroup_size: WORKGROUP_SIZE,
-            },
-        );
+        dispatch_compute(compute_pass, self.object_count);
     }
 }

@@ -3,11 +3,11 @@ use wgpu::{ComputePass, ComputePipeline, Device};
 use crate::{
     phase_state::PhaseState,
     shaders::calculate_grid_aabb::{
-        WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
-        WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, compute::create_calculate_grid_aabb_pipeline_embed_source,
+        WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
+        WgpuBindGroup1EntriesParams, compute::create_calculate_grid_aabb_pipeline_embed_source,
     },
     typed_buffer::TypedBuffer,
-    util::{PhaseStateCache, dispatch_dimensions},
+    util::{PhaseStateCache, dispatch_compute},
 };
 
 pub struct CalculateGridAABB {
@@ -64,7 +64,6 @@ impl CalculateGridAABB {
         compute_pass.set_pipeline(&self.pipeline);
         self.bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
-        let (x, y, z) = dispatch_dimensions(self.object_count, WORKGROUP_SIZE);
-        compute_pass.dispatch_workgroups(x, y, z);
+        dispatch_compute(compute_pass, self.object_count);
     }
 }

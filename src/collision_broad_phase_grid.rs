@@ -4,13 +4,13 @@ use crate::{
     phase_state::PhaseState,
     shaders::{
         collision_broad_phase_grid::{
-            WORKGROUP_SIZE, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
-            WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, compute::create_broad_phase_grid_pipeline_embed_source,
+            WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
+            WgpuBindGroup1EntriesParams, compute::create_broad_phase_grid_pipeline_embed_source,
         },
         common::{CellPosition, CollisionCandidate, GridSize},
     },
     typed_buffer::TypedBuffer,
-    util::{PhaseStateCache, dispatch_dimensions},
+    util::{PhaseStateCache, dispatch_compute},
 };
 
 pub struct CollisionBroadPhaseGrid {
@@ -35,7 +35,7 @@ impl CollisionBroadPhaseGrid {
     ) -> Self {
         let object_count: u32 = object_count.try_into().unwrap();
         let bind_group = WgpuBindGroup0::from_bindings(
-            &device,
+            device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.buffer().as_entire_buffer_binding(),
                 grid_size: grid_size.buffer().as_entire_buffer_binding(),
@@ -47,7 +47,7 @@ impl CollisionBroadPhaseGrid {
                 candidate_count: candidate_count.buffer().as_entire_buffer_binding(),
             }),
         );
-        let pipeline = create_broad_phase_grid_pipeline_embed_source(&device);
+        let pipeline = create_broad_phase_grid_pipeline_embed_source(device);
         let phase_state_cache = PhaseStateCache::new();
         Self {
             object_count,
@@ -74,7 +74,6 @@ impl CollisionBroadPhaseGrid {
         compute_pass.set_pipeline(&self.pipeline);
         self.bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
-        let (x, y, z) = dispatch_dimensions(self.object_count, WORKGROUP_SIZE);
-        compute_pass.dispatch_workgroups(x, y, z);
+        dispatch_compute(compute_pass, self.object_count);
     }
 }

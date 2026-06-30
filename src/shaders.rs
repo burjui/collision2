@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 7b93ec2faf7690eef94d0a7ee991ac96896ce7e97cd949480fb0f262db2f861e
+// SourceHash: 6f4b5207868dd4befaa23f1087a896dd66cba677aad01a50623fe3ebed7cb23b
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -158,6 +158,7 @@ pub mod layout_asserts {
 }
 pub mod common {
     use super::{_root, _root::*};
+    pub const WORKGROUP_SIZE: u32 = 64u32;
     pub const FLAG_DRAW_OBJECT: u32 = 1u32;
     pub const FLAG_DRAW_AABB: u32 = 2u32;
     pub const FLAG_PHYSICAL: u32 = 4u32;
@@ -394,6 +395,7 @@ struct CellPosition {
     offset: u32,
 }
 
+const WORKGROUP_SIZE: u32 = 64u;
 const UNIT_QUAD_VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
 const FLAG_DRAW_OBJECT: u32 = 1u;
 const FLAG_DRAW_AABB: u32 = 2u;
@@ -1706,7 +1708,7 @@ pub mod calculate_grid_aabb {
                 Some(&WgpuBindGroup0::get_bind_group_layout(device)),
                 Some(&WgpuBindGroup1::get_bind_group_layout(device)),
             ],
-            immediate_size: 0u32,
+            immediate_size: 4u32,
         })
     }
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
@@ -1724,6 +1726,7 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
 
 const WORKGROUP_SIZE: u32 = 64u;
 
+var<immediate> thread_offset: u32;
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
@@ -1736,10 +1739,6 @@ var<storage, read_write> grid_max_x: atomic<u32>;
 var<storage, read_write> grid_max_y: atomic<u32>;
 @group(1) @binding(0) 
 var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-
-fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
-}
 
 fn atomicGridMinX(value: f32) {
     var old: u32;
@@ -1823,19 +1822,20 @@ fn atomicGridMaxY(value_3: f32) {
 
 @compute @workgroup_size(64, 1, 1) 
 fn calculate_grid_aabb(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(subgroup_invocation_id) sid: u32) {
-    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let _e5 = object_count;
-    let object_index = select(0u, _e3, (_e3 < _e5));
+    let _e3 = thread_offset;
+    let i = (gid.x + _e3);
+    let _e6 = object_count;
+    let object_index = select(0u, i, (i < _e6));
     let aabb = aabbs[object_index];
-    let _e14 = subgroupMin(aabb.min.x);
-    let _e17 = subgroupMin(aabb.min.y);
-    let _e20 = subgroupMax(aabb.max.x);
-    let _e23 = subgroupMax(aabb.max.y);
+    let _e15 = subgroupMin(aabb.min.x);
+    let _e18 = subgroupMin(aabb.min.y);
+    let _e21 = subgroupMax(aabb.max.x);
+    let _e24 = subgroupMax(aabb.max.y);
     if (sid == 0u) {
-        atomicGridMinX(_e14);
-        atomicGridMinY(_e17);
-        atomicGridMaxX(_e20);
-        atomicGridMaxY(_e23);
+        atomicGridMinX(_e15);
+        atomicGridMinY(_e18);
+        atomicGridMaxX(_e21);
+        atomicGridMaxY(_e24);
         return;
     } else {
         return;
@@ -2244,7 +2244,6 @@ fn reset_cell_object_count(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 pub mod assign_object_cells {
     use super::{_root, _root::*};
-    pub const WORKGROUP_SIZE: u32 = 64u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const ASSIGN_OBJECT_CELLS_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -2523,7 +2522,7 @@ pub mod assign_object_cells {
                 Some(&WgpuBindGroup0::get_bind_group_layout(device)),
                 Some(&WgpuBindGroup1::get_bind_group_layout(device)),
             ],
-            immediate_size: 0u32,
+            immediate_size: 4u32,
         })
     }
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
@@ -2549,8 +2548,9 @@ struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
     offset: u32,
 }
 
-const WORKGROUP_SIZE: u32 = 64u;
+const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 
+var<immediate> thread_offset: u32;
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
@@ -2568,30 +2568,27 @@ var<storage, read_write> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23L
 @group(1) @binding(0) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
-fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
-}
-
 @compute @workgroup_size(64, 1, 1) 
 fn assign_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
-    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let _e5 = object_count;
-    if (_e3 >= _e5) {
+    let _e3 = thread_offset;
+    let object_index = (gid.x + _e3);
+    let _e6 = object_count;
+    if (object_index >= _e6) {
         return;
     }
-    let aabb = aabbs[_e3];
+    let aabb = aabbs[object_index];
     let center_x = ((aabb.min.x + aabb.max.x) / 2f);
     let center_y = ((aabb.min.y + aabb.max.y) / 2f);
-    let _e25 = grid_min_x;
-    let _e29 = cell_size;
-    let cell_x = u32(max(0f, ((center_x - bitcast<f32>(_e25)) / _e29)));
-    let _e35 = grid_min_y;
-    let _e39 = cell_size;
-    let cell_y = u32(max(0f, ((center_y - bitcast<f32>(_e35)) / _e39)));
-    let _e46 = grid_size.x;
-    let cell_index = (cell_x + (cell_y * _e46));
-    let _e52 = atomicAdd((&cell_object_count[cell_index]), 1u);
-    object_cells[_e3] = CellPositionX_naga_oil_mod_XMNXW23LPNYX(vec2<u32>(cell_x, cell_y), _e52);
+    let _e26 = grid_min_x;
+    let _e30 = cell_size;
+    let cell_x = u32(max(0f, ((center_x - bitcast<f32>(_e26)) / _e30)));
+    let _e36 = grid_min_y;
+    let _e40 = cell_size;
+    let cell_y = u32(max(0f, ((center_y - bitcast<f32>(_e36)) / _e40)));
+    let _e47 = grid_size.x;
+    let cell_index = (cell_x + (cell_y * _e47));
+    let _e53 = atomicAdd((&cell_object_count[cell_index]), 1u);
+    object_cells[object_index] = CellPositionX_naga_oil_mod_XMNXW23LPNYX(vec2<u32>(cell_x, cell_y), _e53);
     return;
 }
 "#;
@@ -3141,7 +3138,7 @@ pub mod populate_grid_cells {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("PopulateGridCells::PipelineLayout"),
             bind_group_layouts: &[Some(&WgpuBindGroup0::get_bind_group_layout(device))],
-            immediate_size: 0u32,
+            immediate_size: 4u32,
         })
     }
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
@@ -3164,6 +3161,7 @@ struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
 
 const WORKGROUP_SIZE: u32 = 64u;
 
+var<immediate> thread_offset: u32;
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
@@ -3175,22 +3173,19 @@ var<storage> cell_offsets: array<u32>;
 @group(0) @binding(4) 
 var<storage, read_write> cells: array<u32>;
 
-fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
-}
-
 @compute @workgroup_size(64, 1, 1) 
 fn populate_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
-    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let _e5 = object_count;
-    if (_e3 >= _e5) {
+    let _e3 = thread_offset;
+    let object_index = (gid.x + _e3);
+    let _e6 = object_count;
+    if (object_index >= _e6) {
         return;
     }
-    let cell_position = object_cells[_e3];
-    let _e16 = grid_size.x;
-    let cell_index = (cell_position.cell.x + (cell_position.cell.y * _e16));
+    let cell_position = object_cells[object_index];
+    let _e17 = grid_size.x;
+    let cell_index = (cell_position.cell.x + (cell_position.cell.y * _e17));
     let cell_offset = cell_offsets[cell_index];
-    cells[(cell_offset + cell_position.offset)] = _e3;
+    cells[(cell_offset + cell_position.offset)] = object_index;
     return;
 }
 "#;
@@ -3511,7 +3506,7 @@ pub mod collision_broad_phase_grid {
                 Some(&WgpuBindGroup0::get_bind_group_layout(device)),
                 Some(&WgpuBindGroup1::get_bind_group_layout(device)),
             ],
-            immediate_size: 0u32,
+            immediate_size: 4u32,
         })
     }
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
@@ -3550,6 +3545,7 @@ const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 const WORKGROUP_SIZE: u32 = 64u;
 
+var<immediate> thread_offset: u32;
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
@@ -3570,10 +3566,6 @@ var<storage, read_write> candidate_count: atomic<u32>;
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(2) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-
-fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
-}
 
 fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW23LPNYX) -> bool {
     var local_1: bool;
@@ -3608,48 +3600,49 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_
     var j: u32;
     var k: u32;
 
-    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let _e5 = object_count;
-    if !((_e3 >= _e5)) {
-        let _e11 = flags[_e3].inner;
-        local = ((_e11 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u);
+    let _e3 = thread_offset;
+    let object_index = (gid.x + _e3);
+    let _e6 = object_count;
+    if !((object_index >= _e6)) {
+        let _e12 = flags[object_index].inner;
+        local = ((_e12 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u);
     } else {
         local = true;
     }
-    let _e19 = local;
-    if _e19 {
+    let _e20 = local;
+    if _e20 {
         return;
     }
-    let cell = object_cells[_e3].cell;
+    let cell = object_cells[object_index].cell;
     let can_decrement = vec2<bool>((cell.x > 0u), (cell.y > 0u));
     let min_cell = select(cell, (cell - vec2<u32>(1u, 1u)), can_decrement);
-    let _e41 = grid_size.x;
-    let _e48 = grid_size.y;
-    let can_increment = vec2<bool>(((cell.x + 1u) < _e41), ((cell.y + 1u) < _e48));
+    let _e42 = grid_size.x;
+    let _e49 = grid_size.y;
+    let can_increment = vec2<bool>(((cell.x + 1u) < _e42), ((cell.y + 1u) < _e49));
     let max_cell = select(cell, (cell + vec2<u32>(1u, 1u)), can_increment);
-    let aabb = aabbs[_e3];
-    let _e60 = object_count;
-    let max_candidates = (_e60 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
+    let aabb = aabbs[object_index];
+    let _e61 = object_count;
+    let max_candidates = (_e61 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
     i = min_cell.x;
     loop {
-        let _e65 = i;
-        if (_e65 <= max_cell.x) {
+        let _e66 = i;
+        if (_e66 <= max_cell.x) {
         } else {
             break;
         }
         {
             j = min_cell.y;
             loop {
-                let _e70 = j;
-                if (_e70 <= max_cell.y) {
+                let _e71 = j;
+                if (_e71 <= max_cell.y) {
                 } else {
                     break;
                 }
                 {
-                    let _e73 = i;
-                    let _e74 = j;
-                    let _e77 = grid_size.x;
-                    let cell_index = (_e73 + (_e74 * _e77));
+                    let _e74 = i;
+                    let _e75 = j;
+                    let _e78 = grid_size.x;
+                    let cell_index = (_e74 + (_e75 * _e78));
                     let object_count_1 = cell_object_count[cell_index];
                     if (object_count_1 == 0u) {
                         continue;
@@ -3657,47 +3650,47 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_
                     let cell_offset = cell_offsets[cell_index];
                     k = 0u;
                     loop {
-                        let _e90 = k;
-                        if (_e90 < object_count_1) {
+                        let _e91 = k;
+                        if (_e91 < object_count_1) {
                         } else {
                             break;
                         }
                         {
-                            let _e93 = k;
-                            let other_object_index = cells[(cell_offset + _e93)];
-                            if (other_object_index >= _e3) {
+                            let _e94 = k;
+                            let other_object_index = cells[(cell_offset + _e94)];
+                            if (other_object_index >= object_index) {
                                 continue;
                             }
-                            let _e101 = flags[other_object_index].inner;
-                            if ((_e101 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+                            let _e102 = flags[other_object_index].inner;
+                            if ((_e102 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
                                 continue;
                             }
                             let object_aabb = aabbs[other_object_index];
-                            let _e109 = aabb_overlaps(aabb, object_aabb);
-                            if !(_e109) {
+                            let _e110 = aabb_overlaps(aabb, object_aabb);
+                            if !(_e110) {
                                 continue;
                             }
-                            let _e113 = atomicAdd((&candidate_count), 1u);
-                            if (_e113 >= max_candidates) {
+                            let _e114 = atomicAdd((&candidate_count), 1u);
+                            if (_e114 >= max_candidates) {
                                 return;
                             }
-                            candidates[_e113] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(_e3, other_object_index);
+                            candidates[_e114] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(object_index, other_object_index);
                         }
                         continuing {
-                            let _e119 = k;
-                            k = (_e119 + 1u);
+                            let _e120 = k;
+                            k = (_e120 + 1u);
                         }
                     }
                 }
                 continuing {
-                    let _e122 = j;
-                    j = (_e122 + 1u);
+                    let _e123 = j;
+                    j = (_e123 + 1u);
                 }
             }
         }
         continuing {
-            let _e125 = i;
-            i = (_e125 + 1u);
+            let _e126 = i;
+            i = (_e126 + 1u);
         }
     }
     return;
@@ -4447,7 +4440,7 @@ pub mod collision_forces_reset {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("CollisionForcesReset::PipelineLayout"),
             bind_group_layouts: &[Some(&WgpuBindGroup0::get_bind_group_layout(device))],
-            immediate_size: 0u32,
+            immediate_size: 4u32,
         })
     }
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
@@ -4460,24 +4453,22 @@ pub mod collision_forces_reset {
     pub const SHADER_STRING: &str = r#"
 const WORKGROUP_SIZE: u32 = 64u;
 
+var<immediate> thread_offset: u32;
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
 var<storage, read_write> collision_forces: array<u32>;
 
-fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
-}
-
 @compute @workgroup_size(64, 1, 1) 
 fn reset_collision_forces(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
-    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let _e5 = object_count;
-    if (_e3 >= _e5) {
+    let _e3 = thread_offset;
+    let object_index = (gid.x + _e3);
+    let _e6 = object_count;
+    if (object_index >= _e6) {
         return;
     }
-    collision_forces[(_e3 * 2u)] = 0u;
-    collision_forces[((_e3 * 2u) + 1u)] = 0u;
+    collision_forces[(object_index * 2u)] = 0u;
+    collision_forces[((object_index * 2u) + 1u)] = 0u;
     return;
 }
 "#;

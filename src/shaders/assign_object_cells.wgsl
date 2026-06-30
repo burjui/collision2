@@ -1,6 +1,6 @@
-#import common::{ AABB, GridSize, CellPosition, flat_invocation_index, i32_to_f32 }
+#import common::{ AABB, GridSize, CellPosition, WORKGROUP_SIZE }
 
-const WORKGROUP_SIZE: u32 = 64;
+var<immediate> thread_offset: u32;
 
 @group(0) @binding(0) var<uniform> object_count: u32;
 @group(0) @binding(1) var<uniform> grid_min_x: u32;
@@ -17,7 +17,7 @@ fn assign_object_cells(
     @builtin(global_invocation_id) gid: vec3u,
     @builtin(num_workgroups) nwg: vec3u
 ) {
-    let object_index = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
+    let object_index = gid.x + thread_offset;
     if object_index >= object_count {
         return;
     }

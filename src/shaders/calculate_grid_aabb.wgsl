@@ -1,6 +1,8 @@
-#import common::{ AABB, flat_invocation_index, INFINITY };
+#import common::{ AABB, INFINITY };
 
 const WORKGROUP_SIZE: u32 = 64;
+
+var<immediate> thread_offset: u32;
 
 @group(0) @binding(0) var<uniform> object_count: u32;
 @group(0) @binding(1) var<storage, read_write> grid_min_x: atomic<u32>;
@@ -16,7 +18,7 @@ fn calculate_grid_aabb(
     @builtin(num_workgroups) nwg: vec3u,
     @builtin(subgroup_invocation_id) sid: u32
 ) {
-    let i = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
+    let i = gid.x + thread_offset;
     let object_index = select(0, i, i < object_count);
     let aabb = aabbs[object_index];
     let min_x = subgroupMin(aabb.min.x);
