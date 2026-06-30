@@ -12,7 +12,7 @@ use crate::{
         },
     },
     typed_buffer::TypedBuffer,
-    util::{PhaseStateCache, dispatch_dimensions},
+    util::{DispatchArgs, PhaseStateCache, dispatch_workgroups},
 };
 
 pub struct Integrator {
@@ -132,7 +132,12 @@ impl Integrator {
         self.blackhole_bind_group.set(compute_pass);
         self.collision_bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
-        let (x, y, z) = dispatch_dimensions(self.object_count, WORKGROUP_SIZE);
-        compute_pass.dispatch_workgroups(x, y, z);
+        dispatch_workgroups(
+            compute_pass,
+            DispatchArgs {
+                n_threads: self.object_count,
+                workgroup_size: WORKGROUP_SIZE,
+            },
+        );
     }
 }

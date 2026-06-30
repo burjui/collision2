@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 0e092558616eaf06a790673368d9d0710a5803f4bb6599cf6882760a828d3783
+// SourceHash: 279e3c1ace82459619dd1c41c9db5c841755e0b9710515006733e89555122692
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -5789,7 +5789,7 @@ pub mod integrate {
                 Some(&WgpuBindGroup2::get_bind_group_layout(device)),
                 Some(&WgpuBindGroup3::get_bind_group_layout(device)),
             ],
-            immediate_size: 0u32,
+            immediate_size: 4u32,
         })
     }
     pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
@@ -5834,6 +5834,7 @@ const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const WORKGROUP_SIZE: u32 = 64u;
 
+var<immediate> thread_offset: u32;
 @group(0) @binding(0) 
 var<uniform> dt: f32;
 @group(0) @binding(1) 
@@ -5866,10 +5867,6 @@ var<storage, read_write> integrated_flags: array<FlagsX_naga_oil_mod_XMNXW23LPNY
 var<storage, read_write> integrated_aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(3) @binding(6) 
 var<storage, read_write> integrated_velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
-
-fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
-    return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
-}
 
 fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>, mass: f32) -> vec2<f32> {
     let to_blackhole = (blackhole.position - position);
@@ -5952,110 +5949,111 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
     var local: bool;
     var new_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX;
 
-    let _e4 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    let _e6 = object_count;
-    if (_e4 >= _e6) {
+    let _e4 = thread_offset;
+    let object_index = (gid.x + _e4);
+    let _e7 = object_count;
+    if (object_index >= _e7) {
         return;
     }
-    let aabb_2 = aabbs[_e4];
+    let aabb_2 = aabbs[object_index];
     let initial_position = ((aabb_2.min + aabb_2.max) / vec2(2f));
-    let initial_velocity = velocities[_e4].inner;
-    let mass_3 = masses[_e4].inner;
-    let _e28 = flags[_e4].inner;
-    f = _e28;
-    let _e33 = velocities[_e4].inner;
-    state = ObjectPhaseState(initial_position, _e33);
-    let _e36 = f;
-    if ((_e36 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
-        let _e41 = state;
-        let _e42 = integrate_euler_symplectic(_e41, _e4, aabb_2, mass_3);
-        state = _e42;
+    let initial_velocity = velocities[object_index].inner;
+    let mass_3 = masses[object_index].inner;
+    let _e29 = flags[object_index].inner;
+    f = _e29;
+    let _e34 = velocities[object_index].inner;
+    state = ObjectPhaseState(initial_position, _e34);
+    let _e37 = f;
+    if ((_e37 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
+        let _e42 = state;
+        let _e43 = integrate_euler_symplectic(_e42, object_index, aabb_2, mass_3);
+        state = _e43;
     }
     let size = (aabb_2.max - aabb_2.min);
     loop {
-        let _e47 = bh_index;
-        let _e49 = blackhole_count;
-        if (_e47 < _e49) {
-            let _e51 = f;
-            local = ((_e51 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u);
+        let _e48 = bh_index;
+        let _e50 = blackhole_count;
+        if (_e48 < _e50) {
+            let _e52 = f;
+            local = ((_e52 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u);
         } else {
             local = false;
         }
-        let _e59 = local;
-        if _e59 {
+        let _e60 = local;
+        if _e60 {
         } else {
             break;
         }
         {
-            let _e61 = bh_index;
-            let blackhole_3 = blackholes[_e61];
-            let _e66 = state.position;
-            let distance_1 = (length((blackhole_3.position - _e66)) - (max(size.x, size.y) / 2f));
-            let _e77 = blackhole_size_scale;
-            if (distance_1 < (blackhole_3.radius * _e77)) {
-                let _e80 = f;
-                f = (_e80 & 4294967288u);
+            let _e62 = bh_index;
+            let blackhole_3 = blackholes[_e62];
+            let _e67 = state.position;
+            let distance_1 = (length((blackhole_3.position - _e67)) - (max(size.x, size.y) / 2f));
+            let _e78 = blackhole_size_scale;
+            if (distance_1 < (blackhole_3.radius * _e78)) {
+                let _e81 = f;
+                f = (_e81 & 4294967288u);
                 state.velocity = vec2<f32>();
             }
         }
         continuing {
-            let _e86 = bh_index;
-            bh_index = (_e86 + 1u);
+            let _e87 = bh_index;
+            bh_index = (_e87 + 1u);
         }
     }
-    let _e89 = state.position;
-    let offset = (_e89 - initial_position);
+    let _e90 = state.position;
+    let offset = (_e90 - initial_position);
     new_aabb = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb_2.min + offset), (aabb_2.max + offset));
-    let _e100 = new_aabb.min.x;
-    if (_e100 < -3200f) {
-        let _e104 = new_aabb.min.x;
-        let overshoot = (-(_e104) + -3200f);
-        let _e109 = new_aabb.min.x;
-        new_aabb.min.x = (_e109 + (overshoot * 0.5f));
-        let _e115 = new_aabb.max.x;
-        new_aabb.max.x = (_e115 + (overshoot * 0.5f));
-        let _e121 = state.velocity.x;
-        state.velocity.x = (_e121 * -1f);
+    let _e101 = new_aabb.min.x;
+    if (_e101 < -3200f) {
+        let _e105 = new_aabb.min.x;
+        let overshoot = (-(_e105) + -3200f);
+        let _e110 = new_aabb.min.x;
+        new_aabb.min.x = (_e110 + (overshoot * 0.5f));
+        let _e116 = new_aabb.max.x;
+        new_aabb.max.x = (_e116 + (overshoot * 0.5f));
+        let _e122 = state.velocity.x;
+        state.velocity.x = (_e122 * -1f);
     }
-    let _e127 = new_aabb.max.x;
-    if (_e127 > 3200f) {
-        let _e131 = new_aabb.max.x;
-        let overshoot_1 = (_e131 - 3200f);
-        let _e135 = new_aabb.min.x;
-        new_aabb.min.x = (_e135 - (overshoot_1 * 0.5f));
-        let _e141 = new_aabb.max.x;
-        new_aabb.max.x = (_e141 - (overshoot_1 * 0.5f));
-        let _e147 = state.velocity.x;
-        state.velocity.x = (_e147 * -1f);
+    let _e128 = new_aabb.max.x;
+    if (_e128 > 3200f) {
+        let _e132 = new_aabb.max.x;
+        let overshoot_1 = (_e132 - 3200f);
+        let _e136 = new_aabb.min.x;
+        new_aabb.min.x = (_e136 - (overshoot_1 * 0.5f));
+        let _e142 = new_aabb.max.x;
+        new_aabb.max.x = (_e142 - (overshoot_1 * 0.5f));
+        let _e148 = state.velocity.x;
+        state.velocity.x = (_e148 * -1f);
     }
-    let _e153 = new_aabb.min.y;
-    if (_e153 < -2000f) {
-        let _e157 = new_aabb.min.y;
-        let overshoot_2 = (-(_e157) + -2000f);
-        let _e162 = new_aabb.min.y;
-        new_aabb.min.y = (_e162 + (overshoot_2 * 0.5f));
-        let _e168 = new_aabb.max.y;
-        new_aabb.max.y = (_e168 + (overshoot_2 * 0.5f));
-        let _e174 = state.velocity.y;
-        state.velocity.y = (_e174 * -1f);
+    let _e154 = new_aabb.min.y;
+    if (_e154 < -2000f) {
+        let _e158 = new_aabb.min.y;
+        let overshoot_2 = (-(_e158) + -2000f);
+        let _e163 = new_aabb.min.y;
+        new_aabb.min.y = (_e163 + (overshoot_2 * 0.5f));
+        let _e169 = new_aabb.max.y;
+        new_aabb.max.y = (_e169 + (overshoot_2 * 0.5f));
+        let _e175 = state.velocity.y;
+        state.velocity.y = (_e175 * -1f);
     }
-    let _e180 = new_aabb.max.y;
-    if (_e180 > 2000f) {
-        let _e184 = new_aabb.max.y;
-        let overshoot_3 = (_e184 - 2000f);
-        let _e188 = new_aabb.min.y;
-        new_aabb.min.y = (_e188 - (overshoot_3 * 0.5f));
-        let _e194 = new_aabb.max.y;
-        new_aabb.max.y = (_e194 - (overshoot_3 * 0.5f));
-        let _e200 = state.velocity.y;
-        state.velocity.y = (_e200 * -1f);
+    let _e181 = new_aabb.max.y;
+    if (_e181 > 2000f) {
+        let _e185 = new_aabb.max.y;
+        let overshoot_3 = (_e185 - 2000f);
+        let _e189 = new_aabb.min.y;
+        new_aabb.min.y = (_e189 - (overshoot_3 * 0.5f));
+        let _e195 = new_aabb.max.y;
+        new_aabb.max.y = (_e195 - (overshoot_3 * 0.5f));
+        let _e201 = state.velocity.y;
+        state.velocity.y = (_e201 * -1f);
     }
-    let _e206 = f;
-    integrated_flags[_e4].inner = _e206;
-    let _e209 = new_aabb;
-    integrated_aabbs[_e4] = _e209;
-    let _e214 = state.velocity;
-    integrated_velocities[_e4].inner = _e214;
+    let _e207 = f;
+    integrated_flags[object_index].inner = _e207;
+    let _e210 = new_aabb;
+    integrated_aabbs[object_index] = _e210;
+    let _e215 = state.velocity;
+    integrated_velocities[object_index].inner = _e215;
     return;
 }
 "#;

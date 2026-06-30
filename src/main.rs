@@ -12,7 +12,7 @@ pub mod collision_broad_phase_grid;
 pub mod collision_forces_reset;
 pub mod collision_narrow_phase;
 pub mod collision_narrow_phase_dispatch_dimensions;
-pub mod integration;
+pub mod integrator;
 #[cfg(test)]
 mod mock_bvh_test;
 pub mod objects;
@@ -69,7 +69,7 @@ use crate::{
     collision_forces_reset::CollisionReset,
     collision_narrow_phase::NarrowPhase,
     collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgsCalculator,
-    integration::Integrator,
+    integrator::Integrator,
     objects::Objects,
     phase_state::PhaseStateRing,
     populate_grid_cells::PopulateGridCells,

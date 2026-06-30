@@ -4,6 +4,8 @@
     flat_invocation_index
 }
 
+var <immediate> thread_offset: u32;
+
 @group(0) @binding(0) var<uniform> dt: f32;
 @group(0) @binding(1) var<uniform> gravitational_constant: f32;
 @group(0) @binding(2) var<uniform> global_acceleration: vec2f;
@@ -38,7 +40,7 @@ fn integrate(
     @builtin(global_invocation_id) gid: vec3u,
     @builtin(num_workgroups) nwg: vec3u,
 ) {
-    let object_index = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
+    let object_index = gid.x + thread_offset;
     if object_index >= object_count {
         return;
     }
