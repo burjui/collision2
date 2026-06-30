@@ -61,7 +61,5 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     if (in.flags & FLAG_DRAW_AABB) == 0 {
         discard;
     }
-
-    let intensity = min(1.0, length(in.scale) / 2000);
-    return FragmentOutput(vec4f(intensity, intensity, intensity, intensity));
+    return FragmentOutput(vec4f(1, 1, 1, 1));
 }
