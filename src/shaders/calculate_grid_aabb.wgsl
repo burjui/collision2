@@ -1,4 +1,4 @@
-#import common::{ AABB, INFINITY };
+#import common::AABB
 
 const WORKGROUP_SIZE: u32 = 64;
 

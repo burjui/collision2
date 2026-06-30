@@ -1,4 +1,7 @@
-#import common::{ UNIT_QUAD_VERTICES, FLAG_DRAW_OBJECT, FLAG_PHYSICAL, Camera, Flags, AABB, Mass, Color, Shape, Velocity }
+#import common::{
+    UNIT_QUAD_VERTICES, FLAG_DRAW_OBJECT, FLAG_PHYSICAL,
+    Camera, Flags, AABB, Mass, Color, Shape, Velocity
+}
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,

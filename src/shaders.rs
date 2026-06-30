@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 6f4b5207868dd4befaa23f1087a896dd66cba677aad01a50623fe3ebed7cb23b
+// SourceHash: e6fff16357ec9a57362ce6689aee0d8b8d2b714dba77812ebad050801423ba9b
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -3700,7 +3700,6 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_
 pub mod collision_narrow_phase {
     use super::{_root, _root::*};
     pub const WORKGROUP_SIZE: u32 = 64u32;
-    pub const BATCH_SIZE: u32 = 1u32;
     pub const STIFFNESS: f32 = 100000f32;
     pub const RESTITUTION: f32 = 0f32;
     pub const GAMMA_COEFF: f32 = 212.13202f32;
@@ -4016,7 +4015,6 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 const WORKGROUP_SIZE: u32 = 64u;
-const BATCH_SIZE: u32 = 1u;
 const STIFFNESS: f32 = 100000f;
 const RESTITUTION: f32 = 0f;
 const GAMMA_COEFF: f32 = 212.13202f;
@@ -4091,47 +4089,29 @@ fn cas_add_force(i_1: u32, value_1: vec2<f32>) {
 
 @compute @workgroup_size(64, 1, 1) 
 fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
-    var batch_i: u32 = 0u;
-
-    let _e4 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
-    loop {
-        let _e6 = batch_i;
-        if (_e6 < BATCH_SIZE) {
-        } else {
-            break;
-        }
-        {
-            let _e11 = batch_i;
-            let candidate_index = ((_e4 * BATCH_SIZE) + _e11);
-            let _e14 = candidate_count;
-            if (candidate_index >= _e14) {
-                continue;
-            }
-            let candidates_1 = candidates[candidate_index];
-            let a = candidates_1.a;
-            let b = candidates_1.b;
-            let _e23 = aabbs[a];
-            let _e27 = velocities[a].inner;
-            let _e31 = masses[a].inner;
-            let _e34 = aabbs[b];
-            let _e38 = velocities[b].inner;
-            let _e42 = masses[b].inner;
-            let _e43 = collision_repulsion_pair(_e23, _e27, _e31, _e34, _e38, _e42);
-            cas_add_force(a, _e43);
-            cas_add_force(b, -(_e43));
-        }
-        continuing {
-            let _e45 = batch_i;
-            batch_i = (_e45 + 1u);
-        }
+    let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZE);
+    let _e5 = candidate_count;
+    if (_e3 >= _e5) {
+        return;
     }
+    let candidates_1 = candidates[_e3];
+    let a = candidates_1.a;
+    let b = candidates_1.b;
+    let _e14 = aabbs[a];
+    let _e18 = velocities[a].inner;
+    let _e22 = masses[a].inner;
+    let _e25 = aabbs[b];
+    let _e29 = velocities[b].inner;
+    let _e33 = masses[b].inner;
+    let _e34 = collision_repulsion_pair(_e14, _e18, _e22, _e25, _e29, _e33);
+    cas_add_force(a, _e34);
+    cas_add_force(b, -(_e34));
     return;
 }
 "#;
 }
 pub mod collision_narrow_phase_dispatch_dimensions {
     use super::{_root, _root::*};
-    pub const CHUNK_SIZE: u32 = 64u32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const CALCULATE_NARROW_PHASE_DISPATCH_DIMENSIONS_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
@@ -4293,8 +4273,6 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 
 const MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 65535u;
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 64u;
-const BATCH_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX: u32 = 1u;
-const CHUNK_SIZE: u32 = 64u;
 
 @group(0) @binding(0) 
 var<uniform> candidate_count: u32;
@@ -4308,7 +4286,7 @@ fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid: vec3<u32>, nwg: vec3<u3
 @compute @workgroup_size(1, 1, 1) 
 fn calculate_narrow_phase_dispatch_dimensions() {
     let _e1 = candidate_count;
-    let total_workgroups = (((_e1 + CHUNK_SIZE) - 1u) / CHUNK_SIZE);
+    let total_workgroups = (((_e1 + WORKGROUP_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX) - 1u) / WORKGROUP_SIZEX_naga_oil_mod_XMNXWY3DJONUW63S7NZQXE4TPO5PXA2DBONSQX);
     let x = min(total_workgroups, MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX);
     let y = min((((total_workgroups + x) - 1u) / x), MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX);
     let z = min((((total_workgroups + (x * y)) - 1u) / (x * y)), MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX);

@@ -1,4 +1,4 @@
-#import common::{ Force }
+#import common::Force
 
 const WORKGROUP_SIZE: u32 = 64;
 

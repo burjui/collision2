@@ -1,9 +1,6 @@
 #define_import_path collision_narrow_phase
 
-#import common::{
-    AABB, Mass, Velocity, CollisionCandidate, Force,
-    flat_invocation_index
-}
+#import common::{ AABB, Mass, Velocity, CollisionCandidate, flat_invocation_index }
 
 @group(0) @binding(0) var<storage, read> aabbs: array<AABB>;
 @group(0) @binding(1) var<storage, read> velocities: array<Velocity>;
@@ -15,7 +12,6 @@
 @group(2) @binding(0) var<storage, read_write> collision_forces: array<atomic<u32>>;
 
 const WORKGROUP_SIZE: u32 = 64;
-const BATCH_SIZE: u32 = 1;
 
 const STIFFNESS: f32 = 100000;
 const RESTITUTION: f32 = 0.0;
@@ -27,23 +23,20 @@ fn narrow_phase(
     @builtin(num_workgroups) nwg: vec3u,
     @builtin(local_invocation_index) local_invocation_index: u32,
 ) {
-    let i = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
-    for (var batch_i: u32 = 0; batch_i < BATCH_SIZE; batch_i += 1) {
-        let candidate_index = i * BATCH_SIZE + batch_i;
-        if candidate_index >= candidate_count {
-            continue;
-        }
-
-        let candidates = candidates[candidate_index];
-        let a = candidates.a;
-        let b = candidates.b;
-        let f = collision_repulsion_pair(
-            aabbs[a], velocities[a].inner, masses[a].inner,
-            aabbs[b], velocities[b].inner, masses[b].inner
-        );
-        cas_add_force(a, f);
-        cas_add_force(b, -f);
+    let candidate_index = flat_invocation_index(gid, nwg, WORKGROUP_SIZE);
+    if candidate_index >= candidate_count {
+        return;
     }
+
+    let candidates = candidates[candidate_index];
+    let a = candidates.a;
+    let b = candidates.b;
+    let f = collision_repulsion_pair(
+        aabbs[a], velocities[a].inner, masses[a].inner,
+        aabbs[b], velocities[b].inner, masses[b].inner
+    );
+    cas_add_force(a, f);
+    cas_add_force(b, -f);
 }
 
 fn collision_repulsion_pair(

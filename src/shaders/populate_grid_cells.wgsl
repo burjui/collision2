@@ -1,4 +1,4 @@
-#import common::{ MAX_OBJECTS_PER_CELL, GridSize, CellPosition }
+#import common::{ GridSize, CellPosition }
 
 const WORKGROUP_SIZE: u32 = 64;
 

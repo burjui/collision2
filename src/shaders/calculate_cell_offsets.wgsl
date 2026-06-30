@@ -1,6 +1,6 @@
 #define_import_path calculate_cell_offsets
 
-#import common::{ GridSize, flat_invocation_index }
+#import common::GridSize
 
 @group(0) @binding(0) var<uniform> grid_size: GridSize;
 @group(0) @binding(1) var<storage, read> cell_object_count: array<u32>;

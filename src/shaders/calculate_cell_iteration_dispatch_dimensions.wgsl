@@ -1,4 +1,4 @@
-#import common::{ MAX_DISPATCH_DIMENSION, GridSize, DispatchIndirectArgs }
+#import common::{ GridSize, DispatchIndirectArgs }
 
 @group(0) @binding(0) var<uniform> grid_size: GridSize;
 @group(0) @binding(1) var<storage, read_write> cell_offsets_dispatch_dimensions: DispatchIndirectArgs;

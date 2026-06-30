@@ -1,5 +1,5 @@
 
-#import common::{ AABB, flat_invocation_index }
+#import common::AABB
 
 @group(0) @binding(0) var<uniform> first_aabb: AABB;
 @group(0) @binding(1) var<storage, read_write> grid_min_x: u32;

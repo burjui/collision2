@@ -1,4 +1,4 @@
-#import common::{ AABB, GridSize, flat_invocation_index }
+#import common::GridSize
 
 @group(0) @binding(1) var<uniform> grid_min_x: u32;
 @group(0) @binding(2) var<uniform> grid_min_y: u32;

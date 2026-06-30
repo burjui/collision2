@@ -1,7 +1,6 @@
 #import common::{
     FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB,
-    AABB, Mass, Velocity, Position, Flags, Force,
-    flat_invocation_index
+    AABB, Mass, Velocity, Flags,
 }
 
 var <immediate> thread_offset: u32;
