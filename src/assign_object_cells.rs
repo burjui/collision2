@@ -37,13 +37,13 @@ impl AssignObjectCells {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                object_count: object_count_buffer.buffer().as_entire_buffer_binding(),
-                grid_min_x: grid_min_x.buffer().as_entire_buffer_binding(),
-                grid_min_y: grid_min_y.buffer().as_entire_buffer_binding(),
-                grid_size: grid_size.buffer().as_entire_buffer_binding(),
-                cell_size: cell_size.buffer().as_entire_buffer_binding(),
-                cell_object_count: cell_object_count.buffer().as_entire_buffer_binding(),
-                object_cells: object_cells.buffer().as_entire_buffer_binding(),
+                object_count: object_count_buffer.as_entire_buffer_binding(),
+                grid_min_x: grid_min_x.as_entire_buffer_binding(),
+                grid_min_y: grid_min_y.as_entire_buffer_binding(),
+                grid_size: grid_size.as_entire_buffer_binding(),
+                cell_size: cell_size.as_entire_buffer_binding(),
+                cell_object_count: cell_object_count.as_entire_buffer_binding(),
+                object_cells: object_cells.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_assign_object_cells_pipeline_embed_source(device);
@@ -61,7 +61,7 @@ impl AssignObjectCells {
             WgpuBindGroup1::from_bindings(
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
-                    aabbs: phase_state.aabbs().buffer().as_entire_buffer_binding(),
+                    aabbs: phase_state.aabbs().as_entire_buffer_binding(),
                 }),
             )
         });

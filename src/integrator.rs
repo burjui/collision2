@@ -76,26 +76,26 @@ impl Integrator {
         let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                dt: dt.buffer().as_entire_buffer_binding(),
-                gravitational_constant: gravitational_constant.buffer().as_entire_buffer_binding(),
-                global_acceleration: global_acceleration.buffer().as_entire_buffer_binding(),
-                object_count: object_count_buffer.buffer().as_entire_buffer_binding(),
-                masses: masses.buffer().as_entire_buffer_binding(),
+                dt: dt.as_entire_buffer_binding(),
+                gravitational_constant: gravitational_constant.as_entire_buffer_binding(),
+                global_acceleration: global_acceleration.as_entire_buffer_binding(),
+                object_count: object_count_buffer.as_entire_buffer_binding(),
+                masses: masses.as_entire_buffer_binding(),
             }),
         );
         let blackhole_bind_group = WgpuBindGroup1::from_bindings(
             device,
             WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
-                blackhole_count: blackhole_count.buffer().as_entire_buffer_binding(),
-                blackhole_mass_scale: blackhole_mass_scale.buffer().as_entire_buffer_binding(),
-                blackhole_size_scale: blackhole_size_scale.buffer().as_entire_buffer_binding(),
-                blackholes: blackholes.buffer().as_entire_buffer_binding(),
+                blackhole_count: blackhole_count.as_entire_buffer_binding(),
+                blackhole_mass_scale: blackhole_mass_scale.as_entire_buffer_binding(),
+                blackhole_size_scale: blackhole_size_scale.as_entire_buffer_binding(),
+                blackholes: blackholes.as_entire_buffer_binding(),
             }),
         );
         let collision_bind_group = WgpuBindGroup2::from_bindings(
             device,
             WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
-                collision_forces: collision_forces.buffer().as_entire_buffer_binding(),
+                collision_forces: collision_forces.as_entire_buffer_binding(),
             }),
         );
         let phase_state_cache = PhaseStateCache::new();
@@ -114,12 +114,12 @@ impl Integrator {
             WgpuBindGroup3::from_bindings(
                 device,
                 WgpuBindGroup3Entries::new(WgpuBindGroup3EntriesParams {
-                    flags: src.flags().buffer().as_entire_buffer_binding(),
-                    aabbs: src.aabbs().buffer().as_entire_buffer_binding(),
-                    velocities: src.velocities().buffer().as_entire_buffer_binding(),
-                    integrated_flags: dst.flags().buffer().as_entire_buffer_binding(),
-                    integrated_velocities: dst.velocities().buffer().as_entire_buffer_binding(),
-                    integrated_aabbs: dst.aabbs().buffer().as_entire_buffer_binding(),
+                    flags: src.flags().as_entire_buffer_binding(),
+                    aabbs: src.aabbs().as_entire_buffer_binding(),
+                    velocities: src.velocities().as_entire_buffer_binding(),
+                    integrated_flags: dst.flags().as_entire_buffer_binding(),
+                    integrated_velocities: dst.velocities().as_entire_buffer_binding(),
+                    integrated_aabbs: dst.aabbs().as_entire_buffer_binding(),
                 }),
             )
         });

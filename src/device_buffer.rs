@@ -7,8 +7,8 @@ use std::{
 use bytemuck::{AnyBitPattern, NoUninit, Pod};
 use itertools::Itertools;
 use wgpu::{
-    Buffer, BufferAsyncError, BufferSize, COPY_BUFFER_ALIGNMENT, CommandEncoder, Device, MapMode, Queue, WasmNotSend,
-    util::DeviceExt,
+    Buffer, BufferAsyncError, BufferBinding, BufferSize, COPY_BUFFER_ALIGNMENT, CommandEncoder, Device, MapMode, Queue,
+    WasmNotSend, util::DeviceExt,
 };
 
 /// Typesafe handle to a wgpu buffer
@@ -51,6 +51,10 @@ impl<T> DeviceBuffer<T> {
 
     pub fn buffer(&self) -> &Buffer {
         &self.buffer
+    }
+
+    pub fn as_entire_buffer_binding(&self) -> BufferBinding<'_> {
+        self.buffer.as_entire_buffer_binding()
     }
 
     pub fn len(&self) -> usize {
@@ -132,14 +136,14 @@ impl<T> DeviceBuffer<T> {
             Bound::Excluded(&end) => end,
             Bound::Unbounded => self.len(),
         };
-        let slice_start = u64::try_from(start * size_of::<T>()).unwrap();
-        let slice_end = u64::try_from(end * size_of::<T>()).unwrap();
+        let start = u64::try_from(start * size_of::<T>()).unwrap();
+        let end = u64::try_from(end * size_of::<T>()).unwrap();
         assert!(
-            slice_start <= slice_end && slice_end <= self.buffer.size(),
-            "Bounds {slice_start}..{slice_end} out of range {}..{}",
+            start <= end && end <= self.buffer.size(),
+            "Bounds {start}..{end} out of range {}..{}",
             0,
             self.buffer.size()
         );
-        slice_start..slice_end
+        start..end
     }
 }

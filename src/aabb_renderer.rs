@@ -59,7 +59,7 @@ impl AabbRenderer {
         let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                camera: camera_buffer.buffer().as_entire_buffer_binding(),
+                camera: camera_buffer.as_entire_buffer_binding(),
             }),
         );
         let phase_state_cache = PhaseStateCache::new();
@@ -76,8 +76,8 @@ impl AabbRenderer {
             WgpuBindGroup1::from_bindings(
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
-                    flags: phase_state.flags().buffer().as_entire_buffer_binding(),
-                    aabbs: phase_state.aabbs().buffer().as_entire_buffer_binding(),
+                    flags: phase_state.flags().as_entire_buffer_binding(),
+                    aabbs: phase_state.aabbs().as_entire_buffer_binding(),
                 }),
             )
         });

@@ -25,8 +25,8 @@ impl CalculateCellIterationDispatchDimensions {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                grid_size: grid_size.buffer().as_entire_buffer_binding(),
-                cell_offsets_dispatch_dimensions: cell_offsets_dispatch_dimensions.buffer().as_entire_buffer_binding(),
+                grid_size: grid_size.as_entire_buffer_binding(),
+                cell_offsets_dispatch_dimensions: cell_offsets_dispatch_dimensions.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_calculate_cell_iteration_dispatch_dimensions_pipeline_embed_source(device);

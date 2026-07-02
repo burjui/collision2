@@ -35,14 +35,14 @@ impl NarrowPhase {
         let input_bind_group = WgpuBindGroup1::from_bindings(
             device,
             WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
-                candidates: candidates.buffer().as_entire_buffer_binding(),
-                candidate_count: candidate_count.buffer().as_entire_buffer_binding(),
+                candidates: candidates.as_entire_buffer_binding(),
+                candidate_count: candidate_count.as_entire_buffer_binding(),
             }),
         );
         let output_bind_group = WgpuBindGroup2::from_bindings(
             device,
             WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
-                collision_forces: collision_forces.buffer().as_entire_buffer_binding(),
+                collision_forces: collision_forces.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_narrow_phase_pipeline_embed_source(device);
@@ -62,9 +62,9 @@ impl NarrowPhase {
             WgpuBindGroup0::from_bindings(
                 device,
                 WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                    aabbs: phase_state.aabbs().buffer().as_entire_buffer_binding(),
-                    velocities: phase_state.velocities().buffer().as_entire_buffer_binding(),
-                    masses: self.masses.buffer().as_entire_buffer_binding(),
+                    aabbs: phase_state.aabbs().as_entire_buffer_binding(),
+                    velocities: phase_state.velocities().as_entire_buffer_binding(),
+                    masses: self.masses.as_entire_buffer_binding(),
                 }),
             )
         });

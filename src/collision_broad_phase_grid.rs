@@ -37,14 +37,14 @@ impl CollisionBroadPhaseGrid {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                object_count: object_count_buffer.buffer().as_entire_buffer_binding(),
-                grid_size: grid_size.buffer().as_entire_buffer_binding(),
-                object_cells: object_cells.buffer().as_entire_buffer_binding(),
-                cell_object_count: cell_object_count.buffer().as_entire_buffer_binding(),
-                cell_offsets: cell_offsets.buffer().as_entire_buffer_binding(),
-                cells: cells.buffer().as_entire_buffer_binding(),
-                candidates: candidates.buffer().as_entire_buffer_binding(),
-                candidate_count: candidate_count.buffer().as_entire_buffer_binding(),
+                object_count: object_count_buffer.as_entire_buffer_binding(),
+                grid_size: grid_size.as_entire_buffer_binding(),
+                object_cells: object_cells.as_entire_buffer_binding(),
+                cell_object_count: cell_object_count.as_entire_buffer_binding(),
+                cell_offsets: cell_offsets.as_entire_buffer_binding(),
+                cells: cells.as_entire_buffer_binding(),
+                candidates: candidates.as_entire_buffer_binding(),
+                candidate_count: candidate_count.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_broad_phase_grid_pipeline_embed_source(device);
@@ -62,8 +62,8 @@ impl CollisionBroadPhaseGrid {
             WgpuBindGroup1::from_bindings(
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
-                    aabbs: phase_state.aabbs().buffer().as_entire_buffer_binding(),
-                    flags: phase_state.flags().buffer().as_entire_buffer_binding(),
+                    aabbs: phase_state.aabbs().as_entire_buffer_binding(),
+                    flags: phase_state.flags().as_entire_buffer_binding(),
                 }),
             )
         });

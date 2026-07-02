@@ -27,8 +27,8 @@ impl ResetCellObjectCount {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                grid_size: grid_size.buffer().as_entire_buffer_binding(),
-                cell_object_count: cell_object_count.buffer().as_entire_buffer_binding(),
+                grid_size: grid_size.as_entire_buffer_binding(),
+                cell_object_count: cell_object_count.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_reset_cell_object_count_pipeline_embed_source(device);

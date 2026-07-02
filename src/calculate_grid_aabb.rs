@@ -31,11 +31,11 @@ impl CalculateGridAABB {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                object_count: object_count_buffer.buffer().as_entire_buffer_binding(),
-                grid_min_x: grid_min_x.buffer().as_entire_buffer_binding(),
-                grid_min_y: grid_min_y.buffer().as_entire_buffer_binding(),
-                grid_max_x: grid_max_x.buffer().as_entire_buffer_binding(),
-                grid_max_y: grid_max_y.buffer().as_entire_buffer_binding(),
+                object_count: object_count_buffer.as_entire_buffer_binding(),
+                grid_min_x: grid_min_x.as_entire_buffer_binding(),
+                grid_min_y: grid_min_y.as_entire_buffer_binding(),
+                grid_max_x: grid_max_x.as_entire_buffer_binding(),
+                grid_max_y: grid_max_y.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_calculate_grid_aabb_pipeline_embed_source(device);
@@ -53,7 +53,7 @@ impl CalculateGridAABB {
             WgpuBindGroup1::from_bindings(
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
-                    aabbs: phase_state.aabbs().buffer().as_entire_buffer_binding(),
+                    aabbs: phase_state.aabbs().as_entire_buffer_binding(),
                 }),
             )
         });

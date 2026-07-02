@@ -25,8 +25,8 @@ impl NarrowPhaseDispatchIndirectArgsCalculator {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                candidate_count: candidate_count.buffer().as_entire_buffer_binding(),
-                narrow_phase_dispatch_dimensions: dispatch_dimensions.buffer().as_entire_buffer_binding(),
+                candidate_count: candidate_count.as_entire_buffer_binding(),
+                narrow_phase_dispatch_dimensions: dispatch_dimensions.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_calculate_narrow_phase_dispatch_dimensions_pipeline_embed_source(device);

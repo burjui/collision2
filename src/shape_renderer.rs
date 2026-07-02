@@ -58,10 +58,10 @@ impl ShapeRenderer {
         let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                camera: camera.buffer().as_entire_buffer_binding(),
-                colors: colors.buffer().as_entire_buffer_binding(),
-                shapes: shapes.buffer().as_entire_buffer_binding(),
-                masses: masses.buffer().as_entire_buffer_binding(),
+                camera: camera.as_entire_buffer_binding(),
+                colors: colors.as_entire_buffer_binding(),
+                shapes: shapes.as_entire_buffer_binding(),
+                masses: masses.as_entire_buffer_binding(),
             }),
         );
         let phase_state_cache = PhaseStateCache::new();
@@ -77,9 +77,9 @@ impl ShapeRenderer {
             WgpuBindGroup1::from_bindings(
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
-                    flags: phase_state.flags().buffer().as_entire_buffer_binding(),
-                    aabbs: phase_state.aabbs().buffer().as_entire_buffer_binding(),
-                    velocities: phase_state.velocities().buffer().as_entire_buffer_binding(),
+                    flags: phase_state.flags().as_entire_buffer_binding(),
+                    aabbs: phase_state.aabbs().as_entire_buffer_binding(),
+                    velocities: phase_state.velocities().as_entire_buffer_binding(),
                 }),
             )
         });

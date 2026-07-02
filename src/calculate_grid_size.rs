@@ -29,12 +29,12 @@ impl CalculateGridSize {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                grid_min_x: grid_min_x.buffer().as_entire_buffer_binding(),
-                grid_min_y: grid_min_y.buffer().as_entire_buffer_binding(),
-                grid_max_x: grid_max_x.buffer().as_entire_buffer_binding(),
-                grid_max_y: grid_max_y.buffer().as_entire_buffer_binding(),
-                cell_size: cell_size.buffer().as_entire_buffer_binding(),
-                grid_size: grid_size.buffer().as_entire_buffer_binding(),
+                grid_min_x: grid_min_x.as_entire_buffer_binding(),
+                grid_min_y: grid_min_y.as_entire_buffer_binding(),
+                grid_max_x: grid_max_x.as_entire_buffer_binding(),
+                grid_max_y: grid_max_y.as_entire_buffer_binding(),
+                cell_size: cell_size.as_entire_buffer_binding(),
+                grid_size: grid_size.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_calculate_grid_size_pipeline_embed_source(device);
