@@ -53,7 +53,11 @@ fn collision_repulsion_pair(
     let x2 = (aabb2.min + aabb2.max) * 0.5;
     let separation_vector = x1 - x2;
     let distance = length(separation_vector);
-    let r1 = 0.5 * size1.x;
+    if (distance < 1e-10) {
+        return vec2f(0.0);
+    }
+
+    let r1 = 0.5 * size1.x; // assuming circles
     let r2 = 0.5 * size2.x;
     let interaction_distance = r1 + r2;
 
@@ -65,10 +69,16 @@ fn collision_repulsion_pair(
     let v_rel = v1 - v2;
     let v_n = dot(v_rel, n);
     var f_damping = vec2f();
-    let m_eff = m1 * m2 / (m1 + m2);
+    let m_eff = effective_mass(m1, m2);
     f_damping = -GAMMA_COEFF * sqrt(m_eff) * min(0.0, v_n) * n;
 
     return f_elastic + f_damping;
+}
+
+fn effective_mass(m1: f32, m2: f32) -> f32 {
+    if (m1 == 0.0) { return m2; }
+    if (m2 == 0.0) { return m1; }
+    return m1 * m2 / (m1 + m2);
 }
 
 fn cas_add_force(i: u32, value: vec2f) {

@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: e6fff16357ec9a57362ce6689aee0d8b8d2b714dba77812ebad050801423ba9b
+// SourceHash: ad6803cd97cb80badf7b1d96ac871e021e6ca7117ea258d703be0d70be9d11b7
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -4036,7 +4036,17 @@ fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec
     return ((gid_1.x + ((gid_1.y * workgroup_size) * nwg_1.x)) + ((((gid_1.z * workgroup_size) * nwg_1.x) * workgroup_size) * nwg_1.y));
 }
 
-fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f32>, m1_: f32, aabb2_: AABBX_naga_oil_mod_XMNXW23LPNYX, v2_: vec2<f32>, m2_: f32) -> vec2<f32> {
+fn effective_mass(m1_: f32, m2_: f32) -> f32 {
+    if (m1_ == 0f) {
+        return m2_;
+    }
+    if (m2_ == 0f) {
+        return m1_;
+    }
+    return ((m1_ * m2_) / (m1_ + m2_));
+}
+
+fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f32>, m1_1: f32, aabb2_: AABBX_naga_oil_mod_XMNXW23LPNYX, v2_: vec2<f32>, m2_1: f32) -> vec2<f32> {
     var f_elastic: vec2<f32> = vec2<f32>();
     var f_damping: vec2<f32> = vec2<f32>();
 
@@ -4046,6 +4056,9 @@ fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f
     let x2_ = ((aabb2_.min + aabb2_.max) * 0.5f);
     let separation_vector = (x1_ - x2_);
     let distance_ = length(separation_vector);
+    if (distance_ < 0.0000000001f) {
+        return vec2(0f);
+    }
     let r1_ = (0.5f * size1_.x);
     let r2_ = (0.5f * size2_.x);
     let interaction_distance = (r1_ + r2_);
@@ -4054,11 +4067,11 @@ fn collision_repulsion_pair(aabb1_: AABBX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f
     f_elastic = ((STIFFNESS * max(0f, penetration)) * n);
     let v_rel = (v1_ - v2_);
     let v_n = dot(v_rel, n);
-    let m_eff = ((m1_ * m2_) / (m1_ + m2_));
-    f_damping = (((-212.13202f * sqrt(m_eff)) * min(0f, v_n)) * n);
-    let _e54 = f_elastic;
-    let _e55 = f_damping;
-    return (_e54 + _e55);
+    let _e47 = effective_mass(m1_1, m2_1);
+    f_damping = (((-212.13202f * sqrt(_e47)) * min(0f, v_n)) * n);
+    let _e56 = f_elastic;
+    let _e57 = f_damping;
+    return (_e56 + _e57);
 }
 
 fn cas_add_force_component(i: u32, value: f32) {
