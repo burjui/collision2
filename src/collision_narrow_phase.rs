@@ -1,6 +1,7 @@
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     phase_state::PhaseState,
     shaders::{
         collision_narrow_phase::{
@@ -10,27 +11,26 @@ use crate::{
         },
         common::{CollisionCandidate, DispatchIndirectArgs, Mass},
     },
-    typed_buffer::TypedBuffer,
     util::PhaseStateCache,
 };
 
 pub struct NarrowPhase {
-    dispatch_dimensions: TypedBuffer<DispatchIndirectArgs>,
+    dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
     input_bind_group: WgpuBindGroup1,
     output_bind_group: WgpuBindGroup2,
     pipeline: ComputePipeline,
-    masses: TypedBuffer<Mass>,
+    masses: DeviceBuffer<Mass>,
     phase_state_cache: PhaseStateCache<WgpuBindGroup0>,
 }
 
 impl NarrowPhase {
     pub fn new(
         device: &Device,
-        dispatch_dimensions: TypedBuffer<DispatchIndirectArgs>,
-        candidates: TypedBuffer<CollisionCandidate>,
-        candidate_count: TypedBuffer<u32>,
-        masses: TypedBuffer<Mass>,
-        collision_forces: TypedBuffer<u32>,
+        dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
+        candidates: DeviceBuffer<CollisionCandidate>,
+        candidate_count: DeviceBuffer<u32>,
+        masses: DeviceBuffer<Mass>,
+        collision_forces: DeviceBuffer<u32>,
     ) -> Self {
         let input_bind_group = WgpuBindGroup1::from_bindings(
             device,

@@ -1,6 +1,7 @@
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     phase_state::PhaseState,
     shaders::{
         common::Mass,
@@ -11,7 +12,6 @@ use crate::{
             compute::create_integrate_pipeline_embed_source,
         },
     },
-    typed_buffer::TypedBuffer,
     util::{PhaseStateCache, dispatch_compute},
 };
 
@@ -43,36 +43,36 @@ impl Integrator {
     pub fn new(
         device: &Device,
         object_count: usize,
-        object_count_buffer: TypedBuffer<u32>,
-        dt: TypedBuffer<f32>,
-        masses: TypedBuffer<Mass>,
-        collision_forces: TypedBuffer<u32>,
+        object_count_buffer: DeviceBuffer<u32>,
+        dt: DeviceBuffer<f32>,
+        masses: DeviceBuffer<Mass>,
+        collision_forces: DeviceBuffer<u32>,
     ) -> Self {
-        let blackholes = TypedBuffer::from_data(device, Self::BLACKHOLES, "blackholes", BufferUsages::STORAGE);
+        let blackholes = DeviceBuffer::from_data(device, Self::BLACKHOLES, "blackholes", BufferUsages::STORAGE);
         let pipeline = create_integrate_pipeline_embed_source(device);
         let blackhole_count = u32::try_from(Self::BLACKHOLES.len() - 1).unwrap();
         let blackhole_count =
-            TypedBuffer::from_data(device, &[blackhole_count], "blackhole count", BufferUsages::UNIFORM);
-        let blackhole_mass_scale = TypedBuffer::from_data(
+            DeviceBuffer::from_data(device, &[blackhole_count], "blackhole count", BufferUsages::UNIFORM);
+        let blackhole_mass_scale = DeviceBuffer::from_data(
             device,
             &[Self::BLACKHOLE_MASS_SCALE],
             "blackhole mass scale",
             BufferUsages::UNIFORM,
         );
-        let blackhole_size_scale = TypedBuffer::from_data(
+        let blackhole_size_scale = DeviceBuffer::from_data(
             device,
             &[Self::BLACKHOLE_SIZE_SCALE],
             "blackhole size scale",
             BufferUsages::UNIFORM,
         );
-        let gravitational_constant = TypedBuffer::from_data(
+        let gravitational_constant = DeviceBuffer::from_data(
             device,
             &[Self::GRAVITATIONAL_CONSTANT],
             "gravitational constant",
             BufferUsages::UNIFORM,
         );
         let global_acceleration =
-            TypedBuffer::from_data(device, &[Self::GLOBAL_ACCELERATION], "global force", BufferUsages::UNIFORM);
+            DeviceBuffer::from_data(device, &[Self::GLOBAL_ACCELERATION], "global force", BufferUsages::UNIFORM);
         let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {

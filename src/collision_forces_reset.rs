@@ -1,11 +1,11 @@
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     shaders::collision_forces_reset::{
         WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
         compute::create_reset_collision_forces_pipeline_embed_source,
     },
-    typed_buffer::TypedBuffer,
     util::dispatch_compute,
 };
 
@@ -16,9 +16,9 @@ pub struct CollisionReset {
 }
 
 impl CollisionReset {
-    pub fn new(device: &Device, object_count: u32, collision_forces: TypedBuffer<u32>) -> Self {
+    pub fn new(device: &Device, object_count: u32, collision_forces: DeviceBuffer<u32>) -> Self {
         let object_count_buffer =
-            TypedBuffer::from_data(device, &[object_count], "object count", BufferUsages::UNIFORM);
+            DeviceBuffer::from_data(device, &[object_count], "object count", BufferUsages::UNIFORM);
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {

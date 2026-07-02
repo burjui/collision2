@@ -1,6 +1,7 @@
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     shaders::{
         calculate_cell_offsets::{
             WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
@@ -8,11 +9,10 @@ use crate::{
         },
         common::{DispatchIndirectArgs, GridSize},
     },
-    typed_buffer::TypedBuffer,
 };
 
 pub struct CalculateCellOffsets {
-    dispatch_dimensions: TypedBuffer<DispatchIndirectArgs>,
+    dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
     bind_group: WgpuBindGroup0,
     pipeline: ComputePipeline,
 }
@@ -20,11 +20,11 @@ pub struct CalculateCellOffsets {
 impl CalculateCellOffsets {
     pub fn new(
         device: &Device,
-        dispatch_dimensions: TypedBuffer<DispatchIndirectArgs>,
-        current_cell_offset: TypedBuffer<u32>,
-        grid_size: TypedBuffer<GridSize>,
-        cell_object_count: TypedBuffer<u32>,
-        cell_offsets: TypedBuffer<u32>,
+        dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
+        current_cell_offset: DeviceBuffer<u32>,
+        grid_size: DeviceBuffer<GridSize>,
+        cell_object_count: DeviceBuffer<u32>,
+        cell_offsets: DeviceBuffer<u32>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,

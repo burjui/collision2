@@ -1,17 +1,17 @@
 use wgpu::{BufferUsages, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     shaders::common::{AABB, Flags, Velocity},
-    typed_buffer::TypedBuffer,
 };
 
 /// Set of object phase states (change every frame)
 #[derive(Clone)]
 pub struct PhaseState {
     // TODO: split AABBs of objects and nodes
-    aabbs: TypedBuffer<AABB>,
-    velocities: TypedBuffer<Velocity>,
-    flags: TypedBuffer<Flags>,
+    aabbs: DeviceBuffer<AABB>,
+    velocities: DeviceBuffer<Velocity>,
+    flags: DeviceBuffer<Flags>,
 }
 
 impl PhaseState {
@@ -27,35 +27,35 @@ impl PhaseState {
         let flags_name = format!("flags #{index}");
         let (aabbs, velocities, flags) = if index == 0 {
             (
-                TypedBuffer::from_data(
+                DeviceBuffer::from_data(
                     device,
                     initial_aabbs,
                     &aabbs_name,
                     BufferUsages::STORAGE | BufferUsages::COPY_SRC,
                 ),
-                TypedBuffer::from_data(
+                DeviceBuffer::from_data(
                     device,
                     initial_velocities,
                     &velocities_name,
                     BufferUsages::STORAGE | BufferUsages::COPY_SRC,
                 ),
-                TypedBuffer::from_data(device, initial_flags, &flags_name, BufferUsages::STORAGE),
+                DeviceBuffer::from_data(device, initial_flags, &flags_name, BufferUsages::STORAGE),
             )
         } else {
             (
-                TypedBuffer::new(
+                DeviceBuffer::new(
                     device,
                     initial_aabbs.len(),
                     &aabbs_name,
                     BufferUsages::STORAGE | BufferUsages::COPY_SRC,
                 ),
-                TypedBuffer::new(
+                DeviceBuffer::new(
                     device,
                     initial_velocities.len(),
                     &velocities_name,
                     BufferUsages::STORAGE | BufferUsages::COPY_SRC,
                 ),
-                TypedBuffer::new(device, initial_flags.len(), &flags_name, BufferUsages::STORAGE),
+                DeviceBuffer::new(device, initial_flags.len(), &flags_name, BufferUsages::STORAGE),
             )
         };
         Self {
@@ -65,15 +65,15 @@ impl PhaseState {
         }
     }
 
-    pub fn aabbs(&self) -> &TypedBuffer<AABB> {
+    pub fn aabbs(&self) -> &DeviceBuffer<AABB> {
         &self.aabbs
     }
 
-    pub fn velocities(&self) -> &TypedBuffer<Velocity> {
+    pub fn velocities(&self) -> &DeviceBuffer<Velocity> {
         &self.velocities
     }
 
-    pub fn flags(&self) -> &TypedBuffer<Flags> {
+    pub fn flags(&self) -> &DeviceBuffer<Flags> {
         &self.flags
     }
 }

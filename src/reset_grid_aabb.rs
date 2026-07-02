@@ -1,6 +1,7 @@
 use wgpu::{ComputePipeline, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     shaders::{
         common::AABB,
         reset_grid_aabb::{
@@ -8,7 +9,6 @@ use crate::{
             compute::create_reset_grid_aabb_pipeline_embed_source,
         },
     },
-    typed_buffer::TypedBuffer,
 };
 
 pub struct ResetGridAABB {
@@ -19,11 +19,11 @@ pub struct ResetGridAABB {
 impl ResetGridAABB {
     pub fn new(
         device: &Device,
-        first_aabb: TypedBuffer<AABB>,
-        grid_min_x: TypedBuffer<f32>,
-        grid_min_y: TypedBuffer<f32>,
-        grid_max_x: TypedBuffer<f32>,
-        grid_max_y: TypedBuffer<f32>,
+        first_aabb: DeviceBuffer<AABB>,
+        grid_min_x: DeviceBuffer<f32>,
+        grid_min_y: DeviceBuffer<f32>,
+        grid_max_x: DeviceBuffer<f32>,
+        grid_max_y: DeviceBuffer<f32>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,

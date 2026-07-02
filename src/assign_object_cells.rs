@@ -2,6 +2,7 @@ use wgpu::{ComputePipeline, Device};
 
 // use crate::shaders::common::CellPosition;
 use crate::{
+    device_buffer::DeviceBuffer,
     phase_state::PhaseState,
     shaders::{
         assign_object_cells::{
@@ -10,7 +11,6 @@ use crate::{
         },
         common::{CellPosition, GridSize},
     },
-    typed_buffer::TypedBuffer,
     util::{PhaseStateCache, dispatch_compute},
 };
 
@@ -25,13 +25,13 @@ impl AssignObjectCells {
     pub fn new(
         device: &Device,
         object_count: usize,
-        object_count_buffer: TypedBuffer<u32>,
-        grid_min_x: TypedBuffer<f32>,
-        grid_min_y: TypedBuffer<f32>,
-        grid_size: TypedBuffer<GridSize>,
-        cell_size: TypedBuffer<f32>,
-        cell_object_count: TypedBuffer<u32>,
-        object_cells: TypedBuffer<CellPosition>,
+        object_count_buffer: DeviceBuffer<u32>,
+        grid_min_x: DeviceBuffer<f32>,
+        grid_min_y: DeviceBuffer<f32>,
+        grid_size: DeviceBuffer<GridSize>,
+        cell_size: DeviceBuffer<f32>,
+        cell_object_count: DeviceBuffer<u32>,
+        object_cells: DeviceBuffer<CellPosition>,
     ) -> Self {
         let object_count: u32 = object_count.try_into().unwrap();
         let bind_group = WgpuBindGroup0::from_bindings(

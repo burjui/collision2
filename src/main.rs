@@ -10,6 +10,7 @@ pub mod collision_broad_phase_grid;
 pub mod collision_forces_reset;
 pub mod collision_narrow_phase;
 pub mod collision_narrow_phase_dispatch_dimensions;
+pub mod device_buffer;
 pub mod integrator;
 pub mod objects;
 pub mod phase_state;
@@ -19,7 +20,6 @@ pub mod reset_grid_aabb;
 pub mod scene;
 pub mod shaders;
 pub mod shape_renderer;
-pub mod typed_buffer;
 pub mod util;
 
 use core::panic;
@@ -63,6 +63,7 @@ use crate::{
     collision_forces_reset::CollisionReset,
     collision_narrow_phase::NarrowPhase,
     collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgsCalculator,
+    device_buffer::DeviceBuffer,
     integrator::Integrator,
     objects::Objects,
     phase_state::PhaseStateRing,
@@ -74,7 +75,6 @@ use crate::{
         AABB, Camera, CellPosition, DispatchIndirectArgs, GridSize, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL,
     },
     shape_renderer::ShapeRenderer,
-    typed_buffer::TypedBuffer,
 };
 
 fn main() {
@@ -134,7 +134,7 @@ struct SimState<'a> {
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
     object_count: usize,
-    camera: TypedBuffer<Camera>,
+    camera: DeviceBuffer<Camera>,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     exit_requested: Arc<AtomicBool>,
     prioritize_compute: Arc<AtomicBool>,
@@ -163,19 +163,23 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let world_size = self.world_aabb.size();
         println!("World size: {}x{}", world_size.x, world_size.y);
 
-        let object_count_buffer: TypedBuffer<u32> =
-            TypedBuffer::from_data(&device, &[object_count.try_into().unwrap()], "object_count", BufferUsages::UNIFORM);
+        let object_count_buffer: DeviceBuffer<u32> = DeviceBuffer::from_data(
+            &device,
+            &[object_count.try_into().unwrap()],
+            "object_count",
+            BufferUsages::UNIFORM,
+        );
         // TODO: don't store leaves
         let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
 
-        let masses = TypedBuffer::from_data(&device, &objects.masses, "masses", storage_copy_dst);
-        let colors = TypedBuffer::from_data(&device, &objects.colors, "colors", storage_copy_dst);
-        let shapes = TypedBuffer::from_data(&device, &objects.shapes, "shapes", storage_copy_dst);
+        let masses = DeviceBuffer::from_data(&device, &objects.masses, "masses", storage_copy_dst);
+        let colors = DeviceBuffer::from_data(&device, &objects.colors, "colors", storage_copy_dst);
+        let shapes = DeviceBuffer::from_data(&device, &objects.shapes, "shapes", storage_copy_dst);
 
         let phase_state_ring =
             Arc::new(Mutex::new(PhaseStateRing::new(&device, &objects.flags, &objects.aabbs, &objects.velocities)));
 
-        let camera = TypedBuffer::<Camera>::new(&device, 1, "camera", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
+        let camera = DeviceBuffer::<Camera>::new(&device, 1, "camera", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
         let shape_renderer =
             ShapeRenderer::new(&device, swapchain_format, camera.clone(), colors, shapes, masses.clone());
         let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), object_count);
@@ -466,9 +470,9 @@ fn spawn_simulation_thread(
     device: Device,
     queue: Queue,
     object_count: usize,
-    object_count_buffer: TypedBuffer<u32>,
+    object_count_buffer: DeviceBuffer<u32>,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
-    masses: TypedBuffer<Mass>,
+    masses: DeviceBuffer<Mass>,
     exit_requested: Arc<AtomicBool>,
     prioritize_compute: Arc<AtomicBool>,
     event_loop_proxy: EventLoopProxy<AppEvent>,
@@ -477,82 +481,82 @@ fn spawn_simulation_thread(
         const DT: f32 = 0.002;
         const MAX_SIM_TIME: Option<f32> = None;
 
-        let dt = TypedBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
+        let dt = DeviceBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
         let max_candidates_per_object: usize = MAX_CANDIDATES_PER_OBJECT.try_into().unwrap();
         let max_candidates = object_count * max_candidates_per_object;
         let candidates =
-            TypedBuffer::new(&device, max_candidates, "candidates", BufferUsages::STORAGE | BufferUsages::COPY_SRC);
-        let candidate_count = TypedBuffer::new(
+            DeviceBuffer::new(&device, max_candidates, "candidates", BufferUsages::STORAGE | BufferUsages::COPY_SRC);
+        let candidate_count = DeviceBuffer::new(
             &device,
             1,
             "candidate_count",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         );
 
-        let grid_min_x: TypedBuffer<f32> = TypedBuffer::new(
+        let grid_min_x: DeviceBuffer<f32> = DeviceBuffer::new(
             &device,
             1,
             "grid min x",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
-        let grid_min_y: TypedBuffer<f32> = TypedBuffer::new(
+        let grid_min_y: DeviceBuffer<f32> = DeviceBuffer::new(
             &device,
             1,
             "grid min y",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
-        let grid_max_x: TypedBuffer<f32> = TypedBuffer::new(
+        let grid_max_x: DeviceBuffer<f32> = DeviceBuffer::new(
             &device,
             1,
             "grid max x",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
-        let grid_max_y: TypedBuffer<f32> = TypedBuffer::new(
+        let grid_max_y: DeviceBuffer<f32> = DeviceBuffer::new(
             &device,
             1,
             "grid max y",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
-        let first_aabb: TypedBuffer<AABB> =
-            TypedBuffer::new(&device, 1, "first aabb", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
-        let cell_size: TypedBuffer<f32> = TypedBuffer::from_data(
+        let first_aabb: DeviceBuffer<AABB> =
+            DeviceBuffer::new(&device, 1, "first aabb", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
+        let cell_size: DeviceBuffer<f32> = DeviceBuffer::from_data(
             &device,
             &[PARTICLE_RADIUS * 2.0],
             "cell size",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
-        let grid_size: TypedBuffer<GridSize> = TypedBuffer::new(
+        let grid_size: DeviceBuffer<GridSize> = DeviceBuffer::new(
             &device,
             1,
             "grid size",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
-        let object_cells: TypedBuffer<CellPosition> =
-            TypedBuffer::new(&device, object_count, "object cells", BufferUsages::STORAGE | BufferUsages::COPY_SRC);
+        let object_cells: DeviceBuffer<CellPosition> =
+            DeviceBuffer::new(&device, object_count, "object cells", BufferUsages::STORAGE | BufferUsages::COPY_SRC);
         let max_cells = object_count * 10; // TODO: calculate properly
-        let cell_object_count: TypedBuffer<u32> = TypedBuffer::new(
+        let cell_object_count: DeviceBuffer<u32> = DeviceBuffer::new(
             &device,
             max_cells,
             "cell object count",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         );
-        let cell_iteration_dispatch_dimensions: TypedBuffer<DispatchIndirectArgs> = TypedBuffer::new(
+        let cell_iteration_dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs> = DeviceBuffer::new(
             &device,
             1,
             "cell offsets dispatch dimensions",
             BufferUsages::STORAGE | BufferUsages::INDIRECT,
         );
-        let current_cell_offset = TypedBuffer::new(
+        let current_cell_offset = DeviceBuffer::new(
             &device,
             1,
             "current cell offset",
             BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
         );
-        let cell_offsets: TypedBuffer<u32> =
-            TypedBuffer::new(&device, max_cells, "cell offsets", BufferUsages::STORAGE);
+        let cell_offsets: DeviceBuffer<u32> =
+            DeviceBuffer::new(&device, max_cells, "cell offsets", BufferUsages::STORAGE);
         let max_objects_per_cell: usize = MAX_OBJECTS_PER_CELL.try_into().unwrap();
-        let cells: TypedBuffer<u32> =
-            TypedBuffer::new(&device, object_count * max_objects_per_cell, "cells", BufferUsages::STORAGE);
+        let cells: DeviceBuffer<u32> =
+            DeviceBuffer::new(&device, object_count * max_objects_per_cell, "cells", BufferUsages::STORAGE);
 
         let reset_grid_aabb = ResetGridAABB::new(
             &device,
@@ -632,7 +636,7 @@ fn spawn_simulation_thread(
             candidate_count.clone(),
         );
 
-        let narrow_phase_dispatch_dimensions = TypedBuffer::new(
+        let narrow_phase_dispatch_dimensions = DeviceBuffer::new(
             &device,
             1,
             "narrow phase dispatch dimensions",
@@ -644,7 +648,7 @@ fn spawn_simulation_thread(
             narrow_phase_dispatch_dimensions.clone(),
         );
 
-        let collision_forces = TypedBuffer::new(
+        let collision_forces = DeviceBuffer::new(
             &device,
             object_count * 2,
             "collision forces",

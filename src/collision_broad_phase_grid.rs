@@ -1,6 +1,7 @@
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     phase_state::PhaseState,
     shaders::{
         collision_broad_phase_grid::{
@@ -9,7 +10,6 @@ use crate::{
         },
         common::{CellPosition, CollisionCandidate, GridSize},
     },
-    typed_buffer::TypedBuffer,
     util::{PhaseStateCache, dispatch_compute},
 };
 
@@ -24,14 +24,14 @@ impl CollisionBroadPhaseGrid {
     pub fn new(
         device: &Device,
         object_count: usize,
-        object_count_buffer: TypedBuffer<u32>,
-        grid_size: TypedBuffer<GridSize>,
-        object_cells: TypedBuffer<CellPosition>,
-        cell_object_count: TypedBuffer<u32>,
-        cell_offsets: TypedBuffer<u32>,
-        cells: TypedBuffer<u32>,
-        candidates: TypedBuffer<CollisionCandidate>,
-        candidate_count: TypedBuffer<u32>,
+        object_count_buffer: DeviceBuffer<u32>,
+        grid_size: DeviceBuffer<GridSize>,
+        object_cells: DeviceBuffer<CellPosition>,
+        cell_object_count: DeviceBuffer<u32>,
+        cell_offsets: DeviceBuffer<u32>,
+        cells: DeviceBuffer<u32>,
+        candidates: DeviceBuffer<CollisionCandidate>,
+        candidate_count: DeviceBuffer<u32>,
     ) -> Self {
         let object_count: u32 = object_count.try_into().unwrap();
         let bind_group = WgpuBindGroup0::from_bindings(

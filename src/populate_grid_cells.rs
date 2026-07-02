@@ -1,6 +1,7 @@
 use wgpu::{ComputePipeline, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     shaders::{
         common::{CellPosition, GridSize},
         populate_grid_cells::{
@@ -8,7 +9,6 @@ use crate::{
             compute::create_populate_object_cells_pipeline_embed_source,
         },
     },
-    typed_buffer::TypedBuffer,
     util::dispatch_compute,
 };
 
@@ -22,11 +22,11 @@ impl PopulateGridCells {
     pub fn new(
         device: &Device,
         object_count: usize,
-        object_count_buffer: TypedBuffer<u32>,
-        grid_size: TypedBuffer<GridSize>,
-        object_cells: TypedBuffer<CellPosition>,
-        cell_offsets: TypedBuffer<u32>,
-        cells: TypedBuffer<u32>,
+        object_count_buffer: DeviceBuffer<u32>,
+        grid_size: DeviceBuffer<GridSize>,
+        object_cells: DeviceBuffer<CellPosition>,
+        cell_offsets: DeviceBuffer<u32>,
+        cells: DeviceBuffer<u32>,
     ) -> Self {
         let object_count: u32 = object_count.try_into().unwrap();
         let bind_group = WgpuBindGroup0::from_bindings(

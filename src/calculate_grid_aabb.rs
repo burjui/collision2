@@ -1,12 +1,12 @@
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     phase_state::PhaseState,
     shaders::calculate_grid_aabb::{
         WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
         WgpuBindGroup1EntriesParams, compute::create_calculate_grid_aabb_pipeline_embed_source,
     },
-    typed_buffer::TypedBuffer,
     util::{PhaseStateCache, dispatch_compute},
 };
 
@@ -21,11 +21,11 @@ impl CalculateGridAABB {
     pub fn new(
         device: &Device,
         object_count: usize,
-        object_count_buffer: TypedBuffer<u32>,
-        grid_min_x: TypedBuffer<f32>,
-        grid_min_y: TypedBuffer<f32>,
-        grid_max_x: TypedBuffer<f32>,
-        grid_max_y: TypedBuffer<f32>,
+        object_count_buffer: DeviceBuffer<u32>,
+        grid_min_x: DeviceBuffer<f32>,
+        grid_min_y: DeviceBuffer<f32>,
+        grid_max_x: DeviceBuffer<f32>,
+        grid_max_y: DeviceBuffer<f32>,
     ) -> Self {
         let object_count: u32 = object_count.try_into().unwrap();
         let bind_group = WgpuBindGroup0::from_bindings(

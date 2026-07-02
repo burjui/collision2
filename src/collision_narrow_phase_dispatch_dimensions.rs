@@ -1,6 +1,7 @@
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     shaders::{
         collision_narrow_phase_dispatch_dimensions::{
             WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
@@ -8,7 +9,6 @@ use crate::{
         },
         common::DispatchIndirectArgs,
     },
-    typed_buffer::TypedBuffer,
 };
 
 pub struct NarrowPhaseDispatchIndirectArgsCalculator {
@@ -19,8 +19,8 @@ pub struct NarrowPhaseDispatchIndirectArgsCalculator {
 impl NarrowPhaseDispatchIndirectArgsCalculator {
     pub fn new(
         device: &Device,
-        candidate_count: TypedBuffer<u32>,
-        dispatch_dimensions: TypedBuffer<DispatchIndirectArgs>,
+        candidate_count: DeviceBuffer<u32>,
+        dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,

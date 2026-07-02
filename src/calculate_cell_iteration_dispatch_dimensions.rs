@@ -1,6 +1,7 @@
 use wgpu::{ComputePipeline, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     shaders::{
         calculate_cell_iteration_dispatch_dimensions::{
             WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
@@ -8,7 +9,6 @@ use crate::{
         },
         common::{DispatchIndirectArgs, GridSize},
     },
-    typed_buffer::TypedBuffer,
 };
 
 pub struct CalculateCellIterationDispatchDimensions {
@@ -19,8 +19,8 @@ pub struct CalculateCellIterationDispatchDimensions {
 impl CalculateCellIterationDispatchDimensions {
     pub fn new(
         device: &Device,
-        grid_size: TypedBuffer<GridSize>,
-        cell_offsets_dispatch_dimensions: TypedBuffer<DispatchIndirectArgs>,
+        grid_size: DeviceBuffer<GridSize>,
+        cell_offsets_dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,

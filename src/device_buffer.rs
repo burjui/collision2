@@ -13,12 +13,12 @@ use wgpu::{
 
 /// Typesafe handle to a wgpu buffer
 #[derive(Clone)]
-pub struct TypedBuffer<T> {
+pub struct DeviceBuffer<T> {
     buffer: Buffer,
     _marker: PhantomData<T>,
 }
 
-impl<T> TypedBuffer<T> {
+impl<T> DeviceBuffer<T> {
     pub fn new(device: &Device, length: usize, label: &str, usage: wgpu::BufferUsages) -> Self {
         let required_size = u64::try_from(length * size_of::<T>()).unwrap();
         let padded_size = required_size.div_ceil(COPY_BUFFER_ALIGNMENT) * COPY_BUFFER_ALIGNMENT;
@@ -106,7 +106,7 @@ impl<T> TypedBuffer<T> {
     pub fn copy(
         &self,
         dst_bounds: impl RangeBounds<usize>,
-        src: &TypedBuffer<T>,
+        src: &DeviceBuffer<T>,
         src_bounds: impl RangeBounds<usize>,
         encoder: &mut CommandEncoder,
     ) {

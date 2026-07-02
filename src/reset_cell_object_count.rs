@@ -1,6 +1,7 @@
 use wgpu::{ComputePipeline, Device};
 
 use crate::{
+    device_buffer::DeviceBuffer,
     shaders::{
         common::{DispatchIndirectArgs, GridSize},
         reset_cell_object_count::{
@@ -8,11 +9,10 @@ use crate::{
             compute::create_reset_cell_object_count_pipeline_embed_source,
         },
     },
-    typed_buffer::TypedBuffer,
 };
 
 pub struct ResetCellObjectCount {
-    dispatch_dimensions: TypedBuffer<DispatchIndirectArgs>,
+    dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
     bind_group: WgpuBindGroup0,
     pipeline: ComputePipeline,
 }
@@ -20,9 +20,9 @@ pub struct ResetCellObjectCount {
 impl ResetCellObjectCount {
     pub fn new(
         device: &Device,
-        dispatch_dimensions: TypedBuffer<DispatchIndirectArgs>,
-        grid_size: TypedBuffer<GridSize>,
-        cell_object_count: TypedBuffer<u32>,
+        dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
+        grid_size: DeviceBuffer<GridSize>,
+        cell_object_count: DeviceBuffer<u32>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,

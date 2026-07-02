@@ -4,6 +4,7 @@ use wgpu::{
 };
 
 use crate::{
+    device_buffer::DeviceBuffer,
     phase_state::PhaseState,
     shaders::{
         common::Camera,
@@ -13,7 +14,6 @@ use crate::{
             fs_main_entry, vertex_state, vs_main_entry,
         },
     },
-    typed_buffer::TypedBuffer,
     util::PhaseStateCache,
 };
 
@@ -28,7 +28,7 @@ impl AabbRenderer {
     pub fn new(
         device: &Device,
         swapchain_format: TextureFormat,
-        camera_buffer: TypedBuffer<Camera>,
+        camera_buffer: DeviceBuffer<Camera>,
         n_aabbs: usize,
     ) -> Self {
         let pipeline_layout = create_pipeline_layout(device);
