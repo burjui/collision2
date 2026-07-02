@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: ad6803cd97cb80badf7b1d96ac871e021e6ca7117ea258d703be0d70be9d11b7
+// SourceHash: 099235543734e63d915e959348e51090fca49f82a508ac5b89d1b65a88193d9e
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -5119,16 +5119,16 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>, mass: f32) -> ve
     return (((((direction * _e8) * mass) * blackhole.mass) * _e14) / vec2((distance_ * distance_)));
 }
 
-fn frame_dragging(blackhole_1: BlackHole, state_1: ObjectPhaseState) -> vec2<f32> {
+fn frame_dragging(blackhole_1: BlackHole, state_1: ObjectPhaseState, mass_1: f32) -> vec2<f32> {
     let r_vec = (blackhole_1.position - state_1.position);
     let r = length(r_vec);
-    let J = blackhole_1.spin;
+    let J = ((blackhole_1.spin * blackhole_1.mass) * blackhole_1.mass);
     let v_perp = vec2<f32>(-(state_1.velocity.y), state_1.velocity.x);
-    let _e14 = gravitational_constant;
-    return ((((2f * _e14) * J) / pow(r, 3f)) * v_perp);
+    let _e18 = gravitational_constant;
+    return ((mass_1 * (((2f * _e18) * J) / pow(r, 3f))) * v_perp);
 }
 
-fn forces(state_2: ObjectPhaseState, index: u32, aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_1: f32) -> vec2<f32> {
+fn forces(state_2: ObjectPhaseState, index: u32, aabb: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_2: f32) -> vec2<f32> {
     var total_force: vec2<f32> = vec2<f32>();
     var bh_index_1: u32 = 0u;
     var blackhole_2: BlackHole;
@@ -5146,11 +5146,11 @@ fn forces(state_2: ObjectPhaseState, index: u32, aabb: AABBX_naga_oil_mod_XMNXW2
             blackhole_2 = _e10;
             let _e14 = total_force;
             let _e15 = blackhole_2;
-            let _e18 = blackhole_gravity(_e15, state_2.position, mass_1);
+            let _e18 = blackhole_gravity(_e15, state_2.position, mass_2);
             total_force = (_e14 + _e18);
             let _e20 = total_force;
             let _e21 = blackhole_2;
-            let _e22 = frame_dragging(_e21, state_2);
+            let _e22 = frame_dragging(_e21, state_2, mass_2);
             total_force = (_e20 + _e22);
         }
         continuing {
@@ -5165,12 +5165,12 @@ fn forces(state_2: ObjectPhaseState, index: u32, aabb: AABBX_naga_oil_mod_XMNXW2
     return _e33;
 }
 
-fn integrate_euler_symplectic(state_3: ObjectPhaseState, index_1: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_2: f32) -> ObjectPhaseState {
+fn integrate_euler_symplectic(state_3: ObjectPhaseState, index_1: u32, aabb_1: AABBX_naga_oil_mod_XMNXW23LPNYX, mass_3: f32) -> ObjectPhaseState {
     var new_state: ObjectPhaseState;
 
     let _e1 = global_acceleration;
-    let _e6 = forces(state_3, index_1, aabb_1, mass_2);
-    let a = (_e1 + (_e6 / vec2(mass_2)));
+    let _e6 = forces(state_3, index_1, aabb_1, mass_3);
+    let a = (_e1 + (_e6 / vec2(mass_3)));
     new_state = state_3;
     let _e12 = new_state.velocity;
     let _e14 = dt;
@@ -5200,7 +5200,7 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
     let aabb_2 = aabbs[object_index];
     let initial_position = ((aabb_2.min + aabb_2.max) / vec2(2f));
     let initial_velocity = velocities[object_index].inner;
-    let mass_3 = masses[object_index].inner;
+    let mass_4 = masses[object_index].inner;
     let _e29 = flags[object_index].inner;
     f = _e29;
     let _e34 = velocities[object_index].inner;
@@ -5208,7 +5208,7 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
     let _e37 = f;
     if ((_e37 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
         let _e42 = state;
-        let _e43 = integrate_euler_symplectic(_e42, object_index, aabb_2, mass_3);
+        let _e43 = integrate_euler_symplectic(_e42, object_index, aabb_2, mass_4);
         state = _e43;
     }
     let size = (aabb_2.max - aabb_2.min);

@@ -115,7 +115,7 @@ fn forces(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
     for (var bh_index: u32 = 0; bh_index < blackhole_count; bh_index += 1) {
         var blackhole = blackholes[bh_index];
         total_force += blackhole_gravity(blackhole, state.position, mass);
-        total_force += frame_dragging(blackhole, state);
+        total_force += frame_dragging(blackhole, state, mass);
     }
     total_force += collision_forces[index];
     return total_force;
@@ -130,10 +130,10 @@ fn blackhole_gravity(blackhole: BlackHole, position: vec2f, mass: f32) -> vec2f 
 
 // Lense–Thirring formula for 2D
 // NOTE: some terms are missing and have to be reintroduced for 3D
-fn frame_dragging(blackhole: BlackHole, state: ObjectPhaseState) -> vec2f {
+fn frame_dragging(blackhole: BlackHole, state: ObjectPhaseState, mass: f32) -> vec2f {
     let r_vec = blackhole.position - state.position;
     let r = length(r_vec);
-    let J = blackhole.spin; // scalar angular momentum (Jz)
+    let J = blackhole.spin * blackhole.mass * blackhole.mass; // scalar angular momentum (Jz)
     let v_perp = vec2f(-state.velocity.y, state.velocity.x); // v rotated by +90 degrees
-    return (2.0 * gravitational_constant * J / pow(r, 3.0)) * v_perp;
+    return mass * (2.0 * gravitational_constant * J / pow(r, 3.0)) * v_perp;
 }
