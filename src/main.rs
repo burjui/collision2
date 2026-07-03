@@ -696,7 +696,6 @@ fn spawn_simulation_thread(
             }
 
             // Set integrator buffers, advance the 2-state sliding window that the integrator uses
-
             let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
             let phase_state_index = phase_state_ring_guard.current_compute_index();
             let current_phase_state = phase_state_ring_guard.current_compute().clone();
@@ -704,40 +703,43 @@ fn spawn_simulation_thread(
             phase_state_ring_guard.advance_compute();
             drop(phase_state_ring_guard);
 
+            // Prepare the compute pass
             calculate_grid_aabb.prepare(&device, phase_state_index, &current_phase_state);
             assign_object_cells.prepare(&device, phase_state_index, &current_phase_state);
             broad_phase_grid.prepare(&device, phase_state_index, &current_phase_state);
             narrow_phase.prepare(&device, phase_state_index, &current_phase_state);
             integrator.prepare(&device, phase_state_index, &current_phase_state, &next_phase_state);
 
-            // Run the integrator
-
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
+
+            // Reset buffers
             first_aabb.copy(0..1, current_phase_state.aabbs(), 0..1, &mut encoder);
             encoder.clear_buffer(cell_object_count.buffer(), 0, None);
+            encoder.clear_buffer(current_cell_offset.buffer(), 0, None);
+            encoder.clear_buffer(candidate_count.buffer(), 0, None);
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
 
+            // Broad phase
             reset_grid_aabb.compute(&mut compute_pass);
             calculate_grid_aabb.compute(&mut compute_pass);
             calculate_cell_iteration_dispatch_dimensions.compute(&mut compute_pass);
             assign_object_cells.compute(&mut compute_pass);
-            current_cell_offset.write(&queue, &[0]);
             calculate_cell_offsets.compute(&mut compute_pass);
             populate_grid_cells.compute(&mut compute_pass);
-
-            candidate_count.write(&queue, &[0]);
             broad_phase_grid.compute(&mut compute_pass);
 
+            // Narrow phase
             narrow_phase_dispatch_dimensions_calculator.compute(&mut compute_pass);
             collision_reset.compute(&mut compute_pass);
             narrow_phase.compute(&mut compute_pass);
+
+            // Integrate
             integrator.compute(&mut compute_pass);
 
             drop(compute_pass);
 
             // Submit work
-
             let start = Instant::now();
             queue.submit([encoder.finish()]);
             queue.on_submitted_work_done({
@@ -749,7 +751,6 @@ fn spawn_simulation_thread(
             });
 
             // Max PhaseStateRing::N_COMPUTE - 1 integrations at a time
-
             compute_submitted += 1;
             if compute_submitted >= PhaseStateRing::N_COMPUTE - 1 {
                 rx.recv().unwrap();
@@ -757,14 +758,12 @@ fn spawn_simulation_thread(
             }
 
             // Print stats
-
             sim_step_count += 1;
             let sim_time = sim_step_count as f32 * DT;
             let real_time = start_instant.elapsed().as_secs_f32();
             println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
 
             // Only run for a fixed duration
-
             if MAX_SIM_TIME.is_some_and(|max_sim_time| sim_time > max_sim_time) {
                 std::io::stdout().flush().unwrap();
                 std::process::exit(1);
