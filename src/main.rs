@@ -15,7 +15,6 @@ pub mod integrator;
 pub mod objects;
 pub mod phase_state;
 pub mod populate_grid_cells;
-pub mod reset_cell_object_count;
 pub mod reset_grid_aabb;
 pub mod scene;
 pub mod shaders;
@@ -68,7 +67,6 @@ use crate::{
     objects::Objects,
     phase_state::PhaseStateRing,
     populate_grid_cells::PopulateGridCells,
-    reset_cell_object_count::ResetCellObjectCount,
     reset_grid_aabb::ResetGridAABB,
     scene::{PARTICLE_RADIUS, create_scene},
     shaders::common::{
@@ -589,12 +587,6 @@ fn spawn_simulation_thread(
             grid_size.clone(),
             cell_iteration_dispatch_dimensions.clone(),
         );
-        let reset_cell_object_count = ResetCellObjectCount::new(
-            &device,
-            cell_iteration_dispatch_dimensions.clone(),
-            grid_size.clone(),
-            cell_object_count.clone(),
-        );
         let mut assign_object_cells = AssignObjectCells::new(
             &device,
             object_count,
@@ -709,13 +701,14 @@ fn spawn_simulation_thread(
 
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
             first_aabb.copy(0..1, current_phase_state.aabbs(), 0..1, &mut encoder);
+            encoder.clear_buffer(cell_object_count.buffer(), 0, None);
+
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
 
             reset_grid_aabb.compute(&mut compute_pass);
             calculate_grid_aabb.compute(&mut compute_pass);
             calculate_grid_size.compute(&mut compute_pass);
             calculate_cell_iteration_dispatch_dimensions.compute(&mut compute_pass);
-            reset_cell_object_count.compute(&mut compute_pass);
             assign_object_cells.compute(&mut compute_pass);
             current_cell_offset.write(&queue, &[0]);
             calculate_cell_offsets.compute(&mut compute_pass);
@@ -728,6 +721,7 @@ fn spawn_simulation_thread(
             collision_reset.compute(&mut compute_pass);
             narrow_phase.compute(&mut compute_pass);
             integrator.compute(&mut compute_pass);
+
             drop(compute_pass);
 
             // Submit work

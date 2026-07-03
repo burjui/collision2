@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 099235543734e63d915e959348e51090fca49f82a508ac5b89d1b65a88193d9e
+// SourceHash: e43d2a918825c31135d382a022497f7615c3cc90323a0e8df1a96e2c3744da13
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -13,7 +13,6 @@ pub enum ShaderEntry {
     ResetGridAabb,
     CalculateGridAabb,
     CalculateGridSize,
-    ResetCellObjectCount,
     AssignObjectCells,
     CalculateCellIterationDispatchDimensions,
     CalculateCellOffsets,
@@ -33,7 +32,6 @@ impl ShaderEntry {
             Self::ResetGridAabb => reset_grid_aabb::create_pipeline_layout(device),
             Self::CalculateGridAabb => calculate_grid_aabb::create_pipeline_layout(device),
             Self::CalculateGridSize => calculate_grid_size::create_pipeline_layout(device),
-            Self::ResetCellObjectCount => reset_cell_object_count::create_pipeline_layout(device),
             Self::AssignObjectCells => assign_object_cells::create_pipeline_layout(device),
             Self::CalculateCellIterationDispatchDimensions => {
                 calculate_cell_iteration_dispatch_dimensions::create_pipeline_layout(device)
@@ -57,7 +55,6 @@ impl ShaderEntry {
             Self::ResetGridAabb => reset_grid_aabb::create_shader_module_embed_source(device),
             Self::CalculateGridAabb => calculate_grid_aabb::create_shader_module_embed_source(device),
             Self::CalculateGridSize => calculate_grid_size::create_shader_module_embed_source(device),
-            Self::ResetCellObjectCount => reset_cell_object_count::create_shader_module_embed_source(device),
             Self::AssignObjectCells => assign_object_cells::create_shader_module_embed_source(device),
             Self::CalculateCellIterationDispatchDimensions => {
                 calculate_cell_iteration_dispatch_dimensions::create_shader_module_embed_source(device)
@@ -2082,162 +2079,6 @@ fn calculate_grid_size() {
     let _e22 = cell_size;
     let size_y = max(1u, u32(ceil((height / _e22))));
     grid_size = GridSizeX_naga_oil_mod_XMNXW23LPNYX(size_x, size_y);
-    return;
-}
-"#;
-}
-pub mod reset_cell_object_count {
-    use super::{_root, _root::*};
-    pub mod compute {
-        use super::{_root, _root::*};
-        pub const RESET_CELL_OBJECT_COUNT_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
-        pub fn create_reset_cell_object_count_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
-            let module = super::create_shader_module_embed_source(device);
-            let layout = super::create_pipeline_layout(device);
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Compute Pipeline reset_cell_object_count"),
-                layout: Some(&layout),
-                module: &module,
-                entry_point: Some("reset_cell_object_count"),
-                compilation_options: Default::default(),
-                cache: None,
-            })
-        }
-    }
-    pub const ENTRY_RESET_CELL_OBJECT_COUNT: &str = "reset_cell_object_count";
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub grid_size: wgpu::BufferBinding<'a>,
-        pub cell_object_count: wgpu::BufferBinding<'a>,
-    }
-    #[derive(Clone, Debug)]
-    pub struct WgpuBindGroup0Entries<'a> {
-        pub grid_size: wgpu::BindGroupEntry<'a>,
-        pub cell_object_count: wgpu::BindGroupEntry<'a>,
-    }
-    impl<'a> WgpuBindGroup0Entries<'a> {
-        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
-            Self {
-                grid_size: wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.grid_size),
-                },
-                cell_object_count: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.cell_object_count),
-                },
-            }
-        }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
-            [self.grid_size, self.cell_object_count]
-        }
-        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
-            self.into_array().into_iter().collect()
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0(wgpu::BindGroup);
-    impl WgpuBindGroup0 {
-        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("ResetCellObjectCount::BindGroup0::LayoutDescriptor"),
-            entries: &[
-                #[doc = " @binding(0): \"grid_size\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::GridSize>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(1): \"cell_object_count\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        };
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
-            let bind_group_layout = Self::get_bind_group_layout(device);
-            let entries = bindings.into_array();
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("ResetCellObjectCount::BindGroup0"),
-                layout: &bind_group_layout,
-                entries: &entries,
-            });
-            Self(bind_group)
-        }
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            pass.set_bind_group(0, &self.0, &[]);
-        }
-    }
-    #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
-    #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
-    #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
-    #[doc = "   - Bind group 1: More frequent updates"]
-    #[doc = "   - Bind group 2: More frequent updates"]
-    #[doc = "   - Bind group 3: Most frequent updates (e.g. per draw resources)"]
-    #[derive(Debug, Copy, Clone)]
-    pub struct WgpuBindGroups<'a> {
-        pub bind_group0: &'a WgpuBindGroup0,
-    }
-    impl<'a> WgpuBindGroups<'a> {
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            self.bind_group0.set(pass);
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuPipelineLayout;
-    impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
-            entries
-        }
-    }
-    pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
-        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("ResetCellObjectCount::PipelineLayout"),
-            bind_group_layouts: &[Some(&WgpuBindGroup0::get_bind_group_layout(device))],
-            immediate_size: 0u32,
-        })
-    }
-    pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
-        let source = std::borrow::Cow::Borrowed(SHADER_STRING);
-        device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("reset_cell_object_count.wgsl"),
-            source: wgpu::ShaderSource::Wgsl(source),
-        })
-    }
-    pub const SHADER_STRING: &str = r#"
-struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    x: u32,
-    y: u32,
-}
-
-@group(0) @binding(0) 
-var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
-@group(0) @binding(1) 
-var<storage, read_write> cell_object_count: array<u32>;
-
-@compute @workgroup_size(1, 1, 1) 
-fn reset_cell_object_count(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let _e5 = grid_size.x;
-    let original_i = (gid.x + (gid.y * _e5));
-    let _e10 = grid_size.x;
-    let _e13 = grid_size.y;
-    let cell_count = (_e10 * _e13);
-    let i = select(0u, original_i, (original_i < cell_count));
-    cell_object_count[i] = 0u;
     return;
 }
 "#;

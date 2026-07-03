@@ -21,7 +21,6 @@ fn generate_shader_bindings() -> Result<(), Box<dyn std::error::Error>> {
         .add_entry_point("src/shaders/reset_grid_aabb.wgsl")
         .add_entry_point("src/shaders/calculate_grid_aabb.wgsl")
         .add_entry_point("src/shaders/calculate_grid_size.wgsl")
-        .add_entry_point("src/shaders/reset_cell_object_count.wgsl")
         .add_entry_point("src/shaders/assign_object_cells.wgsl")
         .add_entry_point("src/shaders/calculate_cell_iteration_dispatch_dimensions.wgsl")
         .add_entry_point("src/shaders/calculate_cell_offsets.wgsl")
