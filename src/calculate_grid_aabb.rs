@@ -23,8 +23,8 @@ impl CalculateGridAABB {
         object_count: usize,
         object_count_buffer: DeviceBuffer<u32>,
         grid_min_x: DeviceBuffer<f32>,
-        grid_min_y: DeviceBuffer<f32>,
         grid_max_x: DeviceBuffer<f32>,
+        grid_min_y: DeviceBuffer<f32>,
         grid_max_y: DeviceBuffer<f32>,
     ) -> Self {
         let object_count: u32 = object_count.try_into().unwrap();
@@ -33,8 +33,8 @@ impl CalculateGridAABB {
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.as_entire_buffer_binding(),
                 grid_min_x: grid_min_x.as_entire_buffer_binding(),
-                grid_min_y: grid_min_y.as_entire_buffer_binding(),
                 grid_max_x: grid_max_x.as_entire_buffer_binding(),
+                grid_min_y: grid_min_y.as_entire_buffer_binding(),
                 grid_max_y: grid_max_y.as_entire_buffer_binding(),
             }),
         );

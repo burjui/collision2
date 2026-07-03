@@ -27,10 +27,9 @@ impl AssignObjectCells {
         object_count: usize,
         object_count_buffer: DeviceBuffer<u32>,
         grid_min_x: DeviceBuffer<f32>,
-        grid_max_x: DeviceBuffer<f32>,
         grid_min_y: DeviceBuffer<f32>,
-        grid_max_y: DeviceBuffer<f32>,
         cell_size: DeviceBuffer<f32>,
+        grid_size_x: DeviceBuffer<u32>,
         cell_object_count: DeviceBuffer<u32>,
         object_cells: DeviceBuffer<CellPosition>,
     ) -> Self {
@@ -40,10 +39,9 @@ impl AssignObjectCells {
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.as_entire_buffer_binding(),
                 grid_min_x: grid_min_x.as_entire_buffer_binding(),
-                grid_max_x: grid_max_x.as_entire_buffer_binding(),
                 grid_min_y: grid_min_y.as_entire_buffer_binding(),
-                grid_max_y: grid_max_y.as_entire_buffer_binding(),
                 cell_size: cell_size.as_entire_buffer_binding(),
+                grid_size_x: grid_size_x.as_entire_buffer_binding(),
                 cell_object_count: cell_object_count.as_entire_buffer_binding(),
                 object_cells: object_cells.as_entire_buffer_binding(),
             }),

@@ -513,14 +513,26 @@ fn spawn_simulation_thread(
             "grid max y",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
-        let first_aabb: DeviceBuffer<AABB> =
-            DeviceBuffer::new(&device, 1, "first aabb", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
         let cell_size: DeviceBuffer<f32> = DeviceBuffer::from_data(
             &device,
             &[PARTICLE_RADIUS * 2.0],
             "cell size",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
+        let grid_size_x: DeviceBuffer<u32> = DeviceBuffer::new(
+            &device,
+            1,
+            "grid size x",
+            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
+        );
+        let grid_size_y: DeviceBuffer<u32> = DeviceBuffer::new(
+            &device,
+            1,
+            "grid size y",
+            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
+        );
+        let first_aabb: DeviceBuffer<AABB> =
+            DeviceBuffer::new(&device, 1, "first aabb", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
         let object_cells: DeviceBuffer<CellPosition> =
             DeviceBuffer::new(&device, object_count, "object cells", BufferUsages::STORAGE | BufferUsages::COPY_SRC);
         let max_cells = object_count * 10; // TODO: calculate properly
@@ -548,12 +560,13 @@ fn spawn_simulation_thread(
         let cells: DeviceBuffer<u32> =
             DeviceBuffer::new(&device, object_count * max_objects_per_cell, "cells", BufferUsages::STORAGE);
 
+        // TODO: USE STRUCTS, too easy to mix up the parameters
         let reset_grid_aabb = ResetGridAABB::new(
             &device,
             first_aabb.clone(),
             grid_min_x.clone(),
-            grid_min_y.clone(),
             grid_max_x.clone(),
+            grid_min_y.clone(),
             grid_max_y.clone(),
         );
         let mut calculate_grid_aabb = CalculateGridAABB::new(
@@ -561,17 +574,19 @@ fn spawn_simulation_thread(
             object_count,
             object_count_buffer.clone(),
             grid_min_x.clone(),
-            grid_min_y.clone(),
             grid_max_x.clone(),
+            grid_min_y.clone(),
             grid_max_y.clone(),
         );
         let calculate_cell_iteration_dispatch_dimensions = CalculateCellIterationDispatchDimensions::new(
             &device,
             grid_min_x.clone(),
-            grid_max_x.clone(),
+            grid_max_x,
             grid_min_y.clone(),
-            grid_max_y.clone(),
+            grid_max_y,
             cell_size.clone(),
+            grid_size_x.clone(),
+            grid_size_y.clone(),
             cell_iteration_dispatch_dimensions.clone(),
         );
         let mut assign_object_cells = AssignObjectCells::new(
@@ -579,10 +594,9 @@ fn spawn_simulation_thread(
             object_count,
             object_count_buffer.clone(),
             grid_min_x.clone(),
-            grid_max_x.clone(),
             grid_min_y.clone(),
-            grid_max_y.clone(),
             cell_size.clone(),
+            grid_size_x.clone(),
             cell_object_count.clone(),
             object_cells.clone(),
         );
@@ -591,10 +605,10 @@ fn spawn_simulation_thread(
             cell_iteration_dispatch_dimensions,
             current_cell_offset.clone(),
             grid_min_x.clone(),
-            grid_max_x.clone(),
             grid_min_y.clone(),
-            grid_max_y.clone(),
             cell_size.clone(),
+            grid_size_x.clone(),
+            grid_size_y.clone(),
             cell_object_count.clone(),
             cell_offsets.clone(),
         );
@@ -603,10 +617,9 @@ fn spawn_simulation_thread(
             object_count,
             object_count_buffer.clone(),
             grid_min_x.clone(),
-            grid_max_x.clone(),
             grid_min_y.clone(),
-            grid_max_y.clone(),
             cell_size.clone(),
+            grid_size_x.clone(),
             object_cells.clone(),
             cell_offsets.clone(),
             cells.clone(),
@@ -616,10 +629,10 @@ fn spawn_simulation_thread(
             object_count,
             object_count_buffer.clone(),
             grid_min_x.clone(),
-            grid_max_x.clone(),
             grid_min_y.clone(),
-            grid_max_y.clone(),
             cell_size.clone(),
+            grid_size_x.clone(),
+            grid_size_y.clone(),
             object_cells.clone(),
             cell_object_count.clone(),
             cell_offsets.clone(),

@@ -24,6 +24,8 @@ impl CalculateCellIterationDispatchDimensions {
         grid_min_y: DeviceBuffer<f32>,
         grid_max_y: DeviceBuffer<f32>,
         cell_size: DeviceBuffer<f32>,
+        grid_size_x: DeviceBuffer<u32>,
+        grid_size_y: DeviceBuffer<u32>,
         cell_offsets_dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
@@ -34,6 +36,8 @@ impl CalculateCellIterationDispatchDimensions {
                 grid_min_y: grid_min_y.as_entire_buffer_binding(),
                 grid_max_y: grid_max_y.as_entire_buffer_binding(),
                 cell_size: cell_size.as_entire_buffer_binding(),
+                grid_size_x: grid_size_x.as_entire_buffer_binding(),
+                grid_size_y: grid_size_y.as_entire_buffer_binding(),
                 cell_offsets_dispatch_dimensions: cell_offsets_dispatch_dimensions.as_entire_buffer_binding(),
             }),
         );

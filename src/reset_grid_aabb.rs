@@ -21,8 +21,8 @@ impl ResetGridAABB {
         device: &Device,
         first_aabb: DeviceBuffer<AABB>,
         grid_min_x: DeviceBuffer<f32>,
-        grid_min_y: DeviceBuffer<f32>,
         grid_max_x: DeviceBuffer<f32>,
+        grid_min_y: DeviceBuffer<f32>,
         grid_max_y: DeviceBuffer<f32>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
@@ -30,8 +30,8 @@ impl ResetGridAABB {
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 first_aabb: first_aabb.as_entire_buffer_binding(),
                 grid_min_x: grid_min_x.as_entire_buffer_binding(),
-                grid_min_y: grid_min_y.as_entire_buffer_binding(),
                 grid_max_x: grid_max_x.as_entire_buffer_binding(),
+                grid_min_y: grid_min_y.as_entire_buffer_binding(),
                 grid_max_y: grid_max_y.as_entire_buffer_binding(),
             }),
         );

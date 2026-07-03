@@ -9,10 +9,10 @@ var<immediate> thread_offset: u32;
 
 @group(0) @binding(0) var<uniform> object_count: u32;
 @group(0) @binding(1) var<uniform> grid_min_x: f32;
-@group(0) @binding(2) var<uniform> grid_max_x: f32;
 @group(0) @binding(3) var<uniform> grid_min_y: f32;
-@group(0) @binding(4) var<uniform> grid_max_y: f32;
 @group(0) @binding(5) var<uniform> cell_size: f32;
+@group(0) @binding(4) var<uniform> grid_size_x: u32;
+@group(0) @binding(2) var<uniform> grid_size_y: u32;
 @group(0) @binding(6) var<storage, read> object_cells: array<CellPosition>;
 @group(0) @binding(7) var<storage, read> cell_object_count: array<u32>;
 @group(0) @binding(8) var<storage, read> cell_offsets: array<u32>;
@@ -39,8 +39,6 @@ fn broad_phase_grid(
     let can_decrement = vec2(cell.x > 0, cell.y > 0);
     let min_cell = select(cell, cell - vec2u(1, 1), can_decrement);
 
-    let grid_size_x = u32(ceil((grid_max_x - grid_min_x) / cell_size));
-    let grid_size_y = u32(ceil((grid_max_y - grid_min_y) / cell_size));
     let can_increment = vec2(cell.x + 1 < grid_size_x, cell.y + 1 < grid_size_y);
     let max_cell = select(cell, cell + vec2u(1, 1), can_increment);
 
