@@ -3,7 +3,7 @@ use wgpu::{ComputePipeline, Device};
 use crate::{
     device_buffer::DeviceBuffer,
     shaders::{
-        common::{CellPosition, GridSize},
+        common::CellPosition,
         populate_grid_cells::{
             WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
             compute::create_populate_object_cells_pipeline_embed_source,
@@ -23,7 +23,11 @@ impl PopulateGridCells {
         device: &Device,
         object_count: usize,
         object_count_buffer: DeviceBuffer<u32>,
-        grid_size: DeviceBuffer<GridSize>,
+        grid_min_x: DeviceBuffer<f32>,
+        grid_max_x: DeviceBuffer<f32>,
+        grid_min_y: DeviceBuffer<f32>,
+        grid_max_y: DeviceBuffer<f32>,
+        cell_size: DeviceBuffer<f32>,
         object_cells: DeviceBuffer<CellPosition>,
         cell_offsets: DeviceBuffer<u32>,
         cells: DeviceBuffer<u32>,
@@ -33,7 +37,11 @@ impl PopulateGridCells {
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.as_entire_buffer_binding(),
-                grid_size: grid_size.as_entire_buffer_binding(),
+                grid_min_x: grid_min_x.as_entire_buffer_binding(),
+                grid_max_x: grid_max_x.as_entire_buffer_binding(),
+                grid_min_y: grid_min_y.as_entire_buffer_binding(),
+                grid_max_y: grid_max_y.as_entire_buffer_binding(),
+                cell_size: cell_size.as_entire_buffer_binding(),
                 object_cells: object_cells.as_entire_buffer_binding(),
                 cell_offsets: cell_offsets.as_entire_buffer_binding(),
                 cells: cells.as_entire_buffer_binding(),

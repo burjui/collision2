@@ -40,11 +40,6 @@ struct CollisionCandidate {
     b: u32,
 }
 
-struct GridSize {
-    x: u32,
-    y: u32
-}
-
 struct CellPosition {
     cell: vec2u,
     offset: u32

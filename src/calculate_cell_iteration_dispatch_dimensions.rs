@@ -7,7 +7,7 @@ use crate::{
             WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
             compute::create_calculate_cell_iteration_dispatch_dimensions_pipeline_embed_source,
         },
-        common::{DispatchIndirectArgs, GridSize},
+        common::DispatchIndirectArgs,
     },
 };
 
@@ -19,13 +19,21 @@ pub struct CalculateCellIterationDispatchDimensions {
 impl CalculateCellIterationDispatchDimensions {
     pub fn new(
         device: &Device,
-        grid_size: DeviceBuffer<GridSize>,
+        grid_min_x: DeviceBuffer<f32>,
+        grid_max_x: DeviceBuffer<f32>,
+        grid_min_y: DeviceBuffer<f32>,
+        grid_max_y: DeviceBuffer<f32>,
+        cell_size: DeviceBuffer<f32>,
         cell_offsets_dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                grid_size: grid_size.as_entire_buffer_binding(),
+                grid_min_x: grid_min_x.as_entire_buffer_binding(),
+                grid_max_x: grid_max_x.as_entire_buffer_binding(),
+                grid_min_y: grid_min_y.as_entire_buffer_binding(),
+                grid_max_y: grid_max_y.as_entire_buffer_binding(),
+                cell_size: cell_size.as_entire_buffer_binding(),
                 cell_offsets_dispatch_dimensions: cell_offsets_dispatch_dimensions.as_entire_buffer_binding(),
             }),
         );

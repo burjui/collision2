@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: e43d2a918825c31135d382a022497f7615c3cc90323a0e8df1a96e2c3744da13
+// SourceHash: ec5bf6131c100e3c29a6453db967470a17122bc62d48e42e9a992a07903acef2
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -12,7 +12,6 @@ pub enum ShaderEntry {
     RenderAabb,
     ResetGridAabb,
     CalculateGridAabb,
-    CalculateGridSize,
     AssignObjectCells,
     CalculateCellIterationDispatchDimensions,
     CalculateCellOffsets,
@@ -31,7 +30,6 @@ impl ShaderEntry {
             Self::RenderAabb => render_aabb::create_pipeline_layout(device),
             Self::ResetGridAabb => reset_grid_aabb::create_pipeline_layout(device),
             Self::CalculateGridAabb => calculate_grid_aabb::create_pipeline_layout(device),
-            Self::CalculateGridSize => calculate_grid_size::create_pipeline_layout(device),
             Self::AssignObjectCells => assign_object_cells::create_pipeline_layout(device),
             Self::CalculateCellIterationDispatchDimensions => {
                 calculate_cell_iteration_dispatch_dimensions::create_pipeline_layout(device)
@@ -54,7 +52,6 @@ impl ShaderEntry {
             Self::RenderAabb => render_aabb::create_shader_module_embed_source(device),
             Self::ResetGridAabb => reset_grid_aabb::create_shader_module_embed_source(device),
             Self::CalculateGridAabb => calculate_grid_aabb::create_shader_module_embed_source(device),
-            Self::CalculateGridSize => calculate_grid_size::create_shader_module_embed_source(device),
             Self::AssignObjectCells => assign_object_cells::create_shader_module_embed_source(device),
             Self::CalculateCellIterationDispatchDimensions => {
                 calculate_cell_iteration_dispatch_dimensions::create_shader_module_embed_source(device)
@@ -123,11 +120,6 @@ pub mod layout_asserts {
         assert!(std::mem::offset_of!(common::AABB, min) == 0);
         assert!(std::mem::offset_of!(common::AABB, max) == 8);
         assert!(std::mem::size_of::<common::AABB>() == 16);
-    };
-    const COMMON_GRID_SIZE_ASSERTS: () = {
-        assert!(std::mem::offset_of!(common::GridSize, x) == 0);
-        assert!(std::mem::offset_of!(common::GridSize, y) == 4);
-        assert!(std::mem::size_of::<common::GridSize>() == 8);
     };
     const COMMON_CELL_POSITION_ASSERTS: () = {
         assert!(std::mem::offset_of!(common::CellPosition, cell) == 0);
@@ -239,19 +231,6 @@ pub mod common {
     impl AABB {
         pub const fn new(min: [f32; 2], max: [f32; 2]) -> Self {
             Self { min, max }
-        }
-    }
-    #[repr(C, align(4))]
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub struct GridSize {
-        #[doc = "offset: 0, size: 4, type: `u32`"]
-        pub x: u32,
-        #[doc = "offset: 4, size: 4, type: `u32`"]
-        pub y: u32,
-    }
-    impl GridSize {
-        pub const fn new(x: u32, y: u32) -> Self {
-            Self { x, y }
         }
     }
     #[repr(C, align(8))]
@@ -382,11 +361,6 @@ struct CollisionCandidate {
     b: u32,
 }
 
-struct GridSize {
-    x: u32,
-    y: u32,
-}
-
 struct CellPosition {
     cell: vec2<u32>,
     offset: u32,
@@ -423,8 +397,6 @@ pub mod bytemuck_impls {
     unsafe impl bytemuck::Pod for common::Shape {}
     unsafe impl bytemuck::Zeroable for common::AABB {}
     unsafe impl bytemuck::Pod for common::AABB {}
-    unsafe impl bytemuck::Zeroable for common::GridSize {}
-    unsafe impl bytemuck::Pod for common::GridSize {}
     unsafe impl bytemuck::Zeroable for common::CellPosition {}
     unsafe impl bytemuck::Pod for common::CellPosition {}
     unsafe impl bytemuck::Zeroable for common::DispatchIndirectArgs {}
@@ -1263,16 +1235,16 @@ pub mod reset_grid_aabb {
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub first_aabb: wgpu::BufferBinding<'a>,
         pub grid_min_x: wgpu::BufferBinding<'a>,
-        pub grid_min_y: wgpu::BufferBinding<'a>,
         pub grid_max_x: wgpu::BufferBinding<'a>,
+        pub grid_min_y: wgpu::BufferBinding<'a>,
         pub grid_max_y: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub first_aabb: wgpu::BindGroupEntry<'a>,
         pub grid_min_x: wgpu::BindGroupEntry<'a>,
-        pub grid_min_y: wgpu::BindGroupEntry<'a>,
         pub grid_max_x: wgpu::BindGroupEntry<'a>,
+        pub grid_min_y: wgpu::BindGroupEntry<'a>,
         pub grid_max_y: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
@@ -1286,13 +1258,13 @@ pub mod reset_grid_aabb {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.grid_min_x),
                 },
-                grid_min_y: wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.grid_min_y),
-                },
                 grid_max_x: wgpu::BindGroupEntry {
-                    binding: 3,
+                    binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.grid_max_x),
+                },
+                grid_min_y: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_y),
                 },
                 grid_max_y: wgpu::BindGroupEntry {
                     binding: 4,
@@ -1304,8 +1276,8 @@ pub mod reset_grid_aabb {
             [
                 self.first_aabb,
                 self.grid_min_x,
-                self.grid_min_y,
                 self.grid_max_x,
+                self.grid_min_y,
                 self.grid_max_y,
             ]
         }
@@ -1337,29 +1309,29 @@ pub mod reset_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"grid_min_y\""]
+                #[doc = " @binding(2): \"grid_max_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"grid_max_x\""]
+                #[doc = " @binding(3): \"grid_min_y\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
@@ -1370,7 +1342,7 @@ pub mod reset_grid_aabb {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
@@ -1438,24 +1410,24 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
 @group(0) @binding(0) 
 var<uniform> first_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(1) 
-var<storage, read_write> grid_min_x: u32;
+var<storage, read_write> grid_min_x: f32;
 @group(0) @binding(2) 
-var<storage, read_write> grid_min_y: u32;
+var<storage, read_write> grid_max_x: f32;
 @group(0) @binding(3) 
-var<storage, read_write> grid_max_x: u32;
+var<storage, read_write> grid_min_y: f32;
 @group(0) @binding(4) 
-var<storage, read_write> grid_max_y: u32;
+var<storage, read_write> grid_max_y: f32;
 
 @compute @workgroup_size(1, 1, 1) 
 fn reset_grid_aabb() {
     let _e3 = first_aabb.min.x;
-    grid_min_x = bitcast<u32>(_e3);
-    let _e9 = first_aabb.min.y;
-    grid_min_y = bitcast<u32>(_e9);
-    let _e15 = first_aabb.max.x;
-    grid_max_x = bitcast<u32>(_e15);
-    let _e21 = first_aabb.max.y;
-    grid_max_y = bitcast<u32>(_e21);
+    grid_min_x = _e3;
+    let _e8 = first_aabb.min.y;
+    grid_min_y = _e8;
+    let _e13 = first_aabb.max.x;
+    grid_max_x = _e13;
+    let _e18 = first_aabb.max.y;
+    grid_max_y = _e18;
     return;
 }
 "#;
@@ -1840,249 +1812,6 @@ fn calculate_grid_aabb(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(n
 }
 "#;
 }
-pub mod calculate_grid_size {
-    use super::{_root, _root::*};
-    pub mod compute {
-        use super::{_root, _root::*};
-        pub const CALCULATE_GRID_SIZE_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
-        pub fn create_calculate_grid_size_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
-            let module = super::create_shader_module_embed_source(device);
-            let layout = super::create_pipeline_layout(device);
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Compute Pipeline calculate_grid_size"),
-                layout: Some(&layout),
-                module: &module,
-                entry_point: Some("calculate_grid_size"),
-                compilation_options: Default::default(),
-                cache: None,
-            })
-        }
-    }
-    pub const ENTRY_CALCULATE_GRID_SIZE: &str = "calculate_grid_size";
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub grid_min_x: wgpu::BufferBinding<'a>,
-        pub grid_min_y: wgpu::BufferBinding<'a>,
-        pub grid_max_x: wgpu::BufferBinding<'a>,
-        pub grid_max_y: wgpu::BufferBinding<'a>,
-        pub cell_size: wgpu::BufferBinding<'a>,
-        pub grid_size: wgpu::BufferBinding<'a>,
-    }
-    #[derive(Clone, Debug)]
-    pub struct WgpuBindGroup0Entries<'a> {
-        pub grid_min_x: wgpu::BindGroupEntry<'a>,
-        pub grid_min_y: wgpu::BindGroupEntry<'a>,
-        pub grid_max_x: wgpu::BindGroupEntry<'a>,
-        pub grid_max_y: wgpu::BindGroupEntry<'a>,
-        pub cell_size: wgpu::BindGroupEntry<'a>,
-        pub grid_size: wgpu::BindGroupEntry<'a>,
-    }
-    impl<'a> WgpuBindGroup0Entries<'a> {
-        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
-            Self {
-                grid_min_x: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.grid_min_x),
-                },
-                grid_min_y: wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.grid_min_y),
-                },
-                grid_max_x: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.grid_max_x),
-                },
-                grid_max_y: wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.grid_max_y),
-                },
-                cell_size: wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: wgpu::BindingResource::Buffer(params.cell_size),
-                },
-                grid_size: wgpu::BindGroupEntry {
-                    binding: 6,
-                    resource: wgpu::BindingResource::Buffer(params.grid_size),
-                },
-            }
-        }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
-            [
-                self.grid_min_x,
-                self.grid_min_y,
-                self.grid_max_x,
-                self.grid_max_y,
-                self.cell_size,
-                self.grid_size,
-            ]
-        }
-        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
-            self.into_array().into_iter().collect()
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0(wgpu::BindGroup);
-    impl WgpuBindGroup0 {
-        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("CalculateGridSize::BindGroup0::LayoutDescriptor"),
-            entries: &[
-                #[doc = " @binding(1): \"grid_min_x\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(2): \"grid_min_y\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(3): \"grid_max_x\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(4): \"grid_max_y\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(5): \"cell_size\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(6): \"grid_size\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::GridSize>() as _),
-                    },
-                    count: None,
-                },
-            ],
-        };
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
-            let bind_group_layout = Self::get_bind_group_layout(device);
-            let entries = bindings.into_array();
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("CalculateGridSize::BindGroup0"),
-                layout: &bind_group_layout,
-                entries: &entries,
-            });
-            Self(bind_group)
-        }
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            pass.set_bind_group(0, &self.0, &[]);
-        }
-    }
-    #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
-    #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
-    #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
-    #[doc = "   - Bind group 1: More frequent updates"]
-    #[doc = "   - Bind group 2: More frequent updates"]
-    #[doc = "   - Bind group 3: Most frequent updates (e.g. per draw resources)"]
-    #[derive(Debug, Copy, Clone)]
-    pub struct WgpuBindGroups<'a> {
-        pub bind_group0: &'a WgpuBindGroup0,
-    }
-    impl<'a> WgpuBindGroups<'a> {
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            self.bind_group0.set(pass);
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuPipelineLayout;
-    impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
-            entries
-        }
-    }
-    pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
-        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("CalculateGridSize::PipelineLayout"),
-            bind_group_layouts: &[Some(&WgpuBindGroup0::get_bind_group_layout(device))],
-            immediate_size: 0u32,
-        })
-    }
-    pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
-        let source = std::borrow::Cow::Borrowed(SHADER_STRING);
-        device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("calculate_grid_size.wgsl"),
-            source: wgpu::ShaderSource::Wgsl(source),
-        })
-    }
-    pub const SHADER_STRING: &str = r#"
-struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    x: u32,
-    y: u32,
-}
-
-@group(0) @binding(1) 
-var<uniform> grid_min_x: u32;
-@group(0) @binding(2) 
-var<uniform> grid_min_y: u32;
-@group(0) @binding(3) 
-var<uniform> grid_max_x: u32;
-@group(0) @binding(4) 
-var<uniform> grid_max_y: u32;
-@group(0) @binding(5) 
-var<uniform> cell_size: f32;
-@group(0) @binding(6) 
-var<storage, read_write> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
-
-@compute @workgroup_size(1, 1, 1) 
-fn calculate_grid_size() {
-    let _e1 = grid_max_x;
-    let _e4 = grid_min_x;
-    let width = (bitcast<f32>(_e1) - bitcast<f32>(_e4));
-    let _e8 = grid_max_y;
-    let _e11 = grid_min_y;
-    let height = (bitcast<f32>(_e8) - bitcast<f32>(_e11));
-    let _e15 = cell_size;
-    let size_x = max(1u, u32(ceil((width / _e15))));
-    let _e22 = cell_size;
-    let size_y = max(1u, u32(ceil((height / _e22))));
-    grid_size = GridSizeX_naga_oil_mod_XMNXW23LPNYX(size_x, size_y);
-    return;
-}
-"#;
-}
 pub mod assign_object_cells {
     use super::{_root, _root::*};
     pub mod compute {
@@ -2106,8 +1835,9 @@ pub mod assign_object_cells {
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub object_count: wgpu::BufferBinding<'a>,
         pub grid_min_x: wgpu::BufferBinding<'a>,
+        pub grid_max_x: wgpu::BufferBinding<'a>,
         pub grid_min_y: wgpu::BufferBinding<'a>,
-        pub grid_size: wgpu::BufferBinding<'a>,
+        pub grid_max_y: wgpu::BufferBinding<'a>,
         pub cell_size: wgpu::BufferBinding<'a>,
         pub cell_object_count: wgpu::BufferBinding<'a>,
         pub object_cells: wgpu::BufferBinding<'a>,
@@ -2116,8 +1846,9 @@ pub mod assign_object_cells {
     pub struct WgpuBindGroup0Entries<'a> {
         pub object_count: wgpu::BindGroupEntry<'a>,
         pub grid_min_x: wgpu::BindGroupEntry<'a>,
+        pub grid_max_x: wgpu::BindGroupEntry<'a>,
         pub grid_min_y: wgpu::BindGroupEntry<'a>,
-        pub grid_size: wgpu::BindGroupEntry<'a>,
+        pub grid_max_y: wgpu::BindGroupEntry<'a>,
         pub cell_size: wgpu::BindGroupEntry<'a>,
         pub cell_object_count: wgpu::BindGroupEntry<'a>,
         pub object_cells: wgpu::BindGroupEntry<'a>,
@@ -2133,34 +1864,39 @@ pub mod assign_object_cells {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.grid_min_x),
                 },
-                grid_min_y: wgpu::BindGroupEntry {
+                grid_max_x: wgpu::BindGroupEntry {
                     binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.grid_max_x),
+                },
+                grid_min_y: wgpu::BindGroupEntry {
+                    binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.grid_min_y),
                 },
-                grid_size: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.grid_size),
+                grid_max_y: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.grid_max_y),
                 },
                 cell_size: wgpu::BindGroupEntry {
-                    binding: 4,
+                    binding: 5,
                     resource: wgpu::BindingResource::Buffer(params.cell_size),
                 },
                 cell_object_count: wgpu::BindGroupEntry {
-                    binding: 5,
+                    binding: 6,
                     resource: wgpu::BindingResource::Buffer(params.cell_object_count),
                 },
                 object_cells: wgpu::BindGroupEntry {
-                    binding: 6,
+                    binding: 7,
                     resource: wgpu::BindingResource::Buffer(params.object_cells),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 7] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 8] {
             [
                 self.object_count,
                 self.grid_min_x,
+                self.grid_max_x,
                 self.grid_min_y,
-                self.grid_size,
+                self.grid_max_y,
                 self.cell_size,
                 self.cell_object_count,
                 self.object_cells,
@@ -2194,33 +1930,33 @@ pub mod assign_object_cells {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"grid_min_y\""]
+                #[doc = " @binding(2): \"grid_max_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"grid_size\""]
+                #[doc = " @binding(3): \"grid_min_y\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::GridSize>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(4): \"cell_size\""]
+                #[doc = " @binding(4): \"grid_max_y\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -2231,9 +1967,20 @@ pub mod assign_object_cells {
                     },
                     count: None,
                 },
-                #[doc = " @binding(5): \"cell_object_count\""]
+                #[doc = " @binding(5): \"cell_size\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(6): \"cell_object_count\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -2242,9 +1989,9 @@ pub mod assign_object_cells {
                     },
                     count: None,
                 },
-                #[doc = " @binding(6): \"object_cells\""]
+                #[doc = " @binding(7): \"object_cells\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 6,
+                    binding: 7,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -2379,11 +2126,6 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
     max: vec2<f32>,
 }
 
-struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    x: u32,
-    y: u32,
-}
-
 struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
     cell: vec2<u32>,
     offset: u32,
@@ -2395,16 +2137,18 @@ var<immediate> thread_offset: u32;
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
-var<uniform> grid_min_x: u32;
+var<uniform> grid_min_x: f32;
 @group(0) @binding(2) 
-var<uniform> grid_min_y: u32;
+var<uniform> grid_max_x: f32;
 @group(0) @binding(3) 
-var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
+var<uniform> grid_min_y: f32;
 @group(0) @binding(4) 
-var<uniform> cell_size: f32;
+var<uniform> grid_max_y: f32;
 @group(0) @binding(5) 
-var<storage, read_write> cell_object_count: array<atomic<u32>>;
+var<uniform> cell_size: f32;
 @group(0) @binding(6) 
+var<storage, read_write> cell_object_count: array<atomic<u32>>;
+@group(0) @binding(7) 
 var<storage, read_write> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(0) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
@@ -2421,15 +2165,17 @@ fn assign_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(n
     let center_x = ((aabb.min.x + aabb.max.x) / 2f);
     let center_y = ((aabb.min.y + aabb.max.y) / 2f);
     let _e26 = grid_min_x;
-    let _e30 = cell_size;
-    let cell_x = u32(max(0f, ((center_x - bitcast<f32>(_e26)) / _e30)));
-    let _e36 = grid_min_y;
-    let _e40 = cell_size;
-    let cell_y = u32(max(0f, ((center_y - bitcast<f32>(_e36)) / _e40)));
-    let _e47 = grid_size.x;
-    let cell_index = (cell_x + (cell_y * _e47));
-    let _e53 = atomicAdd((&cell_object_count[cell_index]), 1u);
-    object_cells[object_index] = CellPositionX_naga_oil_mod_XMNXW23LPNYX(vec2<u32>(cell_x, cell_y), _e53);
+    let _e29 = cell_size;
+    let cell_x = u32(max(0f, ((center_x - _e26) / _e29)));
+    let _e35 = grid_min_y;
+    let _e38 = cell_size;
+    let cell_y = u32(max(0f, ((center_y - _e35) / _e38)));
+    let _e44 = grid_max_x;
+    let _e46 = grid_min_x;
+    let _e49 = cell_size;
+    let cell_index = (cell_x + (cell_y * u32(ceil(((_e44 - _e46) / _e49)))));
+    let _e58 = atomicAdd((&cell_object_count[cell_index]), 1u);
+    object_cells[object_index] = CellPositionX_naga_oil_mod_XMNXW23LPNYX(vec2<u32>(cell_x, cell_y), _e58);
     return;
 }
 "#;
@@ -2457,29 +2203,60 @@ pub mod calculate_cell_iteration_dispatch_dimensions {
     pub const ENTRY_CALCULATE_CELL_ITERATION_DISPATCH_DIMENSIONS: &str = "calculate_cell_iteration_dispatch_dimensions";
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub grid_size: wgpu::BufferBinding<'a>,
+        pub grid_min_x: wgpu::BufferBinding<'a>,
+        pub grid_max_x: wgpu::BufferBinding<'a>,
+        pub grid_min_y: wgpu::BufferBinding<'a>,
+        pub grid_max_y: wgpu::BufferBinding<'a>,
+        pub cell_size: wgpu::BufferBinding<'a>,
         pub cell_offsets_dispatch_dimensions: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
-        pub grid_size: wgpu::BindGroupEntry<'a>,
+        pub grid_min_x: wgpu::BindGroupEntry<'a>,
+        pub grid_max_x: wgpu::BindGroupEntry<'a>,
+        pub grid_min_y: wgpu::BindGroupEntry<'a>,
+        pub grid_max_y: wgpu::BindGroupEntry<'a>,
+        pub cell_size: wgpu::BindGroupEntry<'a>,
         pub cell_offsets_dispatch_dimensions: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
             Self {
-                grid_size: wgpu::BindGroupEntry {
+                grid_min_x: wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.grid_size),
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_x),
+                },
+                grid_max_x: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.grid_max_x),
+                },
+                grid_min_y: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_y),
+                },
+                grid_max_y: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.grid_max_y),
+                },
+                cell_size: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.cell_size),
                 },
                 cell_offsets_dispatch_dimensions: wgpu::BindGroupEntry {
-                    binding: 1,
+                    binding: 5,
                     resource: wgpu::BindingResource::Buffer(params.cell_offsets_dispatch_dimensions),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
-            [self.grid_size, self.cell_offsets_dispatch_dimensions]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
+            [
+                self.grid_min_x,
+                self.grid_max_x,
+                self.grid_min_y,
+                self.grid_max_y,
+                self.cell_size,
+                self.cell_offsets_dispatch_dimensions,
+            ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -2491,20 +2268,64 @@ pub mod calculate_cell_iteration_dispatch_dimensions {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("CalculateCellIterationDispatchDimensions::BindGroup0::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(0): \"grid_size\""]
+                #[doc = " @binding(0): \"grid_min_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::GridSize>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"cell_offsets_dispatch_dimensions\""]
+                #[doc = " @binding(1): \"grid_max_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"grid_min_y\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"grid_max_y\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(4): \"cell_size\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(5): \"cell_offsets_dispatch_dimensions\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -2577,21 +2398,30 @@ struct DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX {
     z: u32,
 }
 
-struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    x: u32,
-    y: u32,
-}
-
 @group(0) @binding(0) 
-var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
+var<uniform> grid_min_x: f32;
 @group(0) @binding(1) 
+var<uniform> grid_max_x: f32;
+@group(0) @binding(2) 
+var<uniform> grid_min_y: f32;
+@group(0) @binding(3) 
+var<uniform> grid_max_y: f32;
+@group(0) @binding(4) 
+var<uniform> cell_size: f32;
+@group(0) @binding(5) 
 var<storage, read_write> cell_offsets_dispatch_dimensions: DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX;
 
 @compute @workgroup_size(1, 1, 1) 
 fn calculate_cell_iteration_dispatch_dimensions() {
-    let _e2 = grid_size.x;
-    let _e5 = grid_size.y;
-    cell_offsets_dispatch_dimensions = DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX(_e2, _e5, 1u);
+    let _e1 = grid_max_x;
+    let _e3 = grid_min_x;
+    let _e6 = cell_size;
+    let grid_size_x = u32(ceil(((_e1 - _e3) / _e6)));
+    let _e11 = grid_max_y;
+    let _e13 = grid_min_y;
+    let _e16 = cell_size;
+    let grid_size_y = u32(ceil(((_e11 - _e13) / _e16)));
+    cell_offsets_dispatch_dimensions = DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX(grid_size_x, grid_size_y, 1u);
     return;
 }
 "#;
@@ -2617,14 +2447,22 @@ pub mod calculate_cell_offsets {
     pub const ENTRY_CALCULATE_CELL_OFFSETS: &str = "calculate_cell_offsets";
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub grid_size: wgpu::BufferBinding<'a>,
+        pub grid_min_x: wgpu::BufferBinding<'a>,
+        pub grid_max_x: wgpu::BufferBinding<'a>,
+        pub grid_min_y: wgpu::BufferBinding<'a>,
+        pub grid_max_y: wgpu::BufferBinding<'a>,
+        pub cell_size: wgpu::BufferBinding<'a>,
         pub cell_object_count: wgpu::BufferBinding<'a>,
         pub current_cell_offset: wgpu::BufferBinding<'a>,
         pub cell_offsets: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
-        pub grid_size: wgpu::BindGroupEntry<'a>,
+        pub grid_min_x: wgpu::BindGroupEntry<'a>,
+        pub grid_max_x: wgpu::BindGroupEntry<'a>,
+        pub grid_min_y: wgpu::BindGroupEntry<'a>,
+        pub grid_max_y: wgpu::BindGroupEntry<'a>,
+        pub cell_size: wgpu::BindGroupEntry<'a>,
         pub cell_object_count: wgpu::BindGroupEntry<'a>,
         pub current_cell_offset: wgpu::BindGroupEntry<'a>,
         pub cell_offsets: wgpu::BindGroupEntry<'a>,
@@ -2632,27 +2470,47 @@ pub mod calculate_cell_offsets {
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
             Self {
-                grid_size: wgpu::BindGroupEntry {
+                grid_min_x: wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.grid_size),
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_x),
+                },
+                grid_max_x: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.grid_max_x),
+                },
+                grid_min_y: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_y),
+                },
+                grid_max_y: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.grid_max_y),
+                },
+                cell_size: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.cell_size),
                 },
                 cell_object_count: wgpu::BindGroupEntry {
-                    binding: 1,
+                    binding: 5,
                     resource: wgpu::BindingResource::Buffer(params.cell_object_count),
                 },
                 current_cell_offset: wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 6,
                     resource: wgpu::BindingResource::Buffer(params.current_cell_offset),
                 },
                 cell_offsets: wgpu::BindGroupEntry {
-                    binding: 3,
+                    binding: 7,
                     resource: wgpu::BindingResource::Buffer(params.cell_offsets),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 8] {
             [
-                self.grid_size,
+                self.grid_min_x,
+                self.grid_max_x,
+                self.grid_min_y,
+                self.grid_max_y,
+                self.cell_size,
                 self.cell_object_count,
                 self.current_cell_offset,
                 self.cell_offsets,
@@ -2668,20 +2526,64 @@ pub mod calculate_cell_offsets {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("CalculateCellOffsets::BindGroup0::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(0): \"grid_size\""]
+                #[doc = " @binding(0): \"grid_min_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::GridSize>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"cell_object_count\""]
+                #[doc = " @binding(1): \"grid_max_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"grid_min_y\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"grid_max_y\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(4): \"cell_size\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(5): \"cell_object_count\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -2690,9 +2592,9 @@ pub mod calculate_cell_offsets {
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"current_cell_offset\""]
+                #[doc = " @binding(6): \"current_cell_offset\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 2,
+                    binding: 6,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -2701,9 +2603,9 @@ pub mod calculate_cell_offsets {
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"cell_offsets\""]
+                #[doc = " @binding(7): \"cell_offsets\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 3,
+                    binding: 7,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -2768,33 +2670,41 @@ pub mod calculate_cell_offsets {
         })
     }
     pub const SHADER_STRING: &str = r#"
-struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    x: u32,
-    y: u32,
-}
-
 @group(0) @binding(0) 
-var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
+var<uniform> grid_min_x: f32;
 @group(0) @binding(1) 
-var<storage> cell_object_count: array<u32>;
+var<uniform> grid_max_x: f32;
 @group(0) @binding(2) 
-var<storage, read_write> current_cell_offset: atomic<u32>;
+var<uniform> grid_min_y: f32;
 @group(0) @binding(3) 
+var<uniform> grid_max_y: f32;
+@group(0) @binding(4) 
+var<uniform> cell_size: f32;
+@group(0) @binding(5) 
+var<storage> cell_object_count: array<u32>;
+@group(0) @binding(6) 
+var<storage, read_write> current_cell_offset: atomic<u32>;
+@group(0) @binding(7) 
 var<storage, read_write> cell_offsets: array<u32>;
 
 @compute @workgroup_size(1, 1, 1) 
 fn calculate_cell_offsets(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let _e5 = grid_size.x;
-    let cell_index = (gid.x + (gid.y * _e5));
-    let _e10 = grid_size.x;
-    let _e13 = grid_size.y;
-    let cell_count = (_e10 * _e13);
+    let _e1 = grid_max_x;
+    let _e3 = grid_min_x;
+    let _e6 = cell_size;
+    let grid_size_x = u32(ceil(((_e1 - _e3) / _e6)));
+    let _e11 = grid_max_y;
+    let _e13 = grid_min_y;
+    let _e16 = cell_size;
+    let grid_size_y = u32(ceil(((_e11 - _e13) / _e16)));
+    let cell_index = (gid.x + (gid.y * grid_size_x));
+    let cell_count = (grid_size_x * grid_size_y);
     if (cell_index >= cell_count) {
         return;
     }
     let count = cell_object_count[cell_index];
-    let _e22 = atomicAdd((&current_cell_offset), count);
-    cell_offsets[cell_index] = _e22;
+    let _e33 = atomicAdd((&current_cell_offset), count);
+    cell_offsets[cell_index] = _e33;
     return;
 }
 "#;
@@ -2822,7 +2732,11 @@ pub mod populate_grid_cells {
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub object_count: wgpu::BufferBinding<'a>,
-        pub grid_size: wgpu::BufferBinding<'a>,
+        pub grid_min_x: wgpu::BufferBinding<'a>,
+        pub grid_max_x: wgpu::BufferBinding<'a>,
+        pub grid_min_y: wgpu::BufferBinding<'a>,
+        pub grid_max_y: wgpu::BufferBinding<'a>,
+        pub cell_size: wgpu::BufferBinding<'a>,
         pub object_cells: wgpu::BufferBinding<'a>,
         pub cell_offsets: wgpu::BufferBinding<'a>,
         pub cells: wgpu::BufferBinding<'a>,
@@ -2830,7 +2744,11 @@ pub mod populate_grid_cells {
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub object_count: wgpu::BindGroupEntry<'a>,
-        pub grid_size: wgpu::BindGroupEntry<'a>,
+        pub grid_min_x: wgpu::BindGroupEntry<'a>,
+        pub grid_max_x: wgpu::BindGroupEntry<'a>,
+        pub grid_min_y: wgpu::BindGroupEntry<'a>,
+        pub grid_max_y: wgpu::BindGroupEntry<'a>,
+        pub cell_size: wgpu::BindGroupEntry<'a>,
         pub object_cells: wgpu::BindGroupEntry<'a>,
         pub cell_offsets: wgpu::BindGroupEntry<'a>,
         pub cells: wgpu::BindGroupEntry<'a>,
@@ -2842,28 +2760,48 @@ pub mod populate_grid_cells {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.object_count),
                 },
-                grid_size: wgpu::BindGroupEntry {
+                grid_min_x: wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.grid_size),
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_x),
+                },
+                grid_max_x: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.grid_max_x),
+                },
+                grid_min_y: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_y),
+                },
+                grid_max_y: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.grid_max_y),
+                },
+                cell_size: wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Buffer(params.cell_size),
                 },
                 object_cells: wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 6,
                     resource: wgpu::BindingResource::Buffer(params.object_cells),
                 },
                 cell_offsets: wgpu::BindGroupEntry {
-                    binding: 3,
+                    binding: 7,
                     resource: wgpu::BindingResource::Buffer(params.cell_offsets),
                 },
                 cells: wgpu::BindGroupEntry {
-                    binding: 4,
+                    binding: 8,
                     resource: wgpu::BindingResource::Buffer(params.cells),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 9] {
             [
                 self.object_count,
-                self.grid_size,
+                self.grid_min_x,
+                self.grid_max_x,
+                self.grid_min_y,
+                self.grid_max_y,
+                self.cell_size,
                 self.object_cells,
                 self.cell_offsets,
                 self.cells,
@@ -2890,31 +2828,64 @@ pub mod populate_grid_cells {
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"grid_size\""]
+                #[doc = " @binding(1): \"grid_min_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::GridSize>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"object_cells\""]
+                #[doc = " @binding(2): \"grid_max_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"cell_offsets\""]
+                #[doc = " @binding(3): \"grid_min_y\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(4): \"grid_max_y\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(5): \"cell_size\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(6): \"object_cells\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -2923,9 +2894,20 @@ pub mod populate_grid_cells {
                     },
                     count: None,
                 },
-                #[doc = " @binding(4): \"cells\""]
+                #[doc = " @binding(7): \"cell_offsets\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 4,
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(8): \"cells\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 8,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -2990,11 +2972,6 @@ pub mod populate_grid_cells {
         })
     }
     pub const SHADER_STRING: &str = r#"
-struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    x: u32,
-    y: u32,
-}
-
 struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
     cell: vec2<u32>,
     offset: u32,
@@ -3006,12 +2983,20 @@ var<immediate> thread_offset: u32;
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
-var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
+var<uniform> grid_min_x: f32;
 @group(0) @binding(2) 
-var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
+var<uniform> grid_max_x: f32;
 @group(0) @binding(3) 
-var<storage> cell_offsets: array<u32>;
+var<uniform> grid_min_y: f32;
 @group(0) @binding(4) 
+var<uniform> grid_max_y: f32;
+@group(0) @binding(5) 
+var<uniform> cell_size: f32;
+@group(0) @binding(6) 
+var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(7) 
+var<storage> cell_offsets: array<u32>;
+@group(0) @binding(8) 
 var<storage, read_write> cells: array<u32>;
 
 @compute @workgroup_size(64, 1, 1) 
@@ -3023,8 +3008,15 @@ fn populate_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin
         return;
     }
     let cell_position = object_cells[object_index];
-    let _e17 = grid_size.x;
-    let cell_index = (cell_position.cell.x + (cell_position.cell.y * _e17));
+    let _e12 = grid_max_x;
+    let _e14 = grid_min_x;
+    let _e17 = cell_size;
+    let grid_size_x = u32(ceil(((_e12 - _e14) / _e17)));
+    let _e22 = grid_max_y;
+    let _e24 = grid_min_y;
+    let _e27 = cell_size;
+    let grid_size_y = u32(ceil(((_e22 - _e24) / _e27)));
+    let cell_index = (cell_position.cell.x + (cell_position.cell.y * grid_size_x));
     let cell_offset = cell_offsets[cell_index];
     cells[(cell_offset + cell_position.offset)] = object_index;
     return;
@@ -3054,7 +3046,11 @@ pub mod collision_broad_phase_grid {
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub object_count: wgpu::BufferBinding<'a>,
-        pub grid_size: wgpu::BufferBinding<'a>,
+        pub grid_min_x: wgpu::BufferBinding<'a>,
+        pub grid_max_x: wgpu::BufferBinding<'a>,
+        pub grid_min_y: wgpu::BufferBinding<'a>,
+        pub grid_max_y: wgpu::BufferBinding<'a>,
+        pub cell_size: wgpu::BufferBinding<'a>,
         pub object_cells: wgpu::BufferBinding<'a>,
         pub cell_object_count: wgpu::BufferBinding<'a>,
         pub cell_offsets: wgpu::BufferBinding<'a>,
@@ -3065,7 +3061,11 @@ pub mod collision_broad_phase_grid {
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub object_count: wgpu::BindGroupEntry<'a>,
-        pub grid_size: wgpu::BindGroupEntry<'a>,
+        pub grid_min_x: wgpu::BindGroupEntry<'a>,
+        pub grid_max_x: wgpu::BindGroupEntry<'a>,
+        pub grid_min_y: wgpu::BindGroupEntry<'a>,
+        pub grid_max_y: wgpu::BindGroupEntry<'a>,
+        pub cell_size: wgpu::BindGroupEntry<'a>,
         pub object_cells: wgpu::BindGroupEntry<'a>,
         pub cell_object_count: wgpu::BindGroupEntry<'a>,
         pub cell_offsets: wgpu::BindGroupEntry<'a>,
@@ -3080,40 +3080,60 @@ pub mod collision_broad_phase_grid {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.object_count),
                 },
-                grid_size: wgpu::BindGroupEntry {
+                grid_min_x: wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.grid_size),
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_x),
+                },
+                grid_max_x: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.grid_max_x),
+                },
+                grid_min_y: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_y),
+                },
+                grid_max_y: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.grid_max_y),
+                },
+                cell_size: wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Buffer(params.cell_size),
                 },
                 object_cells: wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 6,
                     resource: wgpu::BindingResource::Buffer(params.object_cells),
                 },
                 cell_object_count: wgpu::BindGroupEntry {
-                    binding: 3,
+                    binding: 7,
                     resource: wgpu::BindingResource::Buffer(params.cell_object_count),
                 },
                 cell_offsets: wgpu::BindGroupEntry {
-                    binding: 4,
+                    binding: 8,
                     resource: wgpu::BindingResource::Buffer(params.cell_offsets),
                 },
                 cells: wgpu::BindGroupEntry {
-                    binding: 5,
+                    binding: 9,
                     resource: wgpu::BindingResource::Buffer(params.cells),
                 },
                 candidates: wgpu::BindGroupEntry {
-                    binding: 6,
+                    binding: 10,
                     resource: wgpu::BindingResource::Buffer(params.candidates),
                 },
                 candidate_count: wgpu::BindGroupEntry {
-                    binding: 7,
+                    binding: 11,
                     resource: wgpu::BindingResource::Buffer(params.candidate_count),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 8] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 12] {
             [
                 self.object_count,
-                self.grid_size,
+                self.grid_min_x,
+                self.grid_max_x,
+                self.grid_min_y,
+                self.grid_max_y,
+                self.cell_size,
                 self.object_cells,
                 self.cell_object_count,
                 self.cell_offsets,
@@ -3143,53 +3163,64 @@ pub mod collision_broad_phase_grid {
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"grid_size\""]
+                #[doc = " @binding(1): \"grid_min_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::GridSize>() as _),
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"object_cells\""]
+                #[doc = " @binding(2): \"grid_max_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"cell_object_count\""]
+                #[doc = " @binding(3): \"grid_min_y\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(4): \"cell_offsets\""]
+                #[doc = " @binding(4): \"grid_max_y\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(5): \"cells\""]
+                #[doc = " @binding(5): \"cell_size\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(6): \"object_cells\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -3198,9 +3229,42 @@ pub mod collision_broad_phase_grid {
                     },
                     count: None,
                 },
-                #[doc = " @binding(6): \"candidates\""]
+                #[doc = " @binding(7): \"cell_object_count\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 6,
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(8): \"cell_offsets\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 8,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(9): \"cells\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 9,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(10): \"candidates\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 10,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -3209,9 +3273,9 @@ pub mod collision_broad_phase_grid {
                     },
                     count: None,
                 },
-                #[doc = " @binding(7): \"candidate_count\""]
+                #[doc = " @binding(11): \"candidate_count\""]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 7,
+                    binding: 11,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -3372,11 +3436,6 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
     b: u32,
 }
 
-struct GridSizeX_naga_oil_mod_XMNXW23LPNYX {
-    x: u32,
-    y: u32,
-}
-
 struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
     cell: vec2<u32>,
     offset: u32,
@@ -3390,18 +3449,26 @@ var<immediate> thread_offset: u32;
 @group(0) @binding(0) 
 var<uniform> object_count: u32;
 @group(0) @binding(1) 
-var<uniform> grid_size: GridSizeX_naga_oil_mod_XMNXW23LPNYX;
+var<uniform> grid_min_x: f32;
 @group(0) @binding(2) 
-var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
+var<uniform> grid_max_x: f32;
 @group(0) @binding(3) 
-var<storage> cell_object_count: array<u32>;
+var<uniform> grid_min_y: f32;
 @group(0) @binding(4) 
-var<storage> cell_offsets: array<u32>;
+var<uniform> grid_max_y: f32;
 @group(0) @binding(5) 
-var<storage> cells: array<u32>;
+var<uniform> cell_size: f32;
 @group(0) @binding(6) 
-var<storage, read_write> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(7) 
+var<storage> cell_object_count: array<u32>;
+@group(0) @binding(8) 
+var<storage> cell_offsets: array<u32>;
+@group(0) @binding(9) 
+var<storage> cells: array<u32>;
+@group(0) @binding(10) 
+var<storage, read_write> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(11) 
 var<storage, read_write> candidate_count: atomic<u32>;
 @group(1) @binding(1) 
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
@@ -3457,33 +3524,38 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_
     let cell = object_cells[object_index].cell;
     let can_decrement = vec2<bool>((cell.x > 0u), (cell.y > 0u));
     let min_cell = select(cell, (cell - vec2<u32>(1u, 1u)), can_decrement);
-    let _e42 = grid_size.x;
-    let _e49 = grid_size.y;
-    let can_increment = vec2<bool>(((cell.x + 1u) < _e42), ((cell.y + 1u) < _e49));
+    let _e38 = grid_max_x;
+    let _e40 = grid_min_x;
+    let _e43 = cell_size;
+    let grid_size_x = u32(ceil(((_e38 - _e40) / _e43)));
+    let _e48 = grid_max_y;
+    let _e50 = grid_min_y;
+    let _e53 = cell_size;
+    let grid_size_y = u32(ceil(((_e48 - _e50) / _e53)));
+    let can_increment = vec2<bool>(((cell.x + 1u) < grid_size_x), ((cell.y + 1u) < grid_size_y));
     let max_cell = select(cell, (cell + vec2<u32>(1u, 1u)), can_increment);
     let aabb = aabbs[object_index];
-    let _e61 = object_count;
-    let max_candidates = (_e61 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
+    let _e75 = object_count;
+    let max_candidates = (_e75 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
     i = min_cell.x;
     loop {
-        let _e66 = i;
-        if (_e66 <= max_cell.x) {
+        let _e80 = i;
+        if (_e80 <= max_cell.x) {
         } else {
             break;
         }
         {
             j = min_cell.y;
             loop {
-                let _e71 = j;
-                if (_e71 <= max_cell.y) {
+                let _e85 = j;
+                if (_e85 <= max_cell.y) {
                 } else {
                     break;
                 }
                 {
-                    let _e74 = i;
-                    let _e75 = j;
-                    let _e78 = grid_size.x;
-                    let cell_index = (_e74 + (_e75 * _e78));
+                    let _e88 = i;
+                    let _e89 = j;
+                    let cell_index = (_e88 + (_e89 * grid_size_x));
                     let object_count_1 = cell_object_count[cell_index];
                     if (object_count_1 == 0u) {
                         continue;
@@ -3491,47 +3563,47 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_
                     let cell_offset = cell_offsets[cell_index];
                     k = 0u;
                     loop {
-                        let _e91 = k;
-                        if (_e91 < object_count_1) {
+                        let _e102 = k;
+                        if (_e102 < object_count_1) {
                         } else {
                             break;
                         }
                         {
-                            let _e94 = k;
-                            let other_object_index = cells[(cell_offset + _e94)];
+                            let _e105 = k;
+                            let other_object_index = cells[(cell_offset + _e105)];
                             if (other_object_index >= object_index) {
                                 continue;
                             }
-                            let _e102 = flags[other_object_index].inner;
-                            if ((_e102 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+                            let _e113 = flags[other_object_index].inner;
+                            if ((_e113 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
                                 continue;
                             }
                             let object_aabb = aabbs[other_object_index];
-                            let _e110 = aabb_overlaps(aabb, object_aabb);
-                            if !(_e110) {
+                            let _e121 = aabb_overlaps(aabb, object_aabb);
+                            if !(_e121) {
                                 continue;
                             }
-                            let _e114 = atomicAdd((&candidate_count), 1u);
-                            if (_e114 >= max_candidates) {
+                            let _e125 = atomicAdd((&candidate_count), 1u);
+                            if (_e125 >= max_candidates) {
                                 return;
                             }
-                            candidates[_e114] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(object_index, other_object_index);
+                            candidates[_e125] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(object_index, other_object_index);
                         }
                         continuing {
-                            let _e120 = k;
-                            k = (_e120 + 1u);
+                            let _e131 = k;
+                            k = (_e131 + 1u);
                         }
                     }
                 }
                 continuing {
-                    let _e123 = j;
-                    j = (_e123 + 1u);
+                    let _e134 = j;
+                    j = (_e134 + 1u);
                 }
             }
         }
         continuing {
-            let _e126 = i;
-            i = (_e126 + 1u);
+            let _e137 = i;
+            i = (_e137 + 1u);
         }
     }
     return;

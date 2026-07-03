@@ -1,6 +1,6 @@
 #import common::{
     FLAG_PHYSICAL, MAX_CANDIDATES_PER_OBJECT,
-    AABB, Flags, CollisionCandidate, GridSize, CellPosition,
+    AABB, Flags, CollisionCandidate, CellPosition,
 }
 
 const WORKGROUP_SIZE: u32 = 64;
@@ -8,13 +8,17 @@ const WORKGROUP_SIZE: u32 = 64;
 var<immediate> thread_offset: u32;
 
 @group(0) @binding(0) var<uniform> object_count: u32;
-@group(0) @binding(1) var<uniform> grid_size: GridSize;
-@group(0) @binding(2) var<storage, read> object_cells: array<CellPosition>;
-@group(0) @binding(3) var<storage, read> cell_object_count: array<u32>;
-@group(0) @binding(4) var<storage, read> cell_offsets: array<u32>;
-@group(0) @binding(5) var<storage, read> cells: array<u32>;
-@group(0) @binding(6) var<storage, read_write> candidates: array<CollisionCandidate>;
-@group(0) @binding(7) var<storage, read_write> candidate_count: atomic<u32>;
+@group(0) @binding(1) var<uniform> grid_min_x: f32;
+@group(0) @binding(2) var<uniform> grid_max_x: f32;
+@group(0) @binding(3) var<uniform> grid_min_y: f32;
+@group(0) @binding(4) var<uniform> grid_max_y: f32;
+@group(0) @binding(5) var<uniform> cell_size: f32;
+@group(0) @binding(6) var<storage, read> object_cells: array<CellPosition>;
+@group(0) @binding(7) var<storage, read> cell_object_count: array<u32>;
+@group(0) @binding(8) var<storage, read> cell_offsets: array<u32>;
+@group(0) @binding(9) var<storage, read> cells: array<u32>;
+@group(0) @binding(10) var<storage, read_write> candidates: array<CollisionCandidate>;
+@group(0) @binding(11) var<storage, read_write> candidate_count: atomic<u32>;
 
 @group(1) @binding(1) var<storage, read> aabbs: array<AABB>;
 @group(1) @binding(2) var<storage, read> flags: array<Flags>;
@@ -35,14 +39,16 @@ fn broad_phase_grid(
     let can_decrement = vec2(cell.x > 0, cell.y > 0);
     let min_cell = select(cell, cell - vec2u(1, 1), can_decrement);
 
-    let can_increment = vec2(cell.x + 1 < grid_size.x, cell.y + 1 < grid_size.y);
+    let grid_size_x = u32(ceil((grid_max_x - grid_min_x) / cell_size));
+    let grid_size_y = u32(ceil((grid_max_y - grid_min_y) / cell_size));
+    let can_increment = vec2(cell.x + 1 < grid_size_x, cell.y + 1 < grid_size_y);
     let max_cell = select(cell, cell + vec2u(1, 1), can_increment);
 
     let aabb = aabbs[object_index];
     let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
     for (var i = min_cell.x; i <= max_cell.x; i++) {
         for (var j = min_cell.y; j <= max_cell.y; j++) {
-            let cell_index = i + j * grid_size.x;
+            let cell_index = i + j * grid_size_x;
             let object_count = cell_object_count[cell_index];
             if object_count == 0 {
                 continue;
