@@ -1,9 +1,7 @@
 #import common::{
-    FLAG_PHYSICAL, MAX_CANDIDATES_PER_OBJECT,
     AABB, Flags, CollisionCandidate, CellPosition,
+    FLAG_PHYSICAL, MAX_CANDIDATES_PER_OBJECT, WORKGROUP_SIZE
 }
-
-const WORKGROUP_SIZE: u32 = 64;
 
 var<immediate> thread_offset: u32;
 

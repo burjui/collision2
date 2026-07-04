@@ -1,6 +1,4 @@
-#import common::Force
-
-const WORKGROUP_SIZE: u32 = 64;
+#import common::WORKGROUP_SIZE
 
 var<immediate> thread_offset: u32;
 

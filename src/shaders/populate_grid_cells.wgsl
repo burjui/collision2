@@ -1,6 +1,4 @@
-#import common::CellPosition
-
-const WORKGROUP_SIZE: u32 = 64;
+#import common::{ CellPosition, WORKGROUP_SIZE }
 
 var<immediate> thread_offset: u32;
 

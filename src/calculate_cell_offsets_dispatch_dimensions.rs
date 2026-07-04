@@ -3,9 +3,9 @@ use wgpu::{ComputePipeline, Device};
 use crate::{
     device_buffer::DeviceBuffer,
     shaders::{
-        calculate_cell_iteration_dispatch_dimensions::{
+        calculate_cell_offsets_dispatch_dimensions::{
             WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
-            compute::create_calculate_cell_iteration_dispatch_dimensions_pipeline_embed_source,
+            compute::create_calculate_cell_offsets_dispatch_dimensions_pipeline_embed_source,
         },
         common::DispatchIndirectArgs,
     },
@@ -41,7 +41,7 @@ impl CalculateCellIterationDispatchDimensions {
                 cell_offsets_dispatch_dimensions: cell_offsets_dispatch_dimensions.as_entire_buffer_binding(),
             }),
         );
-        let pipeline = create_calculate_cell_iteration_dispatch_dimensions_pipeline_embed_source(device);
+        let pipeline = create_calculate_cell_offsets_dispatch_dimensions_pipeline_embed_source(device);
         Self { bind_group, pipeline }
     }
 

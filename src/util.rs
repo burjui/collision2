@@ -30,15 +30,14 @@ impl Default for Velocity {
 
 /// NOTE: uses immediates for thread offset
 pub fn dispatch_compute(compute_pass: &mut ComputePass, n_threads: u32) {
-    let mut nwg = n_threads.div_ceil(WORKGROUP_SIZE);
-    let mut thread_offset: u32 = 0;
-    while nwg > MAX_DISPATCH_DIMENSION {
+    let nwg = n_threads.div_ceil(WORKGROUP_SIZE);
+    let n_indirect_dispatches = nwg.div_ceil(MAX_DISPATCH_DIMENSION);
+    for i in 0..n_indirect_dispatches {
+        let thread_offset = i * MAX_DISPATCH_DIMENSION * WORKGROUP_SIZE;
         compute_pass.set_immediates(0, bytemuck::cast_slice(&[thread_offset]));
-        compute_pass.dispatch_workgroups(MAX_DISPATCH_DIMENSION, 1, 1);
-        nwg -= MAX_DISPATCH_DIMENSION;
-        thread_offset += MAX_DISPATCH_DIMENSION * WORKGROUP_SIZE;
+        let current_nwg = (nwg - MAX_DISPATCH_DIMENSION * i).min(MAX_DISPATCH_DIMENSION);
+        compute_pass.dispatch_workgroups(current_nwg, 1, 1);
     }
-    compute_pass.dispatch_workgroups(nwg, 1, 1);
 }
 
 pub struct PhaseStateCache<T> {

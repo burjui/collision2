@@ -1,4 +1,4 @@
-#import common::{ FLAG_DRAW_AABB, Camera, Flags, AABB }
+#import common::{ Camera, Flags, AABB, FLAG_DRAW_AABB }
 
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(1) @binding(0) var<storage, read> flags: array<Flags>;

@@ -1,6 +1,6 @@
 #import common::{
+    Camera, Flags, AABB, Mass, Color, Shape, Velocity,
     UNIT_QUAD_VERTICES, FLAG_DRAW_OBJECT, FLAG_PHYSICAL,
-    Camera, Flags, AABB, Mass, Color, Shape, Velocity
 }
 
 struct VertexOutput {

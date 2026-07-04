@@ -1,6 +1,6 @@
 #import common::{
-    FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB,
     AABB, Mass, Velocity, Flags,
+    FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_DRAW_AABB, WORKGROUP_SIZE
 }
 
 var <immediate> thread_offset: u32;
@@ -24,8 +24,6 @@ var <immediate> thread_offset: u32;
 @group(3) @binding(4) var<storage, read_write> integrated_flags: array<Flags>;
 @group(3) @binding(5) var<storage, read_write> integrated_aabbs: array<AABB>;
 @group(3) @binding(6) var<storage, read_write> integrated_velocities: array<Velocity>;
-
-const WORKGROUP_SIZE: u32 = 64;
 
 struct BlackHole {
     position: vec2f,

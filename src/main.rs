@@ -2,8 +2,8 @@
 
 pub mod aabb_renderer;
 pub mod assign_object_cells;
-pub mod calculate_cell_iteration_dispatch_dimensions;
 pub mod calculate_cell_offsets;
+pub mod calculate_cell_offsets_dispatch_dimensions;
 pub mod calculate_grid_aabb;
 pub mod collision_broad_phase_grid;
 pub mod collision_forces_reset;
@@ -53,8 +53,8 @@ use winit::{
 use crate::{
     aabb_renderer::AabbRenderer,
     assign_object_cells::AssignObjectCells,
-    calculate_cell_iteration_dispatch_dimensions::CalculateCellIterationDispatchDimensions,
     calculate_cell_offsets::CalculateCellOffsets,
+    calculate_cell_offsets_dispatch_dimensions::CalculateCellIterationDispatchDimensions,
     calculate_grid_aabb::CalculateGridAABB,
     collision_broad_phase_grid::CollisionBroadPhaseGrid,
     collision_forces_reset::CollisionReset,
@@ -67,8 +67,9 @@ use crate::{
     populate_grid_cells::PopulateGridCells,
     reset_grid_aabb::ResetGridAABB,
     scene::{PARTICLE_RADIUS, create_scene},
-    shaders::common::{
-        AABB, Camera, CellPosition, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL,
+    shaders::{
+        calculate_cell_offsets_dispatch_dimensions::N_CELL_INDIRECT_DISPATCHES,
+        common::{AABB, Camera, CellPosition, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL},
     },
     shape_renderer::ShapeRenderer,
 };
@@ -542,11 +543,12 @@ fn spawn_simulation_thread(
             "cell object count",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         );
-        let cell_iteration_dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs> = DeviceBuffer::new(
+        let n_cell_indirect_dispatches: usize = N_CELL_INDIRECT_DISPATCHES.try_into().unwrap();
+        let cell_offsets_dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs> = DeviceBuffer::new(
             &device,
-            1,
+            n_cell_indirect_dispatches,
             "cell offsets dispatch dimensions",
-            BufferUsages::STORAGE | BufferUsages::INDIRECT,
+            BufferUsages::STORAGE | BufferUsages::INDIRECT | BufferUsages::COPY_DST,
         );
         let current_cell_offset = DeviceBuffer::new(
             &device,
@@ -578,7 +580,7 @@ fn spawn_simulation_thread(
             grid_min_y.clone(),
             grid_max_y.clone(),
         );
-        let calculate_cell_iteration_dispatch_dimensions = CalculateCellIterationDispatchDimensions::new(
+        let calculate_cell_offsets_dispatch_dimensions = CalculateCellIterationDispatchDimensions::new(
             &device,
             grid_min_x.clone(),
             grid_max_x,
@@ -587,7 +589,7 @@ fn spawn_simulation_thread(
             cell_size.clone(),
             grid_size_x.clone(),
             grid_size_y.clone(),
-            cell_iteration_dispatch_dimensions.clone(),
+            cell_offsets_dispatch_dimensions.clone(),
         );
         let mut assign_object_cells = AssignObjectCells::new(
             &device,
@@ -602,14 +604,14 @@ fn spawn_simulation_thread(
         );
         let calculate_cell_offsets = CalculateCellOffsets::new(
             &device,
-            cell_iteration_dispatch_dimensions,
-            current_cell_offset.clone(),
+            cell_offsets_dispatch_dimensions.clone(),
             grid_min_x.clone(),
             grid_min_y.clone(),
             cell_size.clone(),
             grid_size_x.clone(),
             grid_size_y.clone(),
             cell_object_count.clone(),
+            current_cell_offset.clone(),
             cell_offsets.clone(),
         );
         let populate_grid_cells = PopulateGridCells::new(
@@ -715,6 +717,7 @@ fn spawn_simulation_thread(
             // Reset buffers
             first_aabb.copy(0..1, current_phase_state.aabbs(), 0..1, &mut encoder);
             encoder.clear_buffer(cell_object_count.buffer(), 0, None);
+            encoder.clear_buffer(cell_offsets_dispatch_dimensions.buffer(), 0, None);
             encoder.clear_buffer(current_cell_offset.buffer(), 0, None);
             encoder.clear_buffer(candidate_count.buffer(), 0, None);
 
@@ -723,7 +726,7 @@ fn spawn_simulation_thread(
             // Broad phase
             reset_grid_aabb.compute(&mut compute_pass);
             calculate_grid_aabb.compute(&mut compute_pass);
-            calculate_cell_iteration_dispatch_dimensions.compute(&mut compute_pass);
+            calculate_cell_offsets_dispatch_dimensions.compute(&mut compute_pass);
             assign_object_cells.compute(&mut compute_pass);
             calculate_cell_offsets.compute(&mut compute_pass);
             populate_grid_cells.compute(&mut compute_pass);

@@ -70,3 +70,7 @@ fn flat_invocation_index(gid: vec3u, nwg: vec3u, workgroup_size: u32) -> u32 {
           (gid.y * workgroup_size * nwg.x) +
           (gid.z * workgroup_size * nwg.x * workgroup_size * nwg.y);
 }
+
+fn div_ceil(a: u32, b: u32) -> u32 {
+    return (a + b - 1) / b;
+}

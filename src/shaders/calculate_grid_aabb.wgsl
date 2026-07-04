@@ -1,6 +1,4 @@
-#import common::AABB
-
-const WORKGROUP_SIZE: u32 = 64;
+#import common::{ AABB, WORKGROUP_SIZE }
 
 var<immediate> thread_offset: u32;
 
