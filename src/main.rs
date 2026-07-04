@@ -9,6 +9,7 @@ pub mod collision_broad_phase_grid;
 pub mod collision_forces_reset;
 pub mod collision_narrow_phase;
 pub mod collision_narrow_phase_dispatch_dimensions;
+pub mod config;
 pub mod device_buffer;
 pub mod integrator;
 pub mod objects;
@@ -60,6 +61,7 @@ use crate::{
     collision_forces_reset::CollisionReset,
     collision_narrow_phase::NarrowPhase,
     collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgsCalculator,
+    config::CONFIG,
     device_buffer::DeviceBuffer,
     integrator::Integrator,
     objects::Objects,
@@ -475,10 +477,10 @@ fn spawn_simulation_thread(
     event_loop_proxy: EventLoopProxy<AppEvent>,
 ) {
     thread::spawn({
-        const DT: f32 = 0.002;
+        let dt: f32 = CONFIG.dt;
         const MAX_SIM_TIME: Option<f32> = None;
 
-        let dt = DeviceBuffer::from_data(&device, &[DT], "dt", BufferUsages::UNIFORM);
+        let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", BufferUsages::UNIFORM);
         let max_candidates_per_object: usize = MAX_CANDIDATES_PER_OBJECT.try_into().unwrap();
         let max_candidates = object_count * max_candidates_per_object;
         let candidates =
@@ -674,7 +676,7 @@ fn spawn_simulation_thread(
             &device,
             object_count,
             object_count_buffer.clone(),
-            dt,
+            dt_buffer,
             masses.clone(),
             collision_forces.clone(),
         );
@@ -762,7 +764,7 @@ fn spawn_simulation_thread(
 
             // Print stats
             sim_step_count += 1;
-            let sim_time = sim_step_count as f32 * DT;
+            let sim_time = sim_step_count as f32 * dt;
             let real_time = start_instant.elapsed().as_secs_f32();
             println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
 

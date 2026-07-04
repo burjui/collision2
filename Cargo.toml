@@ -16,6 +16,8 @@ itertools = "0.15.0"
 rand = "0.10.1"
 crossbeam = "0.8.4"
 color = "0.3.3"
+config = "0.15.25"
+serde = { version = "1.0", features = ["derive"], default-features = false }
 
 [build-dependencies]
 wgsl_bindgen = "0.22.2"
