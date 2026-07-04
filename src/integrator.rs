@@ -38,7 +38,7 @@ impl Integrator {
 
     pub fn new(
         device: &Device,
-        object_count: usize,
+        object_count: u32,
         object_count_buffer: DeviceBuffer<u32>,
         dt: DeviceBuffer<f32>,
         masses: DeviceBuffer<Mass>,
@@ -96,7 +96,7 @@ impl Integrator {
         );
         let phase_state_cache = PhaseStateCache::new();
         Self {
-            object_count: object_count.try_into().unwrap(),
+            object_count,
             main_bind_group,
             blackhole_bind_group,
             collision_bind_group,

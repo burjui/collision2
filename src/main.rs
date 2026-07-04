@@ -38,9 +38,10 @@ use nalgebra::Vector2;
 use pollster::block_on;
 use shaders::common::Mass;
 use wgpu::{
-    BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, CurrentSurfaceTexture, Device, DeviceDescriptor,
-    InstanceDescriptor, PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
-    RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureView, TextureViewDescriptor,
+    Adapter, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, CurrentSurfaceTexture, Device,
+    DeviceDescriptor, InstanceDescriptor, PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment,
+    RenderPassDescriptor, RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureView,
+    TextureViewDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
@@ -71,39 +72,116 @@ use crate::{
     scene::{PARTICLE_RADIUS, create_scene},
     shaders::{
         calculate_cell_offsets_dispatch_dimensions::N_CELL_INDIRECT_DISPATCHES,
-        common::{AABB, Camera, CellPosition, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL},
+        common::{
+            AABB, Camera, CellPosition, Color, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL,
+            Shape,
+        },
     },
     shape_renderer::ShapeRenderer,
 };
 
 fn main() {
+    let wgpu_instance = wgpu::Instance::new(InstanceDescriptor::new_without_display_handle());
+    let (adapter, device, queue) = init_wgpu(&wgpu_instance);
+
+    let mut objects = Objects::default();
+    let world_aabb = AABB {
+        min: [-3200.0, -2000.0],
+        max: [3200.0, 2000.0],
+    };
+    create_scene(&mut objects, world_aabb);
+
+    let object_count: u32 = objects.flags.len().try_into().unwrap();
+    println!("Object count: {}", object_count);
+
+    let object_count_buffer: DeviceBuffer<u32> =
+        DeviceBuffer::from_data(&device, &[object_count], "object_count", BufferUsages::UNIFORM);
+    // TODO: don't store leaves
+    let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
+
+    let masses = DeviceBuffer::from_data(&device, &objects.masses, "masses", storage_copy_dst);
+    let colors = DeviceBuffer::from_data(&device, &objects.colors, "colors", storage_copy_dst);
+    let shapes = DeviceBuffer::from_data(&device, &objects.shapes, "shapes", storage_copy_dst);
+    let phase_state_ring = Arc::new(Mutex::new(PhaseStateRing::new(
+        &device,
+        object_count,
+        &objects.flags,
+        &objects.aabbs,
+        &objects.velocities,
+    )));
+
+    let exit_requested = Arc::new(AtomicBool::new(false));
+    let prioritize_compute = Arc::new(AtomicBool::new(true));
+
     let event_loop = EventLoop::with_user_event().build().expect("Failed to create event loop");
     let event_loop_proxy = event_loop.create_proxy();
-    let mut app = App::new(event_loop_proxy);
-    event_loop.run_app(&mut app).expect("Failed to run app");
+
+    spawn_simulation_thread(
+        device.clone(),
+        queue.clone(),
+        object_count,
+        object_count_buffer,
+        phase_state_ring.clone(),
+        masses.clone(),
+        exit_requested.clone(),
+        prioritize_compute.clone(),
+        event_loop_proxy.clone(),
+    );
+
+    let join_handle = thread::spawn({
+        let device = device.clone();
+        let exit_requested = exit_requested.clone();
+        move || {
+            loop {
+                device.poll(PollType::Poll).unwrap();
+
+                if exit_requested.load(Ordering::Relaxed) {
+                    break;
+                }
+            }
+        }
+    });
+
+    if CONFIG.headless {
+        join_handle.join().unwrap();
+    } else {
+        let mut app = App {
+            wgpu_instance,
+            adapter,
+            device,
+            queue,
+            sim_state: None,
+            render_parameters: RenderParameters::default(),
+            world_aabb,
+            cursor_position: None,
+            object_count,
+            masses,
+            colors,
+            shapes,
+            phase_state_ring,
+            exit_requested,
+            prioritize_compute,
+        };
+        event_loop.run_app(&mut app).expect("Failed to run app");
+    }
 }
 
 struct App<'a> {
-    render_parameters: RenderParameters,
+    wgpu_instance: wgpu::Instance,
+    adapter: Adapter,
+    device: Device,
+    queue: Queue,
     sim_state: Option<SimState<'a>>,
+    render_parameters: RenderParameters,
     world_aabb: AABB,
-    event_loop_proxy: EventLoopProxy<AppEvent>,
     cursor_position: Option<Vector2<f32>>,
-}
-
-impl App<'_> {
-    fn new(event_loop_proxy: EventLoopProxy<AppEvent>) -> Self {
-        Self {
-            render_parameters: RenderParameters::default(),
-            world_aabb: AABB {
-                min: [-3200.0, -2000.0],
-                max: [3200.0, 2000.0],
-            },
-            sim_state: None,
-            event_loop_proxy,
-            cursor_position: None,
-        }
-    }
+    object_count: u32,
+    masses: DeviceBuffer<Mass>,
+    colors: DeviceBuffer<Color>,
+    shapes: DeviceBuffer<Shape>,
+    phase_state_ring: Arc<Mutex<PhaseStateRing>>,
+    exit_requested: Arc<AtomicBool>,
+    prioritize_compute: Arc<AtomicBool>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -132,99 +210,42 @@ impl Default for RenderParameters {
 struct SimState<'a> {
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
-    object_count: usize,
     camera: DeviceBuffer<Camera>,
-    phase_state_ring: Arc<Mutex<PhaseStateRing>>,
-    exit_requested: Arc<AtomicBool>,
-    prioritize_compute: Arc<AtomicBool>,
-
     window: Arc<Window>,
-    surface: wgpu::Surface<'a>,
-    surface_config: wgpu::SurfaceConfiguration,
-    device: Device,
-    queue: Queue,
+    surface: Surface<'a>,
+    surface_config: SurfaceConfiguration,
 }
 
 impl ApplicationHandler<AppEvent> for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = create_window(event_loop);
-        let wgpu_instance = wgpu::Instance::new(InstanceDescriptor::new_without_display_handle());
-        let surface = wgpu_instance.create_surface(window.clone()).unwrap();
-        let (surface_config, device, queue, swapchain_format) = init_wgpu(&wgpu_instance, &window, &surface);
-
-        let mut objects = Objects::default();
-        create_scene(&mut objects, self.world_aabb);
-
-        let object_count = objects.flags.len();
-        println!("Object count: {}", object_count);
         let window_size = window.inner_size();
         println!("Window size: {}x{}", window_size.width, window_size.height);
         let world_size = self.world_aabb.size();
         println!("World size: {}x{}", world_size.x, world_size.y);
 
-        let object_count_buffer: DeviceBuffer<u32> = DeviceBuffer::from_data(
-            &device,
-            &[object_count.try_into().unwrap()],
-            "object_count",
-            BufferUsages::UNIFORM,
+        let surface = self.wgpu_instance.create_surface(window.clone()).unwrap();
+        let (surface_config, swapchain_format) = init_surface(&surface, &self.adapter, &self.device, &window);
+
+        let camera =
+            DeviceBuffer::<Camera>::new(&self.device, 1, "camera", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
+        let shape_renderer = ShapeRenderer::new(
+            &self.device,
+            swapchain_format,
+            camera.clone(),
+            self.colors.clone(),
+            self.shapes.clone(),
+            self.masses.clone(),
         );
-        // TODO: don't store leaves
-        let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
-
-        let masses = DeviceBuffer::from_data(&device, &objects.masses, "masses", storage_copy_dst);
-        let colors = DeviceBuffer::from_data(&device, &objects.colors, "colors", storage_copy_dst);
-        let shapes = DeviceBuffer::from_data(&device, &objects.shapes, "shapes", storage_copy_dst);
-
-        let phase_state_ring =
-            Arc::new(Mutex::new(PhaseStateRing::new(&device, &objects.flags, &objects.aabbs, &objects.velocities)));
-
-        let camera = DeviceBuffer::<Camera>::new(&device, 1, "camera", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
-        let shape_renderer =
-            ShapeRenderer::new(&device, swapchain_format, camera.clone(), colors, shapes, masses.clone());
-        let aabb_renderer = AabbRenderer::new(&device, swapchain_format, camera.clone(), object_count);
-        let exit_requested = Arc::new(AtomicBool::new(false));
-        let prioritize_compute = Arc::new(AtomicBool::new(true));
-
-        spawn_simulation_thread(
-            device.clone(),
-            queue.clone(),
-            object_count,
-            object_count_buffer,
-            phase_state_ring.clone(),
-            masses,
-            exit_requested.clone(),
-            prioritize_compute.clone(),
-            self.event_loop_proxy.clone(),
-        );
-
-        thread::spawn({
-            let device = device.clone();
-            let exit_requested = exit_requested.clone();
-            move || {
-                loop {
-                    device.poll(PollType::Poll).unwrap();
-
-                    if exit_requested.load(Ordering::Relaxed) {
-                        break;
-                    }
-                }
-            }
-        });
+        let aabb_renderer = AabbRenderer::new(&self.device, swapchain_format, camera.clone(), self.object_count);
 
         self.sim_state = Some(SimState {
             shape_renderer,
             aabb_renderer,
-            object_count,
             camera,
-            phase_state_ring,
-            exit_requested,
-            prioritize_compute,
-
             window,
             surface,
             surface_config,
-            device,
-            queue,
         });
     }
 
@@ -234,7 +255,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 if let Some(state) = &mut self.sim_state {
                     state.surface_config.width = size.width;
                     state.surface_config.height = size.height;
-                    state.surface.configure(&state.device, &state.surface_config);
+                    state.surface.configure(&self.device, &state.surface_config);
                 }
             }
 
@@ -243,7 +264,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     let view_size = state.window.inner_size();
                     let world_height = self.world_aabb.max().y - self.world_aabb.min().y;
                     let camera = orthographic_camera(view_size.cast(), world_height, &self.render_parameters);
-                    state.camera.write(&state.queue, &[Camera::new(camera)]);
+                    state.camera.write(&self.queue, &[Camera::new(camera)]);
 
                     let CurrentSurfaceTexture::Success(surface_texture) = state.surface.get_current_texture() else {
                         panic!("Failed to get current surface texture");
@@ -254,10 +275,10 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &self.render_parameters,
                         &mut state.shape_renderer,
                         &mut state.aabb_renderer,
-                        &state.phase_state_ring,
-                        0..state.object_count,
-                        &state.device,
-                        &state.queue,
+                        &self.phase_state_ring,
+                        0..self.object_count,
+                        &self.device,
+                        &self.queue,
                     );
                     state.window.pre_present_notify();
                     surface_texture.present();
@@ -273,9 +294,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             }
 
             WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::KeyC) => {
-                if let Some(state) = &self.sim_state {
-                    state.prioritize_compute.fetch_not(Ordering::SeqCst);
-                }
+                self.prioritize_compute.fetch_not(Ordering::SeqCst);
             }
 
             WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::Escape) => event_loop.exit(),
@@ -323,9 +342,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(state) = &self.sim_state {
-            state.exit_requested.store(true, Ordering::SeqCst);
-        }
+        self.exit_requested.store(true, Ordering::SeqCst);
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
@@ -340,7 +357,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(state) = &self.sim_state
-            && !state.prioritize_compute.load(Ordering::Relaxed)
+            && !self.prioritize_compute.load(Ordering::Relaxed)
         {
             state.window.request_redraw();
         }
@@ -359,15 +376,11 @@ fn create_window(event_loop: &ActiveEventLoop) -> Arc<Window> {
     Arc::new(window)
 }
 
-fn init_wgpu(
-    instance: &wgpu::Instance,
-    window: &Window,
-    surface: &Surface,
-) -> (SurfaceConfiguration, Device, Queue, TextureFormat) {
+fn init_wgpu(instance: &wgpu::Instance) -> (Adapter, Device, Queue) {
     let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
         power_preference: PowerPreference::from_env().unwrap_or(PowerPreference::None),
         force_fallback_adapter: false,
-        compatible_surface: Some(surface),
+        compatible_surface: None,
     }))
     .expect("Failed to find an appropriate adapter");
 
@@ -387,16 +400,25 @@ fn init_wgpu(
     }))
     .expect("Failed to create device");
 
+    (adapter, device, queue)
+}
+
+fn init_surface(
+    surface: &Surface,
+    adapter: &Adapter,
+    device: &Device,
+    window: &Window,
+) -> (SurfaceConfiguration, TextureFormat) {
     let window_size = window.inner_size();
-    let surface_config = wgpu::SurfaceConfiguration {
+    let surface_config = SurfaceConfiguration {
         present_mode: PresentMode::AutoVsync,
         desired_maximum_frame_latency: u32::try_from(PhaseStateRing::N_FRAMES).unwrap(),
-        ..surface.get_default_config(&adapter, window_size.width, window_size.height).unwrap()
+        ..surface.get_default_config(adapter, window_size.width, window_size.height).unwrap()
     };
-    surface.configure(&device, &surface_config);
-    let swapchain_capabilities = surface.get_capabilities(&adapter);
+    surface.configure(device, &surface_config);
+    let swapchain_capabilities = surface.get_capabilities(adapter);
     let swapchain_format = swapchain_capabilities.formats[0];
-    (surface_config, device, queue, swapchain_format)
+    (surface_config, swapchain_format)
 }
 
 fn render_scene(
@@ -405,7 +427,7 @@ fn render_scene(
     shape_renderer: &mut ShapeRenderer,
     aabb_renderer: &mut AabbRenderer,
     phase_state_ring: &Arc<Mutex<PhaseStateRing>>,
-    range: Range<usize>,
+    instances: Range<u32>,
     device: &Device,
     queue: &Queue,
 ) {
@@ -435,7 +457,7 @@ fn render_scene(
 
     if render_parameters.enabled {
         shape_renderer.prepare(current_frame_index, device, &current_frame);
-        shape_renderer.render(&mut render_pass, range.clone());
+        shape_renderer.render(&mut render_pass, instances.clone());
     }
     if render_parameters.draw_aabbs {
         aabb_renderer.prepare(current_frame_index, device, &current_frame);
@@ -468,7 +490,7 @@ fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32, params: 
 fn spawn_simulation_thread(
     device: Device,
     queue: Queue,
-    object_count: usize,
+    object_count: u32,
     object_count_buffer: DeviceBuffer<u32>,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: DeviceBuffer<Mass>,
@@ -481,8 +503,7 @@ fn spawn_simulation_thread(
         const MAX_SIM_TIME: Option<f32> = None;
 
         let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", BufferUsages::UNIFORM);
-        let max_candidates_per_object: usize = MAX_CANDIDATES_PER_OBJECT.try_into().unwrap();
-        let max_candidates = object_count * max_candidates_per_object;
+        let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
         let candidates =
             DeviceBuffer::new(&device, max_candidates, "candidates", BufferUsages::STORAGE | BufferUsages::COPY_SRC);
         let candidate_count = DeviceBuffer::new(
@@ -545,10 +566,9 @@ fn spawn_simulation_thread(
             "cell object count",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         );
-        let n_cell_indirect_dispatches: usize = N_CELL_INDIRECT_DISPATCHES.try_into().unwrap();
         let cell_offsets_dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs> = DeviceBuffer::new(
             &device,
-            n_cell_indirect_dispatches,
+            N_CELL_INDIRECT_DISPATCHES,
             "cell offsets dispatch dimensions",
             BufferUsages::STORAGE | BufferUsages::INDIRECT | BufferUsages::COPY_DST,
         );
@@ -560,9 +580,8 @@ fn spawn_simulation_thread(
         );
         let cell_offsets: DeviceBuffer<u32> =
             DeviceBuffer::new(&device, max_cells, "cell offsets", BufferUsages::STORAGE);
-        let max_objects_per_cell: usize = MAX_OBJECTS_PER_CELL.try_into().unwrap();
         let cells: DeviceBuffer<u32> =
-            DeviceBuffer::new(&device, object_count * max_objects_per_cell, "cells", BufferUsages::STORAGE);
+            DeviceBuffer::new(&device, object_count * MAX_OBJECTS_PER_CELL, "cells", BufferUsages::STORAGE);
 
         // TODO: USE STRUCTS, too easy to mix up the parameters
         let reset_grid_aabb = ResetGridAABB::new(
@@ -663,7 +682,7 @@ fn spawn_simulation_thread(
             "collision forces",
             BufferUsages::STORAGE | BufferUsages::COPY_SRC,
         );
-        let collision_reset = CollisionReset::new(&device, object_count.try_into().unwrap(), collision_forces.clone());
+        let collision_reset = CollisionReset::new(&device, object_count, collision_forces.clone());
         let mut narrow_phase = NarrowPhase::new(
             &device,
             narrow_phase_dispatch_dimensions.clone(),

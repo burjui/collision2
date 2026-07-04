@@ -29,7 +29,7 @@ impl AabbRenderer {
         device: &Device,
         swapchain_format: TextureFormat,
         camera_buffer: DeviceBuffer<Camera>,
-        n_aabbs: usize,
+        n_aabbs: u32,
     ) -> Self {
         let pipeline_layout = create_pipeline_layout(device);
         let shader = create_shader_module_embed_source(device);
@@ -64,7 +64,7 @@ impl AabbRenderer {
         );
         let phase_state_cache = PhaseStateCache::new();
         Self {
-            n_aabbs: u32::try_from(n_aabbs).unwrap(),
+            n_aabbs,
             pipeline: render_pipeline,
             main_bind_group,
             phase_state_cache,

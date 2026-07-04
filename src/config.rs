@@ -9,10 +9,16 @@ pub static CONFIG: LazyLock<Config> = LazyLock::new(|| Config::new().unwrap());
 pub struct Config {
     #[serde(default = "default_dt")]
     pub dt: f32,
+    #[serde(default = "default_headless")]
+    pub headless: bool,
 }
 
 fn default_dt() -> f32 {
     0.002
+}
+
+fn default_headless() -> bool {
+    false
 }
 
 impl Config {

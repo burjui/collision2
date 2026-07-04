@@ -16,8 +16,9 @@ pub struct PhaseState {
 
 impl PhaseState {
     fn new(
-        device: &Device,
         index: usize,
+        device: &Device,
+        object_count: u32,
         initial_aabbs: &[AABB],
         initial_velocities: &[Velocity],
         initial_flags: &[Flags],
@@ -43,19 +44,14 @@ impl PhaseState {
             )
         } else {
             (
+                DeviceBuffer::new(device, object_count, &aabbs_name, BufferUsages::STORAGE | BufferUsages::COPY_SRC),
                 DeviceBuffer::new(
                     device,
-                    initial_aabbs.len(),
-                    &aabbs_name,
-                    BufferUsages::STORAGE | BufferUsages::COPY_SRC,
-                ),
-                DeviceBuffer::new(
-                    device,
-                    initial_velocities.len(),
+                    object_count,
                     &velocities_name,
                     BufferUsages::STORAGE | BufferUsages::COPY_SRC,
                 ),
-                DeviceBuffer::new(device, initial_flags.len(), &flags_name, BufferUsages::STORAGE),
+                DeviceBuffer::new(device, object_count, &flags_name, BufferUsages::STORAGE),
             )
         };
         Self {
@@ -96,13 +92,14 @@ impl PhaseStateRing {
 
     pub fn new(
         device: &Device,
+        object_count: u32,
         initial_flags: &[Flags],
         initial_aabbs: &[AABB],
         initial_velocities: &[Velocity],
     ) -> Self {
         Self {
             states: (0..Self::CAPACITY)
-                .map(|i| PhaseState::new(device, i, initial_aabbs, initial_velocities, initial_flags))
+                .map(|i| PhaseState::new(i, device, object_count, initial_aabbs, initial_velocities, initial_flags))
                 .collect(),
             frame_index: 0,
             compute_index: 0,

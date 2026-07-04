@@ -24,7 +24,7 @@ pub struct AssignObjectCells {
 impl AssignObjectCells {
     pub fn new(
         device: &Device,
-        object_count: usize,
+        object_count: u32,
         object_count_buffer: DeviceBuffer<u32>,
         grid_min_x: DeviceBuffer<f32>,
         grid_min_y: DeviceBuffer<f32>,
@@ -33,7 +33,6 @@ impl AssignObjectCells {
         cell_object_count: DeviceBuffer<u32>,
         object_cells: DeviceBuffer<CellPosition>,
     ) -> Self {
-        let object_count: u32 = object_count.try_into().unwrap();
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {

@@ -85,13 +85,11 @@ impl ShapeRenderer {
         });
     }
 
-    pub fn render(&self, render_pass: &mut RenderPass<'_>, instances: Range<usize>) {
+    pub fn render(&self, render_pass: &mut RenderPass<'_>, instances: Range<u32>) {
         let phase_state_bind_group = self.phase_state_cache.get_current();
-        let start = u32::try_from(instances.start).unwrap();
-        let end = u32::try_from(instances.end).unwrap();
         render_pass.set_pipeline(&self.pipeline);
         self.main_bind_group.set(render_pass);
         phase_state_bind_group.set(render_pass);
-        render_pass.draw(0..6, start..end);
+        render_pass.draw(0..6, instances);
     }
 }

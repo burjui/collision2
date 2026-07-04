@@ -19,8 +19,8 @@ pub struct DeviceBuffer<T> {
 }
 
 impl<T> DeviceBuffer<T> {
-    pub fn new(device: &Device, length: usize, label: &str, usage: wgpu::BufferUsages) -> Self {
-        let required_size = u64::try_from(length * size_of::<T>()).unwrap();
+    pub fn new(device: &Device, length: u32, label: &str, usage: wgpu::BufferUsages) -> Self {
+        let required_size = u64::from(length) * u64::try_from(size_of::<T>()).unwrap();
         let padded_size = required_size.div_ceil(COPY_BUFFER_ALIGNMENT) * COPY_BUFFER_ALIGNMENT;
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some(label),
