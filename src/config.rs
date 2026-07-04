@@ -11,6 +11,7 @@ pub struct Config {
     pub dt: f32,
     #[serde(default = "default_headless")]
     pub headless: bool,
+    pub sim_time_limit: Option<f32>,
 }
 
 fn default_dt() -> f32 {

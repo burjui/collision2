@@ -500,8 +500,6 @@ fn spawn_simulation_thread(
 ) {
     thread::spawn({
         let dt: f32 = CONFIG.dt;
-        const MAX_SIM_TIME: Option<f32> = None;
-
         let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", BufferUsages::UNIFORM);
         let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
         let candidates =
@@ -788,7 +786,7 @@ fn spawn_simulation_thread(
             println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
 
             // Only run for a fixed duration
-            if MAX_SIM_TIME.is_some_and(|max_sim_time| sim_time > max_sim_time) {
+            if CONFIG.sim_time_limit.is_some_and(|max_sim_time| sim_time > max_sim_time) {
                 std::io::stdout().flush().unwrap();
                 std::process::exit(1);
             }
