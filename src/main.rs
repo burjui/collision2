@@ -29,7 +29,7 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    thread::{self},
+    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
@@ -129,7 +129,7 @@ fn main() {
     };
     let event_loop_proxy = event_loop.as_ref().map(|event_loop| event_loop.create_proxy());
 
-    spawn_simulation_thread(
+    let sim_join_handle = spawn_simulation_thread(
         device.clone(),
         queue.clone(),
         object_count,
@@ -142,7 +142,7 @@ fn main() {
         event_loop_proxy.clone(),
     );
 
-    let join_handle = thread::spawn({
+    let poll_join_handle = thread::spawn({
         let device = device.clone();
         let exit_requested = exit_requested.clone();
         move || {
@@ -178,7 +178,8 @@ fn main() {
         };
         event_loop.run_app(&mut app).expect("Failed to run app");
     } else {
-        join_handle.join().unwrap();
+        sim_join_handle.join().unwrap();
+        poll_join_handle.join().unwrap();
     }
 }
 
@@ -529,7 +530,7 @@ fn spawn_simulation_thread(
     exit_requested: Arc<AtomicBool>,
     prioritize_compute: Arc<AtomicBool>,
     event_loop_proxy: Option<EventLoopProxy<AppEvent>>,
-) {
+) -> JoinHandle<()> {
     thread::spawn({
         let dt: f32 = CONFIG.dt;
         let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", BufferUsages::UNIFORM);
@@ -833,5 +834,5 @@ fn spawn_simulation_thread(
                 exit_requested.store(true, Ordering::SeqCst);
             }
         }
-    });
+    })
 }
