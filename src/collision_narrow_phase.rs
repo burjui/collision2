@@ -2,7 +2,7 @@ use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
     device_buffer::DeviceBuffer,
-    phase_state::PhaseState,
+    phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::{
         collision_narrow_phase::{
             WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
@@ -31,6 +31,7 @@ impl NarrowPhase {
         candidate_count: DeviceBuffer<u32>,
         masses: DeviceBuffer<Mass>,
         collision_forces: DeviceBuffer<u32>,
+        phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let input_bind_group = WgpuBindGroup1::from_bindings(
             device,
@@ -46,7 +47,7 @@ impl NarrowPhase {
             }),
         );
         let pipeline = create_narrow_phase_pipeline_embed_source(device);
-        let phase_state_cache = PhaseStateCache::new();
+        let phase_state_cache = PhaseStateCache::new(phase_state_ring_config);
         Self {
             dispatch_dimensions,
             input_bind_group,

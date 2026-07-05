@@ -7,7 +7,7 @@ use wgpu::{
 
 use crate::{
     device_buffer::DeviceBuffer,
-    phase_state::PhaseState,
+    phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::{
         common::{Camera, Color, Mass, Shape},
         render_shape::{
@@ -33,6 +33,7 @@ impl ShapeRenderer {
         colors: DeviceBuffer<Color>,
         shapes: DeviceBuffer<Shape>,
         masses: DeviceBuffer<Mass>,
+        phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let pipeline_layout = create_pipeline_layout(device);
         let shader = create_shader_module_embed_source(device);
@@ -64,7 +65,7 @@ impl ShapeRenderer {
                 masses: masses.as_entire_buffer_binding(),
             }),
         );
-        let phase_state_cache = PhaseStateCache::new();
+        let phase_state_cache = PhaseStateCache::new(phase_state_ring_config);
         Self {
             pipeline: render_pipeline,
             main_bind_group,

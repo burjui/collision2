@@ -1,10 +1,10 @@
-use std::array::from_fn;
+use std::iter::from_fn;
 
 use nalgebra::Vector2;
 use wgpu::ComputePass;
 
 use crate::{
-    phase_state::PhaseStateRing,
+    phase_state::PhaseStateRingConfig,
     shaders::common::{AABB, MAX_DISPATCH_DIMENSION, Velocity, WORKGROUP_SIZE},
 };
 
@@ -41,20 +41,14 @@ pub fn dispatch_compute(compute_pass: &mut ComputePass, n_threads: u32) {
 }
 
 pub struct PhaseStateCache<T> {
-    data: [Option<T>; PhaseStateRing::CAPACITY],
+    data: Vec<Option<T>>,
     phase_state_index: Option<usize>,
 }
 
-impl<T> Default for PhaseStateCache<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<T> PhaseStateCache<T> {
-    pub fn new() -> Self {
+    pub fn new(phase_state_ring_config: PhaseStateRingConfig) -> Self {
         Self {
-            data: from_fn(|_| None),
+            data: from_fn(|| Some(None)).take(phase_state_ring_config.capacity()).collect(),
             phase_state_index: None,
         }
     }

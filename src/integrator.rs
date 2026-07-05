@@ -2,7 +2,7 @@ use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 use crate::{
     device_buffer::DeviceBuffer,
-    phase_state::PhaseState,
+    phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::{
         common::Mass,
         integrate::{
@@ -43,6 +43,7 @@ impl Integrator {
         dt: DeviceBuffer<f32>,
         masses: DeviceBuffer<Mass>,
         collision_forces: DeviceBuffer<u32>,
+        phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let blackholes = DeviceBuffer::from_data(device, Self::BLACKHOLES, "blackholes", BufferUsages::STORAGE);
         let pipeline = create_integrate_pipeline_embed_source(device);
@@ -94,7 +95,7 @@ impl Integrator {
                 collision_forces: collision_forces.as_entire_buffer_binding(),
             }),
         );
-        let phase_state_cache = PhaseStateCache::new();
+        let phase_state_cache = PhaseStateCache::new(phase_state_ring_config);
         Self {
             object_count,
             main_bind_group,

@@ -66,7 +66,7 @@ use crate::{
     device_buffer::DeviceBuffer,
     integrator::Integrator,
     objects::Objects,
-    phase_state::PhaseStateRing,
+    phase_state::{PhaseStateRing, PhaseStateRingConfig},
     populate_grid_cells::PopulateGridCells,
     reset_grid_aabb::ResetGridAABB,
     scene::{PARTICLE_RADIUS, create_scene},
@@ -102,7 +102,12 @@ fn main() {
     let masses = DeviceBuffer::from_data(&device, &objects.masses, "masses", storage_copy_dst);
     let colors = DeviceBuffer::from_data(&device, &objects.colors, "colors", storage_copy_dst);
     let shapes = DeviceBuffer::from_data(&device, &objects.shapes, "shapes", storage_copy_dst);
+    let phase_state_ring_config = PhaseStateRingConfig {
+        n_frames: CONFIG.n_frames,
+        n_compute: CONFIG.n_compute,
+    };
     let phase_state_ring = Arc::new(Mutex::new(PhaseStateRing::new(
+        phase_state_ring_config,
         &device,
         object_count,
         &objects.flags,
@@ -121,6 +126,7 @@ fn main() {
         queue.clone(),
         object_count,
         object_count_buffer,
+        phase_state_ring_config,
         phase_state_ring.clone(),
         masses.clone(),
         exit_requested.clone(),
@@ -158,9 +164,11 @@ fn main() {
             masses,
             colors,
             shapes,
+            phase_state_ring_config,
             phase_state_ring,
             exit_requested,
             prioritize_compute,
+            desired_maximum_frame_latency: phase_state_ring_config.n_frames,
         };
         event_loop.run_app(&mut app).expect("Failed to run app");
     }
@@ -179,9 +187,11 @@ struct App<'a> {
     masses: DeviceBuffer<Mass>,
     colors: DeviceBuffer<Color>,
     shapes: DeviceBuffer<Shape>,
+    phase_state_ring_config: PhaseStateRingConfig,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     exit_requested: Arc<AtomicBool>,
     prioritize_compute: Arc<AtomicBool>,
+    desired_maximum_frame_latency: usize,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -225,7 +235,8 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         println!("World size: {}x{}", world_size.x, world_size.y);
 
         let surface = self.wgpu_instance.create_surface(window.clone()).unwrap();
-        let (surface_config, swapchain_format) = init_surface(&surface, &self.adapter, &self.device, &window);
+        let (surface_config, swapchain_format) =
+            init_surface(self.desired_maximum_frame_latency, &surface, &self.adapter, &self.device, &window);
 
         let camera =
             DeviceBuffer::<Camera>::new(&self.device, 1, "camera", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
@@ -236,8 +247,15 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             self.colors.clone(),
             self.shapes.clone(),
             self.masses.clone(),
+            self.phase_state_ring_config,
         );
-        let aabb_renderer = AabbRenderer::new(&self.device, swapchain_format, camera.clone(), self.object_count);
+        let aabb_renderer = AabbRenderer::new(
+            &self.device,
+            swapchain_format,
+            camera.clone(),
+            self.object_count,
+            self.phase_state_ring_config,
+        );
 
         self.sim_state = Some(SimState {
             shape_renderer,
@@ -404,6 +422,7 @@ fn init_wgpu(instance: &wgpu::Instance) -> (Adapter, Device, Queue) {
 }
 
 fn init_surface(
+    desired_maximum_frame_latency: usize,
     surface: &Surface,
     adapter: &Adapter,
     device: &Device,
@@ -412,7 +431,7 @@ fn init_surface(
     let window_size = window.inner_size();
     let surface_config = SurfaceConfiguration {
         present_mode: PresentMode::AutoVsync,
-        desired_maximum_frame_latency: u32::try_from(PhaseStateRing::N_FRAMES).unwrap(),
+        desired_maximum_frame_latency: u32::try_from(desired_maximum_frame_latency).unwrap(),
         ..surface.get_default_config(adapter, window_size.width, window_size.height).unwrap()
     };
     surface.configure(device, &surface_config);
@@ -492,6 +511,7 @@ fn spawn_simulation_thread(
     queue: Queue,
     object_count: u32,
     object_count_buffer: DeviceBuffer<u32>,
+    phase_state_ring_config: PhaseStateRingConfig,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: DeviceBuffer<Mass>,
     exit_requested: Arc<AtomicBool>,
@@ -598,6 +618,7 @@ fn spawn_simulation_thread(
             grid_max_x.clone(),
             grid_min_y.clone(),
             grid_max_y.clone(),
+            phase_state_ring_config,
         );
         let calculate_cell_offsets_dispatch_dimensions = CalculateCellIterationDispatchDimensions::new(
             &device,
@@ -620,6 +641,7 @@ fn spawn_simulation_thread(
             grid_size_x.clone(),
             cell_object_count.clone(),
             object_cells.clone(),
+            phase_state_ring_config,
         );
         let calculate_cell_offsets = CalculateCellOffsets::new(
             &device,
@@ -660,6 +682,7 @@ fn spawn_simulation_thread(
             cells.clone(),
             candidates.clone(),
             candidate_count.clone(),
+            phase_state_ring_config,
         );
 
         let narrow_phase_dispatch_dimensions = DeviceBuffer::new(
@@ -688,6 +711,7 @@ fn spawn_simulation_thread(
             candidate_count.clone(),
             masses.clone(),
             collision_forces.clone(),
+            phase_state_ring_config,
         );
         let mut integrator = Integrator::new(
             &device,
@@ -696,9 +720,10 @@ fn spawn_simulation_thread(
             dt_buffer,
             masses.clone(),
             collision_forces.clone(),
+            phase_state_ring_config,
         );
 
-        let (tx, rx) = channel::bounded(PhaseStateRing::CAPACITY);
+        let (tx, rx) = channel::bounded(phase_state_ring_config.n_compute);
         let mut sim_step_count: usize = 0;
         let mut compute_submitted: usize = 0;
         let mut last_frame_instant = Instant::now();
@@ -774,7 +799,7 @@ fn spawn_simulation_thread(
 
             // Max PhaseStateRing::N_COMPUTE - 1 integrations at a time
             compute_submitted += 1;
-            if compute_submitted >= PhaseStateRing::N_COMPUTE - 1 {
+            if compute_submitted >= phase_state_ring_config.n_compute - 1 {
                 rx.recv().unwrap();
                 compute_submitted -= 1;
             }

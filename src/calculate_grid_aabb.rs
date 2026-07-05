@@ -2,7 +2,7 @@ use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
     device_buffer::DeviceBuffer,
-    phase_state::PhaseState,
+    phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::calculate_grid_aabb::{
         WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
         WgpuBindGroup1EntriesParams, compute::create_calculate_grid_aabb_pipeline_embed_source,
@@ -26,6 +26,7 @@ impl CalculateGridAABB {
         grid_max_x: DeviceBuffer<f32>,
         grid_min_y: DeviceBuffer<f32>,
         grid_max_y: DeviceBuffer<f32>,
+        phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
@@ -38,7 +39,7 @@ impl CalculateGridAABB {
             }),
         );
         let pipeline = create_calculate_grid_aabb_pipeline_embed_source(device);
-        let phase_state_cache = PhaseStateCache::new();
+        let phase_state_cache = PhaseStateCache::new(phase_state_ring_config);
         Self {
             object_count,
             bind_group,

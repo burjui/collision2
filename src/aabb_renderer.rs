@@ -5,7 +5,7 @@ use wgpu::{
 
 use crate::{
     device_buffer::DeviceBuffer,
-    phase_state::PhaseState,
+    phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::{
         common::Camera,
         render_aabb::{
@@ -30,6 +30,7 @@ impl AabbRenderer {
         swapchain_format: TextureFormat,
         camera_buffer: DeviceBuffer<Camera>,
         n_aabbs: u32,
+        phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let pipeline_layout = create_pipeline_layout(device);
         let shader = create_shader_module_embed_source(device);
@@ -62,7 +63,7 @@ impl AabbRenderer {
                 camera: camera_buffer.as_entire_buffer_binding(),
             }),
         );
-        let phase_state_cache = PhaseStateCache::new();
+        let phase_state_cache = PhaseStateCache::new(phase_state_ring_config);
         Self {
             n_aabbs,
             pipeline: render_pipeline,

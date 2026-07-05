@@ -1,6 +1,7 @@
 use wgpu::{BufferUsages, Device};
 
 use crate::{
+    config::CONFIG,
     device_buffer::DeviceBuffer,
     shaders::common::{AABB, Flags, Velocity},
 };
@@ -74,31 +75,40 @@ impl PhaseState {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct PhaseStateRingConfig {
+    pub n_frames: usize,
+    pub n_compute: usize,
+}
+
+impl PhaseStateRingConfig {
+    pub fn capacity(&self) -> usize {
+        self.n_frames + self.n_compute
+    }
+}
+
 pub struct PhaseStateRing {
+    capacity: usize,
     states: Vec<PhaseState>,
     frame_index: usize,
     compute_index: usize,
 }
 
 impl PhaseStateRing {
-    pub const N_FRAMES: usize = 2;
-    pub const N_COMPUTE: usize = 3;
-
-    pub const CAPACITY: usize = {
-        assert!(Self::N_FRAMES >= 1);
-        assert!(Self::N_COMPUTE >= 2);
-        Self::N_FRAMES + Self::N_COMPUTE
-    };
-
     pub fn new(
+        config: PhaseStateRingConfig,
         device: &Device,
         object_count: u32,
         initial_flags: &[Flags],
         initial_aabbs: &[AABB],
         initial_velocities: &[Velocity],
     ) -> Self {
+        assert!(config.n_frames >= if CONFIG.headless { 0 } else { 1 });
+        assert!(config.n_compute >= 2);
+        let capacity = config.capacity();
         Self {
-            states: (0..Self::CAPACITY)
+            capacity,
+            states: (0..capacity)
                 .map(|i| PhaseState::new(i, device, object_count, initial_aabbs, initial_velocities, initial_flags))
                 .collect(),
             frame_index: 0,
@@ -119,7 +129,7 @@ impl PhaseStateRing {
     }
 
     pub fn next_compute(&self) -> &PhaseState {
-        &self.states[Self::next_index(self.compute_index)]
+        &self.states[self.next_index(self.compute_index)]
     }
 
     pub fn current_compute_index(&self) -> usize {
@@ -127,20 +137,20 @@ impl PhaseStateRing {
     }
 
     pub fn advance_frame(&mut self) {
-        let next_index = Self::next_index(self.frame_index);
+        let next_index = self.next_index(self.frame_index);
         if next_index != self.compute_index {
             self.frame_index = next_index;
         }
     }
 
     pub fn advance_compute(&mut self) {
-        self.compute_index = Self::next_index(self.compute_index);
-        if Self::next_index(self.compute_index) == self.frame_index {
-            self.frame_index = Self::next_index(self.frame_index);
+        self.compute_index = self.next_index(self.compute_index);
+        if self.next_index(self.compute_index) == self.frame_index {
+            self.frame_index = self.next_index(self.frame_index);
         }
     }
 
-    fn next_index(index: usize) -> usize {
-        (index + 1) % Self::CAPACITY
+    fn next_index(&self, index: usize) -> usize {
+        (index + 1) % self.capacity
     }
 }

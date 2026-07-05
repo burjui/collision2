@@ -3,7 +3,7 @@ use wgpu::{ComputePipeline, Device};
 // use crate::shaders::common::CellPosition;
 use crate::{
     device_buffer::DeviceBuffer,
-    phase_state::PhaseState,
+    phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::{
         assign_object_cells::{
             WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
@@ -32,6 +32,7 @@ impl AssignObjectCells {
         grid_size_x: DeviceBuffer<u32>,
         cell_object_count: DeviceBuffer<u32>,
         object_cells: DeviceBuffer<CellPosition>,
+        phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
@@ -46,7 +47,7 @@ impl AssignObjectCells {
             }),
         );
         let pipeline = create_assign_object_cells_pipeline_embed_source(device);
-        let phase_state_cache = PhaseStateCache::new();
+        let phase_state_cache = PhaseStateCache::new(phase_state_ring_config);
         Self {
             object_count,
             bind_group,
