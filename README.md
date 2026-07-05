@@ -10,12 +10,11 @@ _Everything_ is done on the GPU: no CPU<->GPU data transfer after the data is up
 - Symplectic Euler integrator.
 - "Black holes"! Only gravitational attraction and frame dragging (Lense-Thirring) are implemented, no Minkowsky space-time or anything like that. Check out `integrator.rs` and the corresponding `integrate.wgsl` for details.
 - Zoom with mouse wheel.
+- Simulation step and other parameters are configurable via environment variables corresponsing to the fields of the Config struct in `src/config.rs`.
 
 Notes
 - Grid-based broad phase assumes particles of similar sizes. Performance degrades quickly if they differ significantly. There was a BVH-based broad phase, but I removed it for now. Look up the repo history if you want to check it out.
 - The code barely has any comments, because it requires some proficiency in GPU programming and the lion's share of it is self-explanatory if you have it. And I'm lazy.
-- Simulation step is configurable via DT environment variable (default value is in src/config.rs).
-  Other parameters are scattered through code and will become configurable later.
 - Indirect dispatch is utilised where appropriate to avoid CPU<->GPU data transfer.
 - Not published on crates.io since it's not a tool.
 - Only tested on Manjaro Linux with RADV Vulkan driver on RX 560.
