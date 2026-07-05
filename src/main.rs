@@ -830,7 +830,7 @@ fn spawn_simulation_thread(
             // Only run for a fixed duration
             if CONFIG.sim_time_limit.is_some_and(|max_sim_time| sim_time > max_sim_time) {
                 std::io::stdout().flush().unwrap();
-                std::process::exit(1);
+                exit_requested.store(true, Ordering::SeqCst);
             }
         }
     });
