@@ -408,7 +408,7 @@ fn create_window(event_loop: &ActiveEventLoop) -> Arc<Window> {
 
 fn init_wgpu(instance: &wgpu::Instance) -> (Adapter, Device, Queue) {
     let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
-        power_preference: PowerPreference::from_env().unwrap_or(PowerPreference::None),
+        power_preference: PowerPreference::from_env().unwrap_or(PowerPreference::HighPerformance),
         force_fallback_adapter: false,
         compatible_surface: None,
     }))
@@ -425,7 +425,7 @@ fn init_wgpu(instance: &wgpu::Instance) -> (Adapter, Device, Queue) {
         required_features,
         required_limits,
         experimental_features: wgpu::ExperimentalFeatures::disabled(),
-        memory_hints: wgpu::MemoryHints::default(),
+        memory_hints: wgpu::MemoryHints::Performance,
         trace: wgpu::Trace::Off,
     }))
     .expect("Failed to create device");
