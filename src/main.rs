@@ -122,8 +122,12 @@ fn main() {
     let exit_requested = Arc::new(AtomicBool::new(false));
     let prioritize_compute = Arc::new(AtomicBool::new(true));
 
-    let event_loop = EventLoop::with_user_event().build().expect("Failed to create event loop");
-    let event_loop_proxy = event_loop.create_proxy();
+    let event_loop = if CONFIG.headless {
+        None
+    } else {
+        Some(EventLoop::with_user_event().build().expect("Failed to create event loop"))
+    };
+    let event_loop_proxy = event_loop.as_ref().map(|event_loop| event_loop.create_proxy());
 
     spawn_simulation_thread(
         device.clone(),
@@ -152,9 +156,7 @@ fn main() {
         }
     });
 
-    if CONFIG.headless {
-        join_handle.join().unwrap();
-    } else {
+    if let Some(event_loop) = event_loop {
         let mut app = App {
             wgpu_instance,
             adapter,
@@ -175,6 +177,8 @@ fn main() {
             desired_maximum_frame_latency: phase_state_ring_config.n_frames,
         };
         event_loop.run_app(&mut app).expect("Failed to run app");
+    } else {
+        join_handle.join().unwrap();
     }
 }
 
@@ -412,7 +416,7 @@ fn init_wgpu(instance: &wgpu::Instance) -> (Adapter, Device, Queue) {
 
     let required_features = wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::IMMEDIATES | wgpu::Features::SUBGROUP;
     let required_limits = wgpu::Limits {
-        max_immediate_size: 128,
+        max_immediate_size: 32,
         max_storage_buffers_per_shader_stage: 16,
         ..wgpu::Limits::defaults().using_resolution(adapter.limits())
     };
@@ -524,7 +528,7 @@ fn spawn_simulation_thread(
     masses: DeviceBuffer<Mass>,
     exit_requested: Arc<AtomicBool>,
     prioritize_compute: Arc<AtomicBool>,
-    event_loop_proxy: EventLoopProxy<AppEvent>,
+    event_loop_proxy: Option<EventLoopProxy<AppEvent>>,
 ) {
     thread::spawn({
         let dt: f32 = CONFIG.dt;
@@ -742,7 +746,8 @@ fn spawn_simulation_thread(
                 break;
             }
 
-            if prioritize_compute.load(Ordering::Relaxed)
+            if let Some(event_loop_proxy) = &event_loop_proxy
+                && prioritize_compute.load(Ordering::Relaxed)
                 && last_frame_instant.elapsed() > Duration::from_secs_f32(1.0 / 30.0)
             {
                 event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
