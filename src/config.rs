@@ -16,6 +16,8 @@ pub struct Config {
     pub n_frames: usize,
     #[serde(default = "default_n_compute")]
     pub n_compute: usize,
+    #[serde(default = "default_printouts")]
+    pub printouts: bool,
 }
 
 fn default_dt() -> f32 {
@@ -32,6 +34,10 @@ fn default_n_frames() -> usize {
 
 fn default_n_compute() -> usize {
     3
+}
+
+fn default_printouts() -> bool {
+    true
 }
 
 impl Config {

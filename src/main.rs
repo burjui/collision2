@@ -92,7 +92,9 @@ fn main() {
     create_scene(&mut objects, world_aabb);
 
     let object_count: u32 = objects.flags.len().try_into().unwrap();
-    println!("Object count: {}", object_count);
+    if CONFIG.printouts {
+        println!("Object count: {}", object_count);
+    }
 
     let object_count_buffer: DeviceBuffer<u32> =
         DeviceBuffer::from_data(&device, &[object_count], "object_count", BufferUsages::UNIFORM);
@@ -230,9 +232,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = create_window(event_loop);
         let window_size = window.inner_size();
-        println!("Window size: {}x{}", window_size.width, window_size.height);
+        if CONFIG.printouts {
+            println!("Window size: {}x{}", window_size.width, window_size.height);
+        }
         let world_size = self.world_aabb.size();
-        println!("World size: {}x{}", world_size.x, world_size.y);
+        if CONFIG.printouts {
+            println!("World size: {}x{}", world_size.x, world_size.y);
+        }
 
         let surface = self.wgpu_instance.create_surface(window.clone()).unwrap();
         let (surface_config, swapchain_format) =
@@ -793,7 +799,9 @@ fn spawn_simulation_thread(
                 let tx = tx.clone();
                 move || {
                     let _ = tx.send(());
-                    println!("compute done in {:?}", start.elapsed());
+                    if CONFIG.printouts {
+                        println!("compute done in {:?}", start.elapsed());
+                    }
                 }
             });
 
@@ -808,7 +816,9 @@ fn spawn_simulation_thread(
             sim_step_count += 1;
             let sim_time = sim_step_count as f32 * dt;
             let real_time = start_instant.elapsed().as_secs_f32();
-            println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
+            if CONFIG.printouts {
+                println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
+            }
 
             // Only run for a fixed duration
             if CONFIG.sim_time_limit.is_some_and(|max_sim_time| sim_time > max_sim_time) {
