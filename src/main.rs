@@ -81,6 +81,8 @@ use crate::{
 };
 
 fn main() {
+    println!("{:#?}", *CONFIG);
+
     let wgpu_instance = wgpu::Instance::new(InstanceDescriptor::new_without_display_handle());
     let (adapter, device, queue) = init_wgpu(&wgpu_instance);
 
