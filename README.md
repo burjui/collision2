@@ -18,7 +18,6 @@ Notes
 - Indirect dispatch is utilised where appropriate to avoid CPU<->GPU data transfer.
 - Not published on crates.io since it's not a tool.
 - Only tested on Manjaro Linux with RADV Vulkan driver on RX 560.
-- No config file for now. If you want to change the simulation parameters, feel free to explore the code. Sorry.
 - Definitely has bugs. If I had a dollar for each one I've found over the course of development, I could easily fund my beer-brewing hobby 😆.
 
 
