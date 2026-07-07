@@ -744,6 +744,22 @@ fn spawn_simulation_thread(
                 break;
             }
 
+            let sim_time = sim_step_count as f32 * dt;
+            let real_time = start_instant.elapsed().as_secs_f32();
+            let print_sim_rate =
+                || println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
+            if CONFIG.printouts {
+                print_sim_rate();
+            }
+
+            if CONFIG.sim_time_limit.is_some_and(|max_sim_time| sim_time >= max_sim_time) {
+                println!("Simulation time limit reached");
+                print_sim_rate();
+                std::io::stdout().flush().unwrap();
+                exit_requested.store(true, Ordering::SeqCst);
+                break;
+            }
+
             if let Some(event_loop_proxy) = &event_loop_proxy
                 && prioritize_compute.load(Ordering::Relaxed)
                 && last_frame_instant.elapsed() > Duration::from_secs_f32(1.0 / 30.0)
@@ -819,21 +835,6 @@ fn spawn_simulation_thread(
 
             // Print stats
             sim_step_count += 1;
-            let sim_time = sim_step_count as f32 * dt;
-            let real_time = start_instant.elapsed().as_secs_f32();
-            let print_sim_rate =
-                || println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
-            if CONFIG.printouts {
-                print_sim_rate();
-            }
-
-            // Only run for a fixed duration
-            if CONFIG.sim_time_limit.is_some_and(|max_sim_time| sim_time > max_sim_time) {
-                println!("Simulation time limit reached");
-                print_sim_rate();
-                std::io::stdout().flush().unwrap();
-                exit_requested.store(true, Ordering::SeqCst);
-            }
         }
     })
 }
