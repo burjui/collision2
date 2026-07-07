@@ -27,7 +27,7 @@ pub struct Integrator {
 impl Integrator {
     const BLACKHOLE_DUMMY: BlackHole = BlackHole::new([0.0, 0.0], 0.0, 0.0, 0.0);
     const BLACKHOLES: &[BlackHole] = &[
-        // BlackHole::new([0.0, 0.0], 7.0, 2.0, 100.0), // comment out to enable
+        // BlackHole::new([4500.0, 1000.0], 20.0, 2.0, 150.0), // comment out to enable
         //-------------
         Self::BLACKHOLE_DUMMY, // this has to be here because buffers are not allowed to be empty
     ];

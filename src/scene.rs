@@ -1,6 +1,7 @@
 use std::ops::RangeInclusive;
 
 use color::{AlphaColor, Srgb, palette::css};
+use image::{Rgba, imageops::FilterType};
 use itertools::Itertools as _;
 use nalgebra::Vector2;
 use rand::{random, random_range};
@@ -9,7 +10,7 @@ use crate::{
     config::CONFIG,
     objects::{ObjectPrototype, Objects},
     shaders::{
-        common::{AABB, FLAG_DRAW_AABB, FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_VELOCITY_COLOR},
+        common::{AABB, FLAG_COLLISION, FLAG_DRAW_AABB, FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_VELOCITY_COLOR},
         render_shape::SHAPE_RECT,
     },
 };
@@ -20,7 +21,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         min: (world_center - (world_aabb.size() * 0.6) / 2.0).into(),
         max: (world_center + (world_aabb.size() * 0.6) / 2.0).into(),
     };
-    let circles = {
+    let particles = {
         const POSITION_RAND_FACTOR: f32 = 0.1;
         const RADIUS_RAND_FACTOR: f32 = 0.0;
         const VELOCITY_RAND_MAX: f32 = 0.0;
@@ -30,9 +31,15 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         let radius: f32 = CONFIG.particle_radius;
         let effective_radius: f32 = radius * (1.0 + RADIUS_RAND_FACTOR) + CONFIG.particle_padding;
         let shape_count_f32 = scene_aabb.size() / (effective_radius * 2.0);
-        let shape_count: Vector2<usize> = shape_count_f32.try_cast().unwrap();
-        (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(i, j)| {
-            let (i, j) = (i as f32, j as f32);
+        let shape_count: Vector2<u32> = shape_count_f32.try_cast().unwrap();
+        let image = CONFIG.image.clone().map(|path| {
+            let image = image::open(path).unwrap();
+            println!("Image size: {}x{}", image.width(), image.height());
+            image.resize_exact(shape_count.x, shape_count.y, FilterType::Gaussian).into_rgba8()
+        });
+
+        (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(x, y)| {
+            let (i, j) = (x as f32, y as f32);
             let postition_randomization_range = -radius * POSITION_RAND_FACTOR..=radius * POSITION_RAND_FACTOR;
             let position = scene_aabb.min()
                 + Vector2::new(effective_radius * (i * 2.0 + 1.0), effective_radius * (j * 2.0 + 1.0))
@@ -41,28 +48,35 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
                     random_range(postition_randomization_range),
                 );
             let radius = radius + random::<f32>() * RADIUS_RAND_FACTOR;
-            ObjectPrototype {
-                flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_PHYSICAL | FLAG_VELOCITY_COLOR,
-                position: position.into(),
-                velocity: [random_range(VELOCITY_RAND_RANGE_X), random_range(VELOCITY_RAND_RANGE_Y)],
-                mass: 3.0,
-                size: [radius * 2.0, radius * 2.0],
-                color: AlphaColor::new([
+            let color = if let Some(image) = &image {
+                let Rgba(color) = image.get_pixel(x, shape_count.y - 1 - y);
+                AlphaColor::new(color.map(|component| component as f32 / 255.0))
+            } else {
+                AlphaColor::new([
                     0.4 + 0.6 * i / (shape_count_f32.x - 1.0),
                     0.8 * j / (shape_count_f32.x - 1.0),
                     0.3 * i / (shape_count_f32.x - 1.0) * j / (shape_count_f32.y - 1.0),
                     1.0,
-                ]),
+                ])
+            };
+            let velocity_color = if CONFIG.image.is_some() { 0 } else { FLAG_VELOCITY_COLOR };
+            ObjectPrototype {
+                flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_PHYSICAL | FLAG_COLLISION | velocity_color,
+                position: position.into(),
+                velocity: [random_range(VELOCITY_RAND_RANGE_X), random_range(VELOCITY_RAND_RANGE_Y)],
+                mass: 10.0,
+                size: [radius * 2.0, radius * 2.0],
+                color,
                 shape: CONFIG.particle_shape as u32,
             }
         })
     };
-    objects.extend(circles);
+    objects.extend(particles);
 
     let _borders = world_borders(world_aabb);
-    // for border in _borders {
-    //     objects.push(border);
-    // }
+    for border in _borders {
+        objects.push(border);
+    }
 }
 
 fn world_borders(world_aabb: AABB) -> Vec<ObjectPrototype> {

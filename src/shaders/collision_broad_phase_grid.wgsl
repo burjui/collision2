@@ -1,6 +1,6 @@
 #import common::{
     AABB, Flags, CollisionCandidate, CellPosition,
-    FLAG_PHYSICAL, MAX_CANDIDATES_PER_OBJECT, WORKGROUP_SIZE
+    FLAG_PHYSICAL, FLAG_COLLISION, MAX_CANDIDATES_PER_OBJECT, WORKGROUP_SIZE
 }
 
 var<immediate> thread_offset: u32;
@@ -55,7 +55,7 @@ fn broad_phase_grid(
                 if other_object_index >= object_index {
                     continue;
                 }
-                if (flags[other_object_index].inner & FLAG_PHYSICAL) == 0 {
+                if (flags[other_object_index].inner & FLAG_COLLISION) == 0 {
                     continue;
                 }
                 let object_aabb = aabbs[other_object_index];

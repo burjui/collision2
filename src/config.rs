@@ -28,6 +28,8 @@ pub struct Config {
     pub particle_padding: f32,
     #[serde(default = "default_particle_shape")]
     pub particle_shape: Shape,
+    #[serde(default = "default_image")]
+    pub image: Option<String>,
 }
 
 #[repr(u32)]
@@ -73,6 +75,10 @@ fn default_particle_padding() -> f32 {
 
 fn default_particle_shape() -> Shape {
     Shape::Circle
+}
+
+fn default_image() -> Option<String> {
+    None
 }
 
 impl Config {

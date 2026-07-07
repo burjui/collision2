@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 6131f95f96c793ba0d6a0aec840b3398070cf191784604c691340b7a129f1f04
+// SourceHash: 625073c0192488b0b49ae6b17ed55245b1c040891a891425593a4d6d2ffb13f4
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -152,6 +152,7 @@ pub mod common {
     pub const FLAG_DRAW_AABB: u32 = 2u32;
     pub const FLAG_PHYSICAL: u32 = 4u32;
     pub const FLAG_VELOCITY_COLOR: u32 = 8u32;
+    pub const FLAG_COLLISION: u32 = 16u32;
     pub const MAX_CANDIDATES_PER_OBJECT: u32 = 16u32;
     pub const MAX_OBJECTS_PER_CELL: u32 = 4u32;
     pub const MAX_DISPATCH_DIMENSION: u32 = 65535u32;
@@ -373,6 +374,7 @@ const FLAG_DRAW_OBJECT: u32 = 1u;
 const FLAG_DRAW_AABB: u32 = 2u;
 const FLAG_PHYSICAL: u32 = 4u;
 const FLAG_VELOCITY_COLOR: u32 = 8u;
+const FLAG_COLLISION: u32 = 16u;
 const MAX_CANDIDATES_PER_OBJECT: u32 = 16u;
 const MAX_OBJECTS_PER_CELL: u32 = 4u;
 const MAX_DISPATCH_DIMENSION: u32 = 65535u;
@@ -3330,6 +3332,7 @@ struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
 
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
+const FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 
 var<immediate> thread_offset: u32;
@@ -3457,7 +3460,7 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_
                                 continue;
                             }
                             let _e99 = flags[other_object_index].inner;
-                            if ((_e99 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+                            if ((_e99 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
                                 continue;
                             }
                             let object_aabb = aabbs[other_object_index];
@@ -4867,6 +4870,7 @@ const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
+const FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 
 var<immediate> thread_offset: u32;
 @group(0) @binding(0) 
@@ -5028,7 +5032,7 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
             let _e78 = blackhole_size_scale;
             if (distance_1 < (blackhole_3.radius * _e78)) {
                 let _e81 = f;
-                f = (_e81 & 4294967288u);
+                f = (_e81 & 4294967272u);
                 state.velocity = vec2<f32>();
             }
         }

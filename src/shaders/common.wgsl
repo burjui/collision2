@@ -60,6 +60,7 @@ const FLAG_DRAW_OBJECT: u32 = 1 << 0;
 const FLAG_DRAW_AABB: u32 = 1 << 1;
 const FLAG_PHYSICAL: u32 = 1 << 2;
 const FLAG_VELOCITY_COLOR: u32 = 1 << 3;
+const FLAG_COLLISION: u32 = 1 << 4;
 
 const MAX_CANDIDATES_PER_OBJECT: u32 = 16;
 const MAX_OBJECTS_PER_CELL: u32 = 4;
