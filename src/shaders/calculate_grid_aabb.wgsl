@@ -13,10 +13,7 @@ var<immediate> thread_offset: u32;
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn calculate_grid_aabb(
     @builtin(global_invocation_id) gid: vec3u,
-    @builtin(local_invocation_id) lid: vec3u,
     @builtin(subgroup_invocation_id) sid: u32,
-    @builtin(subgroup_id) subgroup_id: u32,
-    @builtin(num_subgroups) num_subgroups: u32
 ) {
     let i = gid.x + thread_offset;
     let object_index = select(0, i, i < object_count);

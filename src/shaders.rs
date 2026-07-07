@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: a7af658b6edcbe41816ec95a5d7463558e160011fe3ccdc248af4227e37794b3
+// SourceHash: 3f0d296ced4f1f1927ae26557c8bc906378315f5f439ddf96334582b0b536862
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1713,7 +1713,7 @@ var<storage, read_write> grid_max_y: atomic<u32>;
 var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
 @compute @workgroup_size(64, 1, 1) 
-fn calculate_grid_aabb(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>, @builtin(subgroup_invocation_id) sid: u32, @builtin(subgroup_id) subgroup_id: u32, @builtin(num_subgroups) num_subgroups: u32) {
+fn calculate_grid_aabb(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(subgroup_invocation_id) sid: u32) {
     let _e3 = thread_offset;
     let i = (gid.x + _e3);
     let _e6 = object_count;
