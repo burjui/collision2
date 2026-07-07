@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 3f0d296ced4f1f1927ae26557c8bc906378315f5f439ddf96334582b0b536862
+// SourceHash: 6131f95f96c793ba0d6a0aec840b3398070cf191784604c691340b7a129f1f04
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -151,6 +151,7 @@ pub mod common {
     pub const FLAG_DRAW_OBJECT: u32 = 1u32;
     pub const FLAG_DRAW_AABB: u32 = 2u32;
     pub const FLAG_PHYSICAL: u32 = 4u32;
+    pub const FLAG_VELOCITY_COLOR: u32 = 8u32;
     pub const MAX_CANDIDATES_PER_OBJECT: u32 = 16u32;
     pub const MAX_OBJECTS_PER_CELL: u32 = 4u32;
     pub const MAX_DISPATCH_DIMENSION: u32 = 65535u32;
@@ -371,6 +372,7 @@ const UNIT_QUAD_VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.
 const FLAG_DRAW_OBJECT: u32 = 1u;
 const FLAG_DRAW_AABB: u32 = 2u;
 const FLAG_PHYSICAL: u32 = 4u;
+const FLAG_VELOCITY_COLOR: u32 = 8u;
 const MAX_CANDIDATES_PER_OBJECT: u32 = 16u;
 const MAX_OBJECTS_PER_CELL: u32 = 4u;
 const MAX_DISPATCH_DIMENSION: u32 = 65535u;
@@ -761,7 +763,7 @@ struct FragmentOutput {
 
 const UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
-const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
+const FLAG_VELOCITY_COLORX_naga_oil_mod_XMNXW23LPNYX: u32 = 8u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
 const COLORING_SPEED_MIN: f32 = 0f;
@@ -838,7 +840,7 @@ fn spectral_intensity(lambda_1: f32) -> f32 {
     return 1f;
 }
 
-fn velocity_to_color(velocity: vec2<f32>, relative_speed: f32) -> vec4<f32> {
+fn velocity_to_color(velocity_1: vec2<f32>, relative_speed: f32) -> vec4<f32> {
     let t = clamp(relative_speed, 0f, 1f);
     let lambda_2 = mix(700f, 380f, t);
     let _e7 = wavelength_to_rgb(lambda_2);
@@ -853,7 +855,7 @@ fn sdf_cirle(p: vec2<f32>) -> f32 {
 @vertex 
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput = VertexOutput();
-    var v: vec2<f32>;
+    var velocity: vec2<f32>;
     var scale: vec2<f32>;
 
     let f = flags[i].inner;
@@ -861,20 +863,20 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
         let _e11 = out;
         return _e11;
     }
-    let aabb = aabbs[i];
-    let _e18 = velocities[i].inner;
-    v = _e18;
-    let mass = masses[i].inner;
-    let _e24 = v;
-    let relative_speed_1 = clamp(((((mass * pow(length(_e24), 2f)) / 2f) - COLORING_SPEED_MIN) / 100000f), 0f, 1f);
-    if ((f & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
-        let _e46 = colors[i].inner;
-        out.color = _e46;
+    if ((f & FLAG_VELOCITY_COLORX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
+        let _e19 = velocities[i].inner;
+        velocity = _e19;
+        let mass = masses[i].inner;
+        let _e25 = velocity;
+        let relative_speed_1 = clamp(((((mass * pow(length(_e25), 2f)) / 2f) - COLORING_SPEED_MIN) / 100000f), 0f, 1f);
+        let _e40 = velocity;
+        let _e42 = velocity_to_color(_e40, sqrt(relative_speed_1));
+        out.color = _e42;
     } else {
-        let _e48 = v;
-        let _e50 = velocity_to_color(_e48, sqrt(relative_speed_1));
-        out.color = _e50;
+        let _e47 = colors[i].inner;
+        out.color = _e47;
     }
+    let aabb = aabbs[i];
     scale = (aabb.max - aabb.min);
     let center = ((aabb.min + aabb.max) / vec2(2f));
     let _e62 = scale.x;

@@ -1,6 +1,6 @@
 #import common::{
     Camera, Flags, AABB, Mass, Color, Shape, Velocity,
-    UNIT_QUAD_VERTICES, FLAG_DRAW_OBJECT, FLAG_PHYSICAL,
+    UNIT_QUAD_VERTICES, FLAG_DRAW_OBJECT, FLAG_VELOCITY_COLOR
 }
 
 struct VertexOutput {
@@ -36,23 +36,20 @@ fn vs_main(
         return out;
     }
 
-    let aabb = aabbs[i];
-    var v = velocities[i].inner;
-    let mass = masses[i].inner;
-    let relative_speed = clamp(
-        (mass * pow(length(v), 2) / 2 - COLORING_SPEED_MIN)
-                            /
-        (COLORING_SPEED_MAX - COLORING_SPEED_MIN),
-        0, 1
-    );
-    if (f & FLAG_PHYSICAL) == 0 {
-        out.color = colors[i].inner;
+    if (f & FLAG_VELOCITY_COLOR) != 0 {
+        var velocity = velocities[i].inner;
+        let mass = masses[i].inner;
+        let relative_speed = clamp(
+            (mass * pow(length(velocity), 2) / 2 - COLORING_SPEED_MIN) / (COLORING_SPEED_MAX - COLORING_SPEED_MIN),
+            0, 1
+        );
+        out.color = velocity_to_color(velocity, sqrt(relative_speed));
     } else {
-        out.color = velocity_to_color(v, sqrt(relative_speed));
+        out.color = colors[i].inner;
     }
 
+    let aabb = aabbs[i];
     var scale = (aabb.max - aabb.min);
-    // scale *= sqrt(sqrt(relative_speed)) * 1.5;
     let center = (aabb.min + aabb.max) / 2;
     let model = mat4x4f(
         scale.x, 0, 0, 0,

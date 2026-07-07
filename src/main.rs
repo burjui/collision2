@@ -69,7 +69,7 @@ use crate::{
     phase_state::{PhaseStateRing, PhaseStateRingConfig},
     populate_grid_cells::PopulateGridCells,
     reset_grid_aabb::ResetGridAABB,
-    scene::{PARTICLE_RADIUS, create_scene},
+    scene::create_scene,
     shaders::{
         calculate_cell_offsets_dispatch_dimensions::N_CELL_INDIRECT_DISPATCHES,
         common::{
@@ -121,8 +121,6 @@ fn main() {
     )));
 
     let exit_requested = Arc::new(AtomicBool::new(false));
-    let prioritize_compute = Arc::new(AtomicBool::new(true));
-
     let event_loop = if CONFIG.headless {
         None
     } else {
@@ -140,7 +138,6 @@ fn main() {
         phase_state_ring.clone(),
         masses.clone(),
         exit_requested.clone(),
-        prioritize_compute.clone(),
         event_loop_proxy.clone(),
     );
 
@@ -180,7 +177,6 @@ fn main() {
             phase_state_ring_config,
             phase_state_ring,
             exit_requested,
-            prioritize_compute,
             desired_maximum_frame_latency: phase_state_ring_config.n_frames,
         };
         event_loop.run_app(&mut app).expect("Failed to run app");
@@ -206,7 +202,6 @@ struct App<'a> {
     phase_state_ring_config: PhaseStateRingConfig,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     exit_requested: Arc<AtomicBool>,
-    prioritize_compute: Arc<AtomicBool>,
     desired_maximum_frame_latency: usize,
 }
 
@@ -327,10 +322,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 self.render_parameters.draw_aabbs = !self.render_parameters.draw_aabbs
             }
 
-            WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::KeyC) => {
-                self.prioritize_compute.fetch_not(Ordering::SeqCst);
-            }
-
             WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::Escape) => event_loop.exit(),
             WindowEvent::CloseRequested => event_loop.exit(),
 
@@ -388,14 +379,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             }
         }
     }
-
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(state) = &self.sim_state
-            && !self.prioritize_compute.load(Ordering::Relaxed)
-        {
-            state.window.request_redraw();
-        }
-    }
 }
 
 fn key_pressed(event: &KeyEvent, key: KeyCode) -> bool {
@@ -422,6 +405,8 @@ fn init_wgpu(instance: &wgpu::Instance) -> (Adapter, Device, Queue) {
     let required_limits = wgpu::Limits {
         max_immediate_size: 32,
         max_storage_buffers_per_shader_stage: 16,
+        max_buffer_size: 1024 * 1024 * 1024,
+        max_storage_buffer_binding_size: 1024 * 1024 * 1024,
         ..wgpu::Limits::defaults().using_resolution(adapter.limits())
     };
     let (device, queue) = block_on(adapter.request_device(&DeviceDescriptor {
@@ -536,7 +521,6 @@ fn spawn_simulation_thread(
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: DeviceBuffer<Mass>,
     exit_requested: Arc<AtomicBool>,
-    prioritize_compute: Arc<AtomicBool>,
     event_loop_proxy: Option<EventLoopProxy<AppEvent>>,
 ) -> JoinHandle<()> {
     thread::spawn({
@@ -578,7 +562,7 @@ fn spawn_simulation_thread(
         );
         let cell_size: DeviceBuffer<f32> = DeviceBuffer::from_data(
             &device,
-            &[PARTICLE_RADIUS * 2.0],
+            &[CONFIG.particle_radius * 2.0],
             "cell size",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         );
@@ -731,7 +715,7 @@ fn spawn_simulation_thread(
             collision_forces.clone(),
             phase_state_ring_config,
         );
-        let safety_margin = PARTICLE_RADIUS * 2.0;
+        let safety_margin = CONFIG.particle_radius * 2.0;
         let constraints = AABB {
             min: [world_aabb.min[0] + safety_margin, world_aabb.min[1] + safety_margin],
             max: [world_aabb.max[0] - safety_margin, world_aabb.max[1] - safety_margin],
@@ -781,8 +765,7 @@ fn spawn_simulation_thread(
             }
 
             if let Some(event_loop_proxy) = &event_loop_proxy
-                && prioritize_compute.load(Ordering::Relaxed)
-                && last_frame_instant.elapsed() > Duration::from_secs_f32(1.0 / 30.0)
+                && last_frame_instant.elapsed() >= Duration::from_secs_f32(1.0 / CONFIG.fps)
             {
                 event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
                 last_frame_instant = Instant::now();
