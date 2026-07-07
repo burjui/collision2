@@ -4,7 +4,7 @@ use crate::{
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::{
-        common::Mass,
+        common::{AABB, Mass},
         integrate::{
             BlackHole, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
             WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries,
@@ -40,6 +40,7 @@ impl Integrator {
         device: &Device,
         object_count: u32,
         object_count_buffer: DeviceBuffer<u32>,
+        constraints: DeviceBuffer<AABB>,
         dt: DeviceBuffer<f32>,
         masses: DeviceBuffer<Mass>,
         collision_forces: DeviceBuffer<u32>,
@@ -70,6 +71,7 @@ impl Integrator {
         );
         let global_acceleration =
             DeviceBuffer::from_data(device, &[Self::GLOBAL_ACCELERATION], "global force", BufferUsages::UNIFORM);
+
         let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
@@ -77,6 +79,7 @@ impl Integrator {
                 gravitational_constant: gravitational_constant.as_entire_buffer_binding(),
                 global_acceleration: global_acceleration.as_entire_buffer_binding(),
                 object_count: object_count_buffer.as_entire_buffer_binding(),
+                constraints: constraints.as_entire_buffer_binding(),
                 masses: masses.as_entire_buffer_binding(),
             }),
         );

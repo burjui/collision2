@@ -87,9 +87,10 @@ fn main() {
     let (adapter, device, queue) = init_wgpu(&wgpu_instance);
 
     let mut objects = Objects::default();
+    // Dimensions have to be positive, refer to calculate_grid_aabb.wgsl
     let world_aabb = AABB {
-        min: [-3200.0, -2000.0],
-        max: [3200.0, 2000.0],
+        min: [0.0, 0.0],
+        max: [6400.0, 4000.0],
     };
     create_scene(&mut objects, world_aabb);
 
@@ -134,6 +135,7 @@ fn main() {
         queue.clone(),
         object_count,
         object_count_buffer,
+        world_aabb,
         phase_state_ring_config,
         phase_state_ring.clone(),
         masses.clone(),
@@ -156,6 +158,11 @@ fn main() {
         }
     });
 
+    let render_parameters = RenderParameters {
+        offset: Vector2::new(world_aabb.size().x * 0.5, -world_aabb.size().y * 0.5),
+        ..Default::default()
+    };
+
     if let Some(event_loop) = event_loop {
         let mut app = App {
             wgpu_instance,
@@ -163,7 +170,7 @@ fn main() {
             device,
             queue,
             sim_state: None,
-            render_parameters: RenderParameters::default(),
+            render_parameters,
             world_aabb,
             cursor_position: None,
             object_count,
@@ -507,6 +514,10 @@ fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32, params: 
     let right = world_width * 0.5;
     let bottom = -world_height * 0.5;
     let top = world_height * 0.5;
+    // let left = 0.0;
+    // let right = world_width;
+    // let bottom = 0.0;
+    // let top = world_height;
     let sx = params.zoom * 2.0 / (right - left);
     let sy = params.zoom * 2.0 / (top - bottom);
     let tx = -params.offset.x * 2.0 / (right - left);
@@ -524,6 +535,7 @@ fn spawn_simulation_thread(
     queue: Queue,
     object_count: u32,
     object_count_buffer: DeviceBuffer<u32>,
+    world_aabb: AABB,
     phase_state_ring_config: PhaseStateRingConfig,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: DeviceBuffer<Mass>,
@@ -723,10 +735,22 @@ fn spawn_simulation_thread(
             collision_forces.clone(),
             phase_state_ring_config,
         );
+        let safety_margin = PARTICLE_RADIUS * 2.0;
+        let constraints = AABB {
+            min: [world_aabb.min[0] + safety_margin, world_aabb.min[1] + safety_margin],
+            max: [world_aabb.max[0] - safety_margin, world_aabb.max[1] - safety_margin],
+        };
+        let constraints_buffer = DeviceBuffer::from_data(
+            &device,
+            &[constraints],
+            "constraints",
+            BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
+        );
         let mut integrator = Integrator::new(
             &device,
             object_count,
             object_count_buffer.clone(),
+            constraints_buffer.clone(),
             dt_buffer,
             masses.clone(),
             collision_forces.clone(),

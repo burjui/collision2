@@ -9,7 +9,8 @@ var <immediate> thread_offset: u32;
 @group(0) @binding(1) var<uniform> gravitational_constant: f32;
 @group(0) @binding(2) var<uniform> global_acceleration: vec2f;
 @group(0) @binding(3) var<uniform> object_count: u32;
-@group(0) @binding(4) var<storage, read> masses: array<Mass>;
+@group(0) @binding(4) var<uniform> constraints: AABB;
+@group(0) @binding(5) var<storage, read> masses: array<Mass>;
 
 @group(1) @binding(0) var<uniform> blackhole_count: u32;
 @group(1) @binding(1) var<uniform> blackhole_mass_scale: f32;
@@ -62,30 +63,28 @@ fn integrate(
         }
     }
 
-    const CONSTRAINTS = AABB(vec2f(-3200, -2000), vec2f(3200, 2000));
-
     let offset = state.position - initial_position;
     var new_aabb = AABB(aabb.min + offset, aabb.max + offset);
-    if new_aabb.min.x < CONSTRAINTS.min.x {
-        let overshoot = -new_aabb.min.x + CONSTRAINTS.min.x;
+    if new_aabb.min.x < constraints.min.x {
+        let overshoot = -new_aabb.min.x + constraints.min.x;
         new_aabb.min.x += overshoot * 0.5;
         new_aabb.max.x += overshoot * 0.5;
         state.velocity.x *= -1;
     }
-    if new_aabb.max.x > CONSTRAINTS.max.x {
-        let overshoot = new_aabb.max.x - CONSTRAINTS.max.x;
+    if new_aabb.max.x > constraints.max.x {
+        let overshoot = new_aabb.max.x - constraints.max.x;
         new_aabb.min.x -= overshoot * 0.5;
         new_aabb.max.x -= overshoot * 0.5;
         state.velocity.x *= -1;
     }
-    if new_aabb.min.y < CONSTRAINTS.min.y {
-        let overshoot = -new_aabb.min.y + CONSTRAINTS.min.y;
+    if new_aabb.min.y < constraints.min.y {
+        let overshoot = -new_aabb.min.y + constraints.min.y;
         new_aabb.min.y += overshoot * 0.5;
         new_aabb.max.y += overshoot * 0.5;
         state.velocity.y *= -1;
     }
-    if new_aabb.max.y > CONSTRAINTS.max.y {
-        let overshoot = new_aabb.max.y - CONSTRAINTS.max.y;
+    if new_aabb.max.y > constraints.max.y {
+        let overshoot = new_aabb.max.y - constraints.max.y;
         new_aabb.min.y -= overshoot * 0.5;
         new_aabb.max.y -= overshoot * 0.5;
         state.velocity.y *= -1;

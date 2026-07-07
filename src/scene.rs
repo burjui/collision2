@@ -16,9 +16,10 @@ use crate::{
 };
 
 pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
-    let world_aabb = AABB {
-        min: (world_aabb.min() * 0.6).into(),
-        max: (world_aabb.max() * 0.6).into(),
+    let world_center = world_aabb.min() + world_aabb.size() / 2.0;
+    let scene_aabb = AABB {
+        min: (world_center - (world_aabb.size() * 0.6) / 2.0).into(),
+        max: (world_center + (world_aabb.size() * 0.6) / 2.0).into(),
     };
     let circles = {
         const RADIUS: f32 = PARTICLE_RADIUS;
@@ -30,12 +31,12 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         const VELOCITY_RAND_RANGE_Y: RangeInclusive<f32> = -VELOCITY_RAND_MAX..=VELOCITY_RAND_MAX;
         const _COLOR_RAND_RANGE: Range<f32> = 0.8..1.0;
         const EFFECTIVE_RADIUS: f32 = RADIUS * (1.0 + RADIUS_RAND_FACTOR) + PADDING;
-        let shape_count_f32 = world_aabb.size() / (EFFECTIVE_RADIUS * 2.0);
+        let shape_count_f32 = scene_aabb.size() / (EFFECTIVE_RADIUS * 2.0);
         let shape_count: Vector2<usize> = shape_count_f32.try_cast().unwrap();
         (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(i, j)| {
             let (i, j) = (i as f32, j as f32);
             let postition_randomization_range = -RADIUS * POSITION_RAND_FACTOR..=RADIUS * POSITION_RAND_FACTOR;
-            let position = world_aabb.min()
+            let position = scene_aabb.min()
                 + Vector2::new(EFFECTIVE_RADIUS * (i * 2.0 + 1.0), EFFECTIVE_RADIUS * (j * 2.0 + 1.0))
                 + Vector2::new(
                     random_range(postition_randomization_range.clone()),
@@ -60,7 +61,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     };
     objects.extend(circles);
 
-    let _borders = world_borders(world_aabb);
+    let _borders = world_borders(scene_aabb);
     // for border in _borders {
     //     objects.push(border);
     // }

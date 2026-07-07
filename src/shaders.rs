@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 52fdfe3d04f7aed9e4cd635ebbec7768473ca8cae973dd872c87e0ed76f4f5d9
+// SourceHash: a7af658b6edcbe41816ec95a5d7463558e160011fe3ccdc248af4227e37794b3
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1459,16 +1459,16 @@ pub mod calculate_grid_aabb {
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub object_count: wgpu::BufferBinding<'a>,
         pub grid_min_x: wgpu::BufferBinding<'a>,
-        pub grid_min_y: wgpu::BufferBinding<'a>,
         pub grid_max_x: wgpu::BufferBinding<'a>,
+        pub grid_min_y: wgpu::BufferBinding<'a>,
         pub grid_max_y: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub object_count: wgpu::BindGroupEntry<'a>,
         pub grid_min_x: wgpu::BindGroupEntry<'a>,
-        pub grid_min_y: wgpu::BindGroupEntry<'a>,
         pub grid_max_x: wgpu::BindGroupEntry<'a>,
+        pub grid_min_y: wgpu::BindGroupEntry<'a>,
         pub grid_max_y: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
@@ -1482,13 +1482,13 @@ pub mod calculate_grid_aabb {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.grid_min_x),
                 },
-                grid_min_y: wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.grid_min_y),
-                },
                 grid_max_x: wgpu::BindGroupEntry {
-                    binding: 3,
+                    binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.grid_max_x),
+                },
+                grid_min_y: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.grid_min_y),
                 },
                 grid_max_y: wgpu::BindGroupEntry {
                     binding: 4,
@@ -1500,8 +1500,8 @@ pub mod calculate_grid_aabb {
             [
                 self.object_count,
                 self.grid_min_x,
-                self.grid_min_y,
                 self.grid_max_x,
+                self.grid_min_y,
                 self.grid_max_y,
             ]
         }
@@ -1537,7 +1537,7 @@ pub mod calculate_grid_aabb {
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"grid_min_y\""]
+                #[doc = " @binding(2): \"grid_max_x\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -1548,7 +1548,7 @@ pub mod calculate_grid_aabb {
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"grid_max_x\""]
+                #[doc = " @binding(3): \"grid_min_y\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -1704,110 +1704,30 @@ var<uniform> object_count: u32;
 @group(0) @binding(1) 
 var<storage, read_write> grid_min_x: atomic<u32>;
 @group(0) @binding(2) 
-var<storage, read_write> grid_min_y: atomic<u32>;
-@group(0) @binding(3) 
 var<storage, read_write> grid_max_x: atomic<u32>;
+@group(0) @binding(3) 
+var<storage, read_write> grid_min_y: atomic<u32>;
 @group(0) @binding(4) 
 var<storage, read_write> grid_max_y: atomic<u32>;
 @group(1) @binding(0) 
 var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
-fn atomicGridMinX(value: f32) {
-    var old: u32;
-
-    let _e1 = atomicLoad((&grid_min_x));
-    old = _e1;
-    loop {
-        let _e3 = old;
-        let old_f32_ = bitcast<f32>(_e3);
-        let new_f32_ = min(old_f32_, value);
-        let new_value = bitcast<u32>(new_f32_);
-        let _e8 = old;
-        let _e10 = atomicCompareExchangeWeak((&grid_min_x), _e8, new_value);
-        if _e10.exchanged {
-            break;
-        }
-        old = _e10.old_value;
-    }
-    return;
-}
-
-fn atomicGridMinY(value_1: f32) {
-    var old_1: u32;
-
-    let _e1 = atomicLoad((&grid_min_y));
-    old_1 = _e1;
-    loop {
-        let _e3 = old_1;
-        let old_f32_1 = bitcast<f32>(_e3);
-        let new_f32_1 = min(old_f32_1, value_1);
-        let new_value_1 = bitcast<u32>(new_f32_1);
-        let _e8 = old_1;
-        let _e10 = atomicCompareExchangeWeak((&grid_min_y), _e8, new_value_1);
-        if _e10.exchanged {
-            break;
-        }
-        old_1 = _e10.old_value;
-    }
-    return;
-}
-
-fn atomicGridMaxX(value_2: f32) {
-    var old_2: u32;
-
-    let _e1 = atomicLoad((&grid_max_x));
-    old_2 = _e1;
-    loop {
-        let _e3 = old_2;
-        let old_f32_2 = bitcast<f32>(_e3);
-        let new_f32_2 = max(old_f32_2, value_2);
-        let new_value_2 = bitcast<u32>(new_f32_2);
-        let _e8 = old_2;
-        let _e10 = atomicCompareExchangeWeak((&grid_max_x), _e8, new_value_2);
-        if _e10.exchanged {
-            break;
-        }
-        old_2 = _e10.old_value;
-    }
-    return;
-}
-
-fn atomicGridMaxY(value_3: f32) {
-    var old_3: u32;
-
-    let _e1 = atomicLoad((&grid_max_y));
-    old_3 = _e1;
-    loop {
-        let _e3 = old_3;
-        let old_f32_3 = bitcast<f32>(_e3);
-        let new_f32_3 = max(old_f32_3, value_3);
-        let new_value_3 = bitcast<u32>(new_f32_3);
-        let _e8 = old_3;
-        let _e10 = atomicCompareExchangeWeak((&grid_max_y), _e8, new_value_3);
-        if _e10.exchanged {
-            break;
-        }
-        old_3 = _e10.old_value;
-    }
-    return;
-}
-
 @compute @workgroup_size(64, 1, 1) 
-fn calculate_grid_aabb(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(subgroup_invocation_id) sid: u32) {
+fn calculate_grid_aabb(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>, @builtin(subgroup_invocation_id) sid: u32, @builtin(subgroup_id) subgroup_id: u32, @builtin(num_subgroups) num_subgroups: u32) {
     let _e3 = thread_offset;
     let i = (gid.x + _e3);
     let _e6 = object_count;
     let object_index = select(0u, i, (i < _e6));
     let aabb = aabbs[object_index];
     let _e15 = subgroupMin(aabb.min.x);
-    let _e18 = subgroupMin(aabb.min.y);
-    let _e21 = subgroupMax(aabb.max.x);
+    let _e18 = subgroupMax(aabb.max.x);
+    let _e21 = subgroupMin(aabb.min.y);
     let _e24 = subgroupMax(aabb.max.y);
     if (sid == 0u) {
-        atomicGridMinX(_e15);
-        atomicGridMinY(_e18);
-        atomicGridMaxX(_e21);
-        atomicGridMaxY(_e24);
+        let _e30 = atomicMin((&grid_min_x), bitcast<u32>(_e15));
+        let _e33 = atomicMax((&grid_max_x), bitcast<u32>(_e18));
+        let _e36 = atomicMin((&grid_min_y), bitcast<u32>(_e21));
+        let _e39 = atomicMax((&grid_max_y), bitcast<u32>(_e24));
         return;
     } else {
         return;
@@ -4390,6 +4310,7 @@ pub mod integrate {
         pub gravitational_constant: wgpu::BufferBinding<'a>,
         pub global_acceleration: wgpu::BufferBinding<'a>,
         pub object_count: wgpu::BufferBinding<'a>,
+        pub constraints: wgpu::BufferBinding<'a>,
         pub masses: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
@@ -4398,6 +4319,7 @@ pub mod integrate {
         pub gravitational_constant: wgpu::BindGroupEntry<'a>,
         pub global_acceleration: wgpu::BindGroupEntry<'a>,
         pub object_count: wgpu::BindGroupEntry<'a>,
+        pub constraints: wgpu::BindGroupEntry<'a>,
         pub masses: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
@@ -4419,18 +4341,23 @@ pub mod integrate {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.object_count),
                 },
-                masses: wgpu::BindGroupEntry {
+                constraints: wgpu::BindGroupEntry {
                     binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.constraints),
+                },
+                masses: wgpu::BindGroupEntry {
+                    binding: 5,
                     resource: wgpu::BindingResource::Buffer(params.masses),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 6] {
             [
                 self.dt,
                 self.gravitational_constant,
                 self.global_acceleration,
                 self.object_count,
+                self.constraints,
                 self.masses,
             ]
         }
@@ -4488,9 +4415,20 @@ pub mod integrate {
                     },
                     count: None,
                 },
-                #[doc = " @binding(4): \"masses\""]
+                #[doc = " @binding(4): \"constraints\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<_root::common::AABB>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(5): \"masses\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -4938,6 +4876,8 @@ var<uniform> global_acceleration: vec2<f32>;
 @group(0) @binding(3) 
 var<uniform> object_count: u32;
 @group(0) @binding(4) 
+var<uniform> constraints: AABBX_naga_oil_mod_XMNXW23LPNYX;
+@group(0) @binding(5) 
 var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(0) 
 var<uniform> blackhole_count: u32;
@@ -5098,56 +5038,64 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
     let _e90 = state.position;
     let offset = (_e90 - initial_position);
     new_aabb = AABBX_naga_oil_mod_XMNXW23LPNYX((aabb_2.min + offset), (aabb_2.max + offset));
-    let _e101 = new_aabb.min.x;
-    if (_e101 < -3200f) {
-        let _e105 = new_aabb.min.x;
-        let overshoot = (-(_e105) + -3200f);
-        let _e110 = new_aabb.min.x;
-        new_aabb.min.x = (_e110 + (overshoot * 0.5f));
-        let _e116 = new_aabb.max.x;
-        new_aabb.max.x = (_e116 + (overshoot * 0.5f));
-        let _e122 = state.velocity.x;
-        state.velocity.x = (_e122 * -1f);
+    let _e100 = new_aabb.min.x;
+    let _e104 = constraints.min.x;
+    if (_e100 < _e104) {
+        let _e108 = new_aabb.min.x;
+        let _e113 = constraints.min.x;
+        let overshoot = (-(_e108) + _e113);
+        let _e117 = new_aabb.min.x;
+        new_aabb.min.x = (_e117 + (overshoot * 0.5f));
+        let _e123 = new_aabb.max.x;
+        new_aabb.max.x = (_e123 + (overshoot * 0.5f));
+        let _e129 = state.velocity.x;
+        state.velocity.x = (_e129 * -1f);
     }
-    let _e128 = new_aabb.max.x;
-    if (_e128 > 3200f) {
-        let _e132 = new_aabb.max.x;
-        let overshoot_1 = (_e132 - 3200f);
-        let _e136 = new_aabb.min.x;
-        new_aabb.min.x = (_e136 - (overshoot_1 * 0.5f));
+    let _e134 = new_aabb.max.x;
+    let _e138 = constraints.max.x;
+    if (_e134 > _e138) {
         let _e142 = new_aabb.max.x;
-        new_aabb.max.x = (_e142 - (overshoot_1 * 0.5f));
-        let _e148 = state.velocity.x;
-        state.velocity.x = (_e148 * -1f);
+        let _e146 = constraints.max.x;
+        let overshoot_1 = (_e142 - _e146);
+        let _e150 = new_aabb.min.x;
+        new_aabb.min.x = (_e150 - (overshoot_1 * 0.5f));
+        let _e156 = new_aabb.max.x;
+        new_aabb.max.x = (_e156 - (overshoot_1 * 0.5f));
+        let _e162 = state.velocity.x;
+        state.velocity.x = (_e162 * -1f);
     }
-    let _e154 = new_aabb.min.y;
-    if (_e154 < -2000f) {
-        let _e158 = new_aabb.min.y;
-        let overshoot_2 = (-(_e158) + -2000f);
-        let _e163 = new_aabb.min.y;
-        new_aabb.min.y = (_e163 + (overshoot_2 * 0.5f));
-        let _e169 = new_aabb.max.y;
-        new_aabb.max.y = (_e169 + (overshoot_2 * 0.5f));
-        let _e175 = state.velocity.y;
-        state.velocity.y = (_e175 * -1f);
+    let _e167 = new_aabb.min.y;
+    let _e171 = constraints.min.y;
+    if (_e167 < _e171) {
+        let _e175 = new_aabb.min.y;
+        let _e180 = constraints.min.y;
+        let overshoot_2 = (-(_e175) + _e180);
+        let _e184 = new_aabb.min.y;
+        new_aabb.min.y = (_e184 + (overshoot_2 * 0.5f));
+        let _e190 = new_aabb.max.y;
+        new_aabb.max.y = (_e190 + (overshoot_2 * 0.5f));
+        let _e196 = state.velocity.y;
+        state.velocity.y = (_e196 * -1f);
     }
-    let _e181 = new_aabb.max.y;
-    if (_e181 > 2000f) {
-        let _e185 = new_aabb.max.y;
-        let overshoot_3 = (_e185 - 2000f);
-        let _e189 = new_aabb.min.y;
-        new_aabb.min.y = (_e189 - (overshoot_3 * 0.5f));
-        let _e195 = new_aabb.max.y;
-        new_aabb.max.y = (_e195 - (overshoot_3 * 0.5f));
-        let _e201 = state.velocity.y;
-        state.velocity.y = (_e201 * -1f);
+    let _e201 = new_aabb.max.y;
+    let _e205 = constraints.max.y;
+    if (_e201 > _e205) {
+        let _e209 = new_aabb.max.y;
+        let _e213 = constraints.max.y;
+        let overshoot_3 = (_e209 - _e213);
+        let _e217 = new_aabb.min.y;
+        new_aabb.min.y = (_e217 - (overshoot_3 * 0.5f));
+        let _e223 = new_aabb.max.y;
+        new_aabb.max.y = (_e223 - (overshoot_3 * 0.5f));
+        let _e229 = state.velocity.y;
+        state.velocity.y = (_e229 * -1f);
     }
-    let _e207 = f;
-    integrated_flags[object_index].inner = _e207;
-    let _e210 = new_aabb;
-    integrated_aabbs[object_index] = _e210;
-    let _e215 = state.velocity;
-    integrated_velocities[object_index].inner = _e215;
+    let _e235 = f;
+    integrated_flags[object_index].inner = _e235;
+    let _e238 = new_aabb;
+    integrated_aabbs[object_index] = _e238;
+    let _e243 = state.velocity;
+    integrated_velocities[object_index].inner = _e243;
     return;
 }
 "#;
