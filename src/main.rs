@@ -92,12 +92,12 @@ fn main() {
         min: [0.0, 0.0],
         max: [6400.0, 4000.0],
     };
+    let world_size = world_aabb.size();
+    println!("World size: {}x{}", world_size.x, world_size.y);
     create_scene(&mut objects, world_aabb);
 
     let object_count: u32 = objects.flags.len().try_into().unwrap();
-    if CONFIG.printouts {
-        println!("Object count: {}", object_count);
-    }
+    println!("Object count: {}", object_count);
 
     let object_count_buffer: DeviceBuffer<u32> =
         DeviceBuffer::from_data(&device, &[object_count], "object_count", BufferUsages::UNIFORM);
@@ -248,10 +248,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let window_size = window.inner_size();
         if CONFIG.printouts {
             println!("Window size: {}x{}", window_size.width, window_size.height);
-        }
-        let world_size = self.world_aabb.size();
-        if CONFIG.printouts {
-            println!("World size: {}x{}", world_size.x, world_size.y);
         }
 
         let surface = self.wgpu_instance.create_surface(window.clone()).unwrap();
