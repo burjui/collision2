@@ -2,14 +2,17 @@
 
 #import common::{ AABB, Mass, Velocity, CollisionCandidate, flat_invocation_index, WORKGROUP_SIZE }
 
-@group(0) @binding(0) var<storage, read> aabbs: array<AABB>;
-@group(0) @binding(1) var<storage, read> velocities: array<Velocity>;
-@group(0) @binding(2) var<storage, read> masses: array<Mass>;
+@group(0) @binding(0) var<uniform> stiffness: f32;
+@group(0) @binding(1) var<uniform> restitution: f32;
 
-@group(1) @binding(0) var<uniform> candidate_count: u32;
-@group(1) @binding(1) var<storage, read> candidates: array<CollisionCandidate>;
+@group(1) @binding(0) var<storage, read> aabbs: array<AABB>;
+@group(1) @binding(1) var<storage, read> velocities: array<Velocity>;
+@group(1) @binding(2) var<storage, read> masses: array<Mass>;
 
-@group(2) @binding(0) var<storage, read_write> collision_forces: array<atomic<u32>>;
+@group(2) @binding(0) var<uniform> candidate_count: u32;
+@group(2) @binding(1) var<storage, read> candidates: array<CollisionCandidate>;
+
+@group(3) @binding(0) var<storage, read_write> collision_forces: array<atomic<u32>>;
 
 const STIFFNESS: f32 = 100000;
 const RESTITUTION: f32 = 0.0;

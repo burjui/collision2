@@ -64,7 +64,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
                 flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_PHYSICAL | FLAG_COLLISION | velocity_color,
                 position: position.into(),
                 velocity: [random_range(VELOCITY_RAND_RANGE_X), random_range(VELOCITY_RAND_RANGE_Y)],
-                mass: 10.0,
+                mass: CONFIG.particle_mass,
                 size: [radius * 2.0, radius * 2.0],
                 color,
                 shape: CONFIG.particle_shape as u32,
@@ -74,9 +74,9 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     objects.extend(particles);
 
     let _borders = world_borders(world_aabb);
-    for border in _borders {
-        objects.push(border);
-    }
+    // for border in _borders {
+    //     objects.push(border);
+    // }
 }
 
 fn world_borders(world_aabb: AABB) -> Vec<ObjectPrototype> {

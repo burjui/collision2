@@ -22,14 +22,33 @@ pub struct Config {
     pub printouts: bool,
     #[serde(default = "default_fps")]
     pub fps: f32,
+
     #[serde(default = "default_particle_radius")]
     pub particle_radius: f32,
+    #[serde(default = "default_particle_mass")]
+    pub particle_mass: f32,
     #[serde(default = "default_particle_padding")]
     pub particle_padding: f32,
     #[serde(default = "default_particle_shape")]
     pub particle_shape: Shape,
+
     #[serde(default = "default_image")]
     pub image: Option<String>,
+
+    #[serde(default = "default_stiffness")]
+    pub stiffness: f32,
+    #[serde(default = "default_restitution")]
+    pub restitution: f32,
+}
+
+impl Config {
+    pub fn new() -> anyhow::Result<Config> {
+        config::Config::builder()
+            .add_source(config::Environment::default())
+            .build()?
+            .try_deserialize()
+            .context("load config")
+    }
 }
 
 #[repr(u32)]
@@ -69,6 +88,10 @@ fn default_particle_radius() -> f32 {
     3.0
 }
 
+fn default_particle_mass() -> f32 {
+    3.0
+}
+
 fn default_particle_padding() -> f32 {
     1.0
 }
@@ -81,12 +104,10 @@ fn default_image() -> Option<String> {
     None
 }
 
-impl Config {
-    pub fn new() -> anyhow::Result<Config> {
-        config::Config::builder()
-            .add_source(config::Environment::default())
-            .build()?
-            .try_deserialize()
-            .context("load config")
-    }
+fn default_stiffness() -> f32 {
+    100000.0
+}
+
+fn default_restitution() -> f32 {
+    0.0
 }

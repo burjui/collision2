@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 625073c0192488b0b49ae6b17ed55245b1c040891a891425593a4d6d2ffb13f4
+// SourceHash: 570f864c1e06655af6fc01b40a4cd873226f797bc9bdac9f71a72497dc7fdf87
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -3841,18 +3841,95 @@ pub mod collision_narrow_phase {
     pub const ENTRY_NARROW_PHASE: &str = "narrow_phase";
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
+        pub stiffness: wgpu::BufferBinding<'a>,
+        pub restitution: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup0Entries<'a> {
+        pub stiffness: wgpu::BindGroupEntry<'a>,
+        pub restitution: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup0Entries<'a> {
+        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
+            Self {
+                stiffness: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.stiffness),
+                },
+                restitution: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.restitution),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
+            [self.stiffness, self.restitution]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup0(wgpu::BindGroup);
+    impl WgpuBindGroup0 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("CollisionNarrowPhase::BindGroup0::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"stiffness\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"restitution\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("CollisionNarrowPhase::BindGroup0"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(0, &self.0, &[]);
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1EntriesParams<'a> {
         pub aabbs: wgpu::BufferBinding<'a>,
         pub velocities: wgpu::BufferBinding<'a>,
         pub masses: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
-    pub struct WgpuBindGroup0Entries<'a> {
+    pub struct WgpuBindGroup1Entries<'a> {
         pub aabbs: wgpu::BindGroupEntry<'a>,
         pub velocities: wgpu::BindGroupEntry<'a>,
         pub masses: wgpu::BindGroupEntry<'a>,
     }
-    impl<'a> WgpuBindGroup0Entries<'a> {
-        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
+    impl<'a> WgpuBindGroup1Entries<'a> {
+        pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
             Self {
                 aabbs: wgpu::BindGroupEntry {
                     binding: 0,
@@ -3876,10 +3953,10 @@ pub mod collision_narrow_phase {
         }
     }
     #[derive(Debug)]
-    pub struct WgpuBindGroup0(wgpu::BindGroup);
-    impl WgpuBindGroup0 {
+    pub struct WgpuBindGroup1(wgpu::BindGroup);
+    impl WgpuBindGroup1 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("CollisionNarrowPhase::BindGroup0::LayoutDescriptor"),
+            label: Some("CollisionNarrowPhase::BindGroup1::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"aabbs\""]
                 wgpu::BindGroupLayoutEntry {
@@ -3919,32 +3996,32 @@ pub mod collision_narrow_phase {
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
         }
-        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup1Entries) -> Self {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("CollisionNarrowPhase::BindGroup0"),
+                label: Some("CollisionNarrowPhase::BindGroup1"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
             Self(bind_group)
         }
         pub fn set(&self, pass: &mut impl SetBindGroup) {
-            pass.set_bind_group(0, &self.0, &[]);
+            pass.set_bind_group(1, &self.0, &[]);
         }
     }
     #[derive(Debug)]
-    pub struct WgpuBindGroup1EntriesParams<'a> {
+    pub struct WgpuBindGroup2EntriesParams<'a> {
         pub candidate_count: wgpu::BufferBinding<'a>,
         pub candidates: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
-    pub struct WgpuBindGroup1Entries<'a> {
+    pub struct WgpuBindGroup2Entries<'a> {
         pub candidate_count: wgpu::BindGroupEntry<'a>,
         pub candidates: wgpu::BindGroupEntry<'a>,
     }
-    impl<'a> WgpuBindGroup1Entries<'a> {
-        pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
+    impl<'a> WgpuBindGroup2Entries<'a> {
+        pub fn new(params: WgpuBindGroup2EntriesParams<'a>) -> Self {
             Self {
                 candidate_count: wgpu::BindGroupEntry {
                     binding: 0,
@@ -3964,10 +4041,10 @@ pub mod collision_narrow_phase {
         }
     }
     #[derive(Debug)]
-    pub struct WgpuBindGroup1(wgpu::BindGroup);
-    impl WgpuBindGroup1 {
+    pub struct WgpuBindGroup2(wgpu::BindGroup);
+    impl WgpuBindGroup2 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("CollisionNarrowPhase::BindGroup1::LayoutDescriptor"),
+            label: Some("CollisionNarrowPhase::BindGroup2::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"candidate_count\""]
                 wgpu::BindGroupLayoutEntry {
@@ -3996,30 +4073,30 @@ pub mod collision_narrow_phase {
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
         }
-        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup1Entries) -> Self {
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup2Entries) -> Self {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("CollisionNarrowPhase::BindGroup1"),
+                label: Some("CollisionNarrowPhase::BindGroup2"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
             Self(bind_group)
         }
         pub fn set(&self, pass: &mut impl SetBindGroup) {
-            pass.set_bind_group(1, &self.0, &[]);
+            pass.set_bind_group(2, &self.0, &[]);
         }
     }
     #[derive(Debug)]
-    pub struct WgpuBindGroup2EntriesParams<'a> {
+    pub struct WgpuBindGroup3EntriesParams<'a> {
         pub collision_forces: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
-    pub struct WgpuBindGroup2Entries<'a> {
+    pub struct WgpuBindGroup3Entries<'a> {
         pub collision_forces: wgpu::BindGroupEntry<'a>,
     }
-    impl<'a> WgpuBindGroup2Entries<'a> {
-        pub fn new(params: WgpuBindGroup2EntriesParams<'a>) -> Self {
+    impl<'a> WgpuBindGroup3Entries<'a> {
+        pub fn new(params: WgpuBindGroup3EntriesParams<'a>) -> Self {
             Self {
                 collision_forces: wgpu::BindGroupEntry {
                     binding: 0,
@@ -4035,10 +4112,10 @@ pub mod collision_narrow_phase {
         }
     }
     #[derive(Debug)]
-    pub struct WgpuBindGroup2(wgpu::BindGroup);
-    impl WgpuBindGroup2 {
+    pub struct WgpuBindGroup3(wgpu::BindGroup);
+    impl WgpuBindGroup3 {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("CollisionNarrowPhase::BindGroup2::LayoutDescriptor"),
+            label: Some("CollisionNarrowPhase::BindGroup3::LayoutDescriptor"),
             entries: &[
                 #[doc = " @binding(0): \"collision_forces\""]
                 wgpu::BindGroupLayoutEntry {
@@ -4056,18 +4133,18 @@ pub mod collision_narrow_phase {
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
         }
-        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup2Entries) -> Self {
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup3Entries) -> Self {
             let bind_group_layout = Self::get_bind_group_layout(device);
             let entries = bindings.into_array();
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("CollisionNarrowPhase::BindGroup2"),
+                label: Some("CollisionNarrowPhase::BindGroup3"),
                 layout: &bind_group_layout,
                 entries: &entries,
             });
             Self(bind_group)
         }
         pub fn set(&self, pass: &mut impl SetBindGroup) {
-            pass.set_bind_group(2, &self.0, &[]);
+            pass.set_bind_group(3, &self.0, &[]);
         }
     }
     #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
@@ -4081,18 +4158,20 @@ pub mod collision_narrow_phase {
         pub bind_group0: &'a WgpuBindGroup0,
         pub bind_group1: &'a WgpuBindGroup1,
         pub bind_group2: &'a WgpuBindGroup2,
+        pub bind_group3: &'a WgpuBindGroup3,
     }
     impl<'a> WgpuBindGroups<'a> {
         pub fn set(&self, pass: &mut impl SetBindGroup) {
             self.bind_group0.set(pass);
             self.bind_group1.set(pass);
             self.bind_group2.set(pass);
+            self.bind_group3.set(pass);
         }
     }
     #[derive(Debug)]
     pub struct WgpuPipelineLayout;
     impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 3]) -> [wgpu::BindGroupLayout; 3] {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 4]) -> [wgpu::BindGroupLayout; 4] {
             entries
         }
     }
@@ -4103,6 +4182,7 @@ pub mod collision_narrow_phase {
                 Some(&WgpuBindGroup0::get_bind_group_layout(device)),
                 Some(&WgpuBindGroup1::get_bind_group_layout(device)),
                 Some(&WgpuBindGroup2::get_bind_group_layout(device)),
+                Some(&WgpuBindGroup3::get_bind_group_layout(device)),
             ],
             immediate_size: 0u32,
         })
@@ -4139,16 +4219,20 @@ const RESTITUTION: f32 = 0f;
 const GAMMA_COEFF: f32 = 212.13202f;
 
 @group(0) @binding(0) 
-var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
+var<uniform> stiffness: f32;
 @group(0) @binding(1) 
-var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(2) 
-var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
+var<uniform> restitution: f32;
 @group(1) @binding(0) 
-var<uniform> candidate_count: u32;
+var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(1) 
-var<storage> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
+@group(1) @binding(2) 
+var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
 @group(2) @binding(0) 
+var<uniform> candidate_count: u32;
+@group(2) @binding(1) 
+var<storage> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
+@group(3) @binding(0) 
 var<storage, read_write> collision_forces: array<atomic<u32>>;
 
 fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
