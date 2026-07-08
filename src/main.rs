@@ -208,6 +208,7 @@ struct App<'a> {
 #[derive(Copy, Clone, Debug)]
 enum AppEvent {
     RedrawRequested,
+    ExitEventLoop,
 }
 
 struct RenderParameters {
@@ -370,13 +371,15 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         self.exit_requested.store(true, Ordering::SeqCst);
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEvent) {
         match event {
             AppEvent::RedrawRequested => {
                 if let Some(state) = &self.sim_state {
                     state.window.request_redraw();
                 }
             }
+
+            AppEvent::ExitEventLoop => event_loop.exit(),
         }
     }
 }
@@ -706,9 +709,23 @@ fn spawn_simulation_thread(
             BufferUsages::STORAGE | BufferUsages::COPY_SRC,
         );
         let collision_reset = CollisionReset::new(&device, object_count, collision_forces.clone());
+        let stiffness = DeviceBuffer::from_data(
+            &device,
+            &[CONFIG.stiffness],
+            "stiffness",
+            BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
+        );
+        let restitution = DeviceBuffer::from_data(
+            &device,
+            &[CONFIG.restitution],
+            "restitution",
+            BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
+        );
         let mut narrow_phase = NarrowPhase::new(
             &device,
             narrow_phase_dispatch_dimensions.clone(),
+            stiffness.clone(),
+            restitution.clone(),
             candidates.clone(),
             candidate_count.clone(),
             masses.clone(),
@@ -761,6 +778,9 @@ fn spawn_simulation_thread(
                 print_sim_rate();
                 std::io::stdout().flush().unwrap();
                 exit_requested.store(true, Ordering::SeqCst);
+                if let Some(event_loop_proxy) = &event_loop_proxy {
+                    event_loop_proxy.send_event(AppEvent::ExitEventLoop).unwrap();
+                }
                 break;
             }
 
