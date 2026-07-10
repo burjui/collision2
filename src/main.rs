@@ -13,6 +13,7 @@ pub mod config;
 pub mod device_buffer;
 pub mod integrator;
 pub mod objects;
+pub mod pass_duration;
 pub mod phase_state;
 pub mod populate_grid_cells;
 pub mod reset_grid_aabb;
@@ -23,7 +24,7 @@ pub mod util;
 
 use core::panic;
 use std::{
-    io::Write as _,
+    io::{Write as _, stdout},
     ops::Range,
     sync::{
         Arc, Mutex,
@@ -66,6 +67,7 @@ use crate::{
     device_buffer::DeviceBuffer,
     integrator::Integrator,
     objects::Objects,
+    pass_duration::PassPipeline,
     phase_state::{PhaseStateRing, PhaseStateRingConfig},
     populate_grid_cells::PopulateGridCells,
     reset_grid_aabb::ResetGridAABB,
@@ -128,6 +130,8 @@ fn main() {
     };
     let event_loop_proxy = event_loop.as_ref().map(|event_loop| event_loop.create_proxy());
 
+    stdout().flush().unwrap();
+
     let sim_join_handle = spawn_simulation_thread(
         device.clone(),
         queue.clone(),
@@ -147,7 +151,6 @@ fn main() {
         move || {
             loop {
                 device.poll(PollType::Poll).unwrap();
-
                 if exit_requested.load(Ordering::Relaxed) {
                     break;
                 }
@@ -404,7 +407,11 @@ fn init_wgpu(instance: &wgpu::Instance) -> (Adapter, Device, Queue) {
     }))
     .expect("Failed to find an appropriate adapter");
 
-    let required_features = wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::IMMEDIATES | wgpu::Features::SUBGROUP;
+    let required_features = wgpu::Features::POLYGON_MODE_LINE
+        | wgpu::Features::IMMEDIATES
+        | wgpu::Features::SUBGROUP
+        | wgpu::Features::TIMESTAMP_QUERY
+        | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES;
     let required_limits = wgpu::Limits {
         max_immediate_size: 32,
         max_storage_buffers_per_shader_stage: 16,
@@ -815,31 +822,68 @@ fn spawn_simulation_thread(
             encoder.clear_buffer(current_cell_offset.buffer(), 0, None);
             encoder.clear_buffer(candidate_count.buffer(), 0, None);
 
+            let mut pipeline = PassPipeline::new(&device);
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
 
             // Broad phase
-            reset_grid_aabb.compute(&mut compute_pass);
-            calculate_grid_aabb.compute(&mut compute_pass);
-            calculate_cell_offsets_dispatch_dimensions.compute(&mut compute_pass);
-            assign_object_cells.compute(&mut compute_pass);
-            calculate_cell_offsets.compute(&mut compute_pass);
-            populate_grid_cells.compute(&mut compute_pass);
-            broad_phase_grid.compute(&mut compute_pass);
+            pipeline.measure_compute(&mut compute_pass, "Reset grid AABB", |compute_pass| {
+                reset_grid_aabb.compute(compute_pass);
+            });
+            pipeline.measure_compute(&mut compute_pass, "Calculate grid AABB", |compute_pass| {
+                calculate_grid_aabb.compute(compute_pass);
+            });
+            pipeline.measure_compute(&mut compute_pass, "Calculate cell offsets dispatch dimensions", |compute_pass| {
+                calculate_cell_offsets_dispatch_dimensions.compute(compute_pass);
+            });
+            pipeline.measure_compute(&mut compute_pass, "Assign object cells", |compute_pass| {
+                assign_object_cells.compute(compute_pass);
+            });
+            pipeline.measure_compute(&mut compute_pass, "Calculate cell offsets", |compute_pass| {
+                calculate_cell_offsets.compute(compute_pass);
+            });
+            pipeline.measure_compute(&mut compute_pass, "Populate grid cells", |compute_pass| {
+                populate_grid_cells.compute(compute_pass);
+            });
+            pipeline.measure_compute(&mut compute_pass, "Broad phase grid", |compute_pass| {
+                broad_phase_grid.compute(compute_pass);
+            });
 
             // Narrow phase
-            narrow_phase_dispatch_dimensions_calculator.compute(&mut compute_pass);
-            collision_reset.compute(&mut compute_pass);
-            narrow_phase.compute(&mut compute_pass);
+            pipeline.measure_compute(
+                &mut compute_pass,
+                "Narrow phase dispatch dimensions calculator",
+                |compute_pass| {
+                    narrow_phase_dispatch_dimensions_calculator.compute(compute_pass);
+                },
+            );
+            pipeline.measure_compute(&mut compute_pass, "Collision reset", |compute_pass| {
+                collision_reset.compute(compute_pass);
+            });
+            pipeline.measure_compute(&mut compute_pass, "Narrow phase", |compute_pass| {
+                narrow_phase.compute(compute_pass);
+            });
 
             // Integrate
-            integrator.compute(&mut compute_pass);
+            pipeline.measure_compute(&mut compute_pass, "Integrator", |compute_pass| {
+                integrator.compute(compute_pass);
+            });
 
             drop(compute_pass);
+
+            let pipeline_timings = pipeline.finish(&mut encoder);
 
             // Submit work
             let start = Instant::now();
             queue.submit([encoder.finish()]);
             queue.on_submitted_work_done({
+                if CONFIG.printouts {
+                    pipeline_timings.read(|timings| {
+                        for (label, duration) in timings {
+                            println!("{}: {:?}", label, duration);
+                        }
+                    });
+                }
+
                 let tx = tx.clone();
                 move || {
                     let _ = tx.send(());
