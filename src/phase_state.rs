@@ -3,6 +3,7 @@ use wgpu::{BufferUsages, Device};
 use crate::{
     config::CONFIG,
     device_buffer::DeviceBuffer,
+    pass_duration::CommandTimings,
     shaders::common::{AABB, Flags, Velocity},
 };
 
@@ -13,6 +14,7 @@ pub struct PhaseState {
     aabbs: DeviceBuffer<AABB>,
     velocities: DeviceBuffer<Velocity>,
     flags: DeviceBuffer<Flags>,
+    command_timings: CommandTimings,
 }
 
 impl PhaseState {
@@ -59,6 +61,7 @@ impl PhaseState {
             aabbs,
             velocities,
             flags,
+            command_timings: CommandTimings::new(device, 20),
         }
     }
 
@@ -72,6 +75,10 @@ impl PhaseState {
 
     pub fn flags(&self) -> &DeviceBuffer<Flags> {
         &self.flags
+    }
+
+    pub fn command_timings(&mut self) -> &mut CommandTimings {
+        &mut self.command_timings
     }
 }
 

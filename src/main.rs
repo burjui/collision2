@@ -67,7 +67,6 @@ use crate::{
     device_buffer::DeviceBuffer,
     integrator::Integrator,
     objects::Objects,
-    pass_duration::PassPipeline,
     phase_state::{PhaseStateRing, PhaseStateRingConfig},
     populate_grid_cells::PopulateGridCells,
     reset_grid_aabb::ResetGridAABB,
@@ -411,6 +410,7 @@ fn init_wgpu(instance: &wgpu::Instance) -> (Adapter, Device, Queue) {
         | wgpu::Features::IMMEDIATES
         | wgpu::Features::SUBGROUP
         | wgpu::Features::TIMESTAMP_QUERY
+        | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS
         | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES;
     let required_limits = wgpu::Limits {
         max_immediate_size: 32,
@@ -801,7 +801,7 @@ fn spawn_simulation_thread(
             // Set integrator buffers, advance the 2-state sliding window that the integrator uses
             let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
             let phase_state_index = phase_state_ring_guard.current_compute_index();
-            let current_phase_state = phase_state_ring_guard.current_compute().clone();
+            let mut current_phase_state = phase_state_ring_guard.current_compute().clone();
             let next_phase_state = phase_state_ring_guard.next_compute().clone();
             phase_state_ring_guard.advance_compute();
             drop(phase_state_ring_guard);
@@ -817,67 +817,62 @@ fn spawn_simulation_thread(
 
             // Reset buffers
             first_aabb.copy(0..1, current_phase_state.aabbs(), 0..1, &mut encoder);
-            encoder.clear_buffer(cell_object_count.buffer(), 0, None);
-            encoder.clear_buffer(cell_offsets_dispatch_dimensions.buffer(), 0, None);
-            encoder.clear_buffer(current_cell_offset.buffer(), 0, None);
-            encoder.clear_buffer(candidate_count.buffer(), 0, None);
+            let timings = current_phase_state.command_timings();
+            timings.measure(&mut encoder, "Clear buffers", |encoder| {
+                encoder.clear_buffer(cell_object_count.buffer(), 0, None);
+                encoder.clear_buffer(cell_offsets_dispatch_dimensions.buffer(), 0, None);
+                encoder.clear_buffer(current_cell_offset.buffer(), 0, None);
+                encoder.clear_buffer(candidate_count.buffer(), 0, None);
+            });
 
-            let mut pipeline = PassPipeline::new(&device);
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
 
             // Broad phase
-            pipeline.measure_compute(&mut compute_pass, "Reset grid AABB", |compute_pass| {
-                reset_grid_aabb.compute(compute_pass);
+            timings.measure_compute(&mut compute_pass, "Reset grid AABB", |compute_pass| {
+                reset_grid_aabb.compute(compute_pass)
             });
-            pipeline.measure_compute(&mut compute_pass, "Calculate grid AABB", |compute_pass| {
-                calculate_grid_aabb.compute(compute_pass);
+            timings.measure_compute(&mut compute_pass, "Calculate grid AABB", |compute_pass| {
+                calculate_grid_aabb.compute(compute_pass)
             });
-            pipeline.measure_compute(&mut compute_pass, "Calculate cell offsets dispatch dimensions", |compute_pass| {
-                calculate_cell_offsets_dispatch_dimensions.compute(compute_pass);
+            timings.measure_compute(&mut compute_pass, "Calculate cell offsets dispatch dimensions", |compute_pass| {
+                calculate_cell_offsets_dispatch_dimensions.compute(compute_pass)
             });
-            pipeline.measure_compute(&mut compute_pass, "Assign object cells", |compute_pass| {
-                assign_object_cells.compute(compute_pass);
+            timings.measure_compute(&mut compute_pass, "Assign object cells", |compute_pass| {
+                assign_object_cells.compute(compute_pass)
             });
-            pipeline.measure_compute(&mut compute_pass, "Calculate cell offsets", |compute_pass| {
-                calculate_cell_offsets.compute(compute_pass);
+            timings.measure_compute(&mut compute_pass, "Calculate cell offsets", |compute_pass| {
+                calculate_cell_offsets.compute(compute_pass)
             });
-            pipeline.measure_compute(&mut compute_pass, "Populate grid cells", |compute_pass| {
-                populate_grid_cells.compute(compute_pass);
+            timings.measure_compute(&mut compute_pass, "Populate grid cells", |compute_pass| {
+                populate_grid_cells.compute(compute_pass)
             });
-            pipeline.measure_compute(&mut compute_pass, "Broad phase grid", |compute_pass| {
-                broad_phase_grid.compute(compute_pass);
+            timings.measure_compute(&mut compute_pass, "Broad phase grid", |compute_pass| {
+                broad_phase_grid.compute(compute_pass)
             });
 
             // Narrow phase
-            pipeline.measure_compute(
-                &mut compute_pass,
-                "Narrow phase dispatch dimensions calculator",
-                |compute_pass| {
-                    narrow_phase_dispatch_dimensions_calculator.compute(compute_pass);
-                },
-            );
-            pipeline.measure_compute(&mut compute_pass, "Collision reset", |compute_pass| {
-                collision_reset.compute(compute_pass);
+            timings.measure_compute(&mut compute_pass, "Narrow phase dispatch dimensions calculator", |compute_pass| {
+                narrow_phase_dispatch_dimensions_calculator.compute(compute_pass);
             });
-            pipeline.measure_compute(&mut compute_pass, "Narrow phase", |compute_pass| {
-                narrow_phase.compute(compute_pass);
+            timings.measure_compute(&mut compute_pass, "Collision reset", |compute_pass| {
+                collision_reset.compute(compute_pass)
             });
+            timings
+                .measure_compute(&mut compute_pass, "Narrow phase", |compute_pass| narrow_phase.compute(compute_pass));
 
             // Integrate
-            pipeline.measure_compute(&mut compute_pass, "Integrator", |compute_pass| {
-                integrator.compute(compute_pass);
-            });
+            timings.measure_compute(&mut compute_pass, "Integrator", |compute_pass| integrator.compute(compute_pass));
 
             drop(compute_pass);
 
-            let pipeline_timings = pipeline.finish(&mut encoder);
+            timings.resolve(&mut encoder);
 
             // Submit work
             let start = Instant::now();
             queue.submit([encoder.finish()]);
             queue.on_submitted_work_done({
                 if CONFIG.printouts {
-                    pipeline_timings.read(|timings| {
+                    timings.read(|timings| {
                         for (label, duration) in timings {
                             println!("{}: {:?}", label, duration);
                         }
