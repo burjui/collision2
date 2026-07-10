@@ -44,12 +44,14 @@ impl CommandTimings {
             requests_readback: Vec::new(),
         }
     }
+
     pub fn measure(&mut self, encoder: &mut CommandEncoder, label: &'static str, f: impl FnOnce(&mut CommandEncoder)) {
         assert!(self.requests.len() < usize::try_from(self.capacity).unwrap());
-        encoder.write_timestamp(&self.query_set, self.request_slot_count());
-        f(encoder);
-        encoder.write_timestamp(&self.query_set, self.request_slot_count() + 1);
+        let slot = self.request_slot_count();
         self.requests.push(label);
+        encoder.write_timestamp(&self.query_set, slot);
+        f(encoder);
+        encoder.write_timestamp(&self.query_set, slot + 1);
     }
 
     pub fn measure_compute(
@@ -59,10 +61,11 @@ impl CommandTimings {
         f: impl FnOnce(&mut ComputePass),
     ) {
         assert!(self.requests.len() < usize::try_from(self.capacity).unwrap());
+        let slot = self.request_slot_count();
         self.requests.push(label);
-        compute_pass.write_timestamp(&self.query_set, self.request_slot_count());
+        compute_pass.write_timestamp(&self.query_set, slot);
         f(compute_pass);
-        compute_pass.write_timestamp(&self.query_set, self.request_slot_count() + 1);
+        compute_pass.write_timestamp(&self.query_set, slot + 1);
     }
 
     pub fn measure_render(
@@ -72,10 +75,11 @@ impl CommandTimings {
         f: impl FnOnce(&mut RenderPass),
     ) {
         assert!(self.requests.len() < usize::try_from(self.capacity).unwrap());
-        render_pass.write_timestamp(&self.query_set, self.request_slot_count());
-        f(render_pass);
-        render_pass.write_timestamp(&self.query_set, self.request_slot_count() + 1);
+        let slot = self.request_slot_count();
         self.requests.push(label);
+        render_pass.write_timestamp(&self.query_set, slot);
+        f(render_pass);
+        render_pass.write_timestamp(&self.query_set, slot + 1);
     }
 
     pub fn resolve(&mut self, encoder: &mut CommandEncoder) {
