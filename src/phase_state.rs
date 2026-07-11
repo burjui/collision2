@@ -1,9 +1,9 @@
 use wgpu::{BufferUsages, Device};
 
 use crate::{
+    command_timings::CommandTimings,
     config::CONFIG,
     device_buffer::DeviceBuffer,
-    pass_duration::CommandTimings,
     shaders::common::{AABB, Flags, Velocity},
 };
 

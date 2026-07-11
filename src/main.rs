@@ -599,7 +599,7 @@ fn spawn_simulation_thread(
             "cell object count",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         );
-        let cell_offsets_dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs> = DeviceBuffer::new(
+        let dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs> = DeviceBuffer::new(
             &device,
             N_CELL_INDIRECT_DISPATCHES,
             "cell offsets dispatch dimensions",
@@ -644,7 +644,7 @@ fn spawn_simulation_thread(
             cell_size.clone(),
             grid_size_x.clone(),
             grid_size_y.clone(),
-            cell_offsets_dispatch_dimensions.clone(),
+            dispatch_dimensions.clone(),
         );
         let mut assign_object_cells = AssignObjectCells::new(
             &device,
@@ -660,7 +660,7 @@ fn spawn_simulation_thread(
         );
         let calculate_cell_offsets = CalculateCellOffsets::new(
             &device,
-            cell_offsets_dispatch_dimensions.clone(),
+            dispatch_dimensions.clone(),
             grid_min_x.clone(),
             grid_min_y.clone(),
             cell_size.clone(),
@@ -697,16 +697,10 @@ fn spawn_simulation_thread(
             phase_state_ring_config,
         );
 
-        let narrow_phase_dispatch_dimensions = DeviceBuffer::new(
-            &device,
-            1,
-            "narrow phase dispatch dimensions",
-            BufferUsages::STORAGE | BufferUsages::INDIRECT | BufferUsages::COPY_SRC,
-        );
         let narrow_phase_dispatch_dimensions_calculator = NarrowPhaseDispatchIndirectArgsCalculator::new(
             &device,
             candidate_count.clone(),
-            narrow_phase_dispatch_dimensions.clone(),
+            dispatch_dimensions.clone(),
         );
 
         let collision_forces = DeviceBuffer::new(
@@ -730,7 +724,7 @@ fn spawn_simulation_thread(
         );
         let mut narrow_phase = NarrowPhase::new(
             &device,
-            narrow_phase_dispatch_dimensions.clone(),
+            dispatch_dimensions.clone(),
             stiffness.clone(),
             restitution.clone(),
             candidates.clone(),
@@ -820,7 +814,7 @@ fn spawn_simulation_thread(
             let timings = current_phase_state.command_timings();
             timings.measure(&mut encoder, "Clear buffers", |encoder| {
                 encoder.clear_buffer(cell_object_count.buffer(), 0, None);
-                encoder.clear_buffer(cell_offsets_dispatch_dimensions.buffer(), 0, None);
+                encoder.clear_buffer(dispatch_dimensions.buffer(), 0, None);
                 encoder.clear_buffer(current_cell_offset.buffer(), 0, None);
                 encoder.clear_buffer(candidate_count.buffer(), 0, None);
             });
