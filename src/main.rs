@@ -861,7 +861,7 @@ fn spawn_simulation_thread(
             queue.submit([encoder.finish()]);
             queue.on_submitted_work_done({
                 if CONFIG.printouts {
-                    timings.read(|timings| {
+                    timings.read(queue.get_timestamp_period(), |timings| {
                         for (label, duration) in timings {
                             println!("{}: {:?}", label, duration);
                         }

@@ -83,14 +83,21 @@ impl CommandTimings {
         self.requests_readback.extend(self.requests.drain(..));
     }
 
-    pub fn read(&self, callback: impl FnOnce(Vec<(&'static str, Duration)>) + WasmNotSend + 'static + Clone) {
+    pub fn read(
+        &self,
+        timestamp_period: f32,
+        callback: impl FnOnce(Vec<(&'static str, Duration)>) + WasmNotSend + 'static + Clone,
+    ) {
         let labels = self.requests_readback.clone();
-        self.query_readback_buffer.read(self.requests_readback.len() * 2, |result| {
+        self.query_readback_buffer.read(self.requests_readback.len() * 2, move |result| {
             let timestamps = result.unwrap();
             callback(
                 labels
                     .into_iter()
-                    .zip(timestamps.chunks(2).map(|chunk| Duration::from_nanos(chunk[1] - chunk[0])))
+                    .zip(timestamps.chunks(2).map(|chunk| {
+                        let nanos = (chunk[1] - chunk[0]) as f32 * timestamp_period;
+                        Duration::from_nanos(nanos as u64)
+                    }))
                     .collect(),
             );
         });
