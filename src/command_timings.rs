@@ -46,9 +46,7 @@ impl CommandTimings {
     }
 
     pub fn measure(&mut self, encoder: &mut CommandEncoder, label: &'static str, f: impl FnOnce(&mut CommandEncoder)) {
-        assert!(self.requests.len() < usize::try_from(self.capacity).unwrap());
-        let slot = self.request_slot_count();
-        self.requests.push(label);
+        let slot = self.request_slot(label);
         encoder.write_timestamp(&self.query_set, slot);
         f(encoder);
         encoder.write_timestamp(&self.query_set, slot + 1);
@@ -60,9 +58,7 @@ impl CommandTimings {
         label: &'static str,
         f: impl FnOnce(&mut ComputePass),
     ) {
-        assert!(self.requests.len() < usize::try_from(self.capacity).unwrap());
-        let slot = self.request_slot_count();
-        self.requests.push(label);
+        let slot = self.request_slot(label);
         compute_pass.write_timestamp(&self.query_set, slot);
         f(compute_pass);
         compute_pass.write_timestamp(&self.query_set, slot + 1);
@@ -74,9 +70,7 @@ impl CommandTimings {
         label: &'static str,
         f: impl FnOnce(&mut RenderPass),
     ) {
-        assert!(self.requests.len() < usize::try_from(self.capacity).unwrap());
-        let slot = self.request_slot_count();
-        self.requests.push(label);
+        let slot = self.request_slot(label);
         render_pass.write_timestamp(&self.query_set, slot);
         f(render_pass);
         render_pass.write_timestamp(&self.query_set, slot + 1);
@@ -100,6 +94,13 @@ impl CommandTimings {
                     .collect(),
             );
         });
+    }
+
+    fn request_slot(&mut self, label: &'static str) -> u32 {
+        assert!(self.requests.len() < usize::try_from(self.capacity).unwrap());
+        let slot = self.request_slot_count();
+        self.requests.push(label);
+        slot
     }
 
     fn request_slot_count(&self) -> u32 {
