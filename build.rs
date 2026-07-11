@@ -26,7 +26,6 @@ fn generate_shader_bindings() -> Result<(), Box<dyn std::error::Error>> {
         .add_entry_point("src/shaders/populate_grid_cells.wgsl")
         .add_entry_point("src/shaders/collision_broad_phase_grid.wgsl")
         .add_entry_point("src/shaders/collision_narrow_phase_dispatch_dimensions.wgsl")
-        .add_entry_point("src/shaders/collision_forces_reset.wgsl")
         .add_entry_point("src/shaders/collision_narrow_phase.wgsl")
         .add_entry_point("src/shaders/integrate.wgsl")
         .serialization_strategy(WgslTypeSerializeStrategy::Bytemuck)

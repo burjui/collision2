@@ -6,7 +6,6 @@ pub mod calculate_cell_offsets;
 pub mod calculate_cell_offsets_dispatch_dimensions;
 pub mod calculate_grid_aabb;
 pub mod collision_broad_phase_grid;
-pub mod collision_forces_reset;
 pub mod collision_narrow_phase;
 pub mod collision_narrow_phase_dispatch_dimensions;
 pub mod command_timings;
@@ -60,7 +59,6 @@ use crate::{
     calculate_cell_offsets_dispatch_dimensions::CalculateCellIterationDispatchDimensions,
     calculate_grid_aabb::CalculateGridAABB,
     collision_broad_phase_grid::CollisionBroadPhaseGrid,
-    collision_forces_reset::CollisionReset,
     collision_narrow_phase::NarrowPhase,
     collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgsCalculator,
     config::CONFIG,
@@ -707,9 +705,8 @@ fn spawn_simulation_thread(
             &device,
             object_count * 2,
             "collision forces",
-            BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+            BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
         );
-        let collision_reset = CollisionReset::new(&device, object_count, collision_forces.clone());
         let stiffness = DeviceBuffer::from_data(
             &device,
             &[CONFIG.stiffness],
@@ -817,6 +814,7 @@ fn spawn_simulation_thread(
                 encoder.clear_buffer(dispatch_dimensions.buffer(), 0, None);
                 encoder.clear_buffer(current_cell_offset.buffer(), 0, None);
                 encoder.clear_buffer(candidate_count.buffer(), 0, None);
+                encoder.clear_buffer(collision_forces.buffer(), 0, None);
             });
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
@@ -847,9 +845,6 @@ fn spawn_simulation_thread(
             // Narrow phase
             timings.measure_compute(&mut compute_pass, "Narrow phase dispatch dimensions calculator", |compute_pass| {
                 narrow_phase_dispatch_dimensions_calculator.compute(compute_pass);
-            });
-            timings.measure_compute(&mut compute_pass, "Collision reset", |compute_pass| {
-                collision_reset.compute(compute_pass)
             });
             timings
                 .measure_compute(&mut compute_pass, "Narrow phase", |compute_pass| narrow_phase.compute(compute_pass));

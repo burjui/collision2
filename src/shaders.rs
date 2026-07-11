@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: e63a41eb1e6c96b38089866edd7fdf7f7c527c449cbe5e93c58de49fcf5a6031
+// SourceHash: c8802dc9edfb9a514083193d0150c88aa6a1a5acaf9068c4bc6646c41e752a7e
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -18,7 +18,6 @@ pub enum ShaderEntry {
     PopulateGridCells,
     CollisionBroadPhaseGrid,
     CollisionNarrowPhaseDispatchDimensions,
-    CollisionForcesReset,
     CollisionNarrowPhase,
     Integrate,
 }
@@ -40,7 +39,6 @@ impl ShaderEntry {
             Self::CollisionNarrowPhaseDispatchDimensions => {
                 collision_narrow_phase_dispatch_dimensions::create_pipeline_layout(device)
             }
-            Self::CollisionForcesReset => collision_forces_reset::create_pipeline_layout(device),
             Self::CollisionNarrowPhase => collision_narrow_phase::create_pipeline_layout(device),
             Self::Integrate => integrate::create_pipeline_layout(device),
         }
@@ -62,7 +60,6 @@ impl ShaderEntry {
             Self::CollisionNarrowPhaseDispatchDimensions => {
                 collision_narrow_phase_dispatch_dimensions::create_shader_module_embed_source(device)
             }
-            Self::CollisionForcesReset => collision_forces_reset::create_shader_module_embed_source(device),
             Self::CollisionNarrowPhase => collision_narrow_phase::create_shader_module_embed_source(device),
             Self::Integrate => integrate::create_shader_module_embed_source(device),
         }
@@ -3658,161 +3655,6 @@ fn calculate_narrow_phase_dispatch_dimensions() {
     let y = min((((_e3 + x) - 1u) / x), MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX);
     let z = min((((_e3 + (x * y)) - 1u) / (x * y)), MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX);
     narrow_phase_dispatch_dimensions = DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX(x, y, z);
-    return;
-}
-"#;
-}
-pub mod collision_forces_reset {
-    use super::{_root, _root::*};
-    pub mod compute {
-        use super::{_root, _root::*};
-        pub const RESET_COLLISION_FORCES_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
-        pub fn create_reset_collision_forces_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
-            let module = super::create_shader_module_embed_source(device);
-            let layout = super::create_pipeline_layout(device);
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Compute Pipeline reset_collision_forces"),
-                layout: Some(&layout),
-                module: &module,
-                entry_point: Some("reset_collision_forces"),
-                compilation_options: Default::default(),
-                cache: None,
-            })
-        }
-    }
-    pub const ENTRY_RESET_COLLISION_FORCES: &str = "reset_collision_forces";
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0EntriesParams<'a> {
-        pub object_count: wgpu::BufferBinding<'a>,
-        pub collision_forces: wgpu::BufferBinding<'a>,
-    }
-    #[derive(Clone, Debug)]
-    pub struct WgpuBindGroup0Entries<'a> {
-        pub object_count: wgpu::BindGroupEntry<'a>,
-        pub collision_forces: wgpu::BindGroupEntry<'a>,
-    }
-    impl<'a> WgpuBindGroup0Entries<'a> {
-        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
-            Self {
-                object_count: wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.object_count),
-                },
-                collision_forces: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.collision_forces),
-                },
-            }
-        }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
-            [self.object_count, self.collision_forces]
-        }
-        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
-            self.into_array().into_iter().collect()
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuBindGroup0(wgpu::BindGroup);
-    impl WgpuBindGroup0 {
-        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
-            label: Some("CollisionForcesReset::BindGroup0::LayoutDescriptor"),
-            entries: &[
-                #[doc = " @binding(0): \"object_count\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(1): \"collision_forces\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        };
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
-            let bind_group_layout = Self::get_bind_group_layout(device);
-            let entries = bindings.into_array();
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("CollisionForcesReset::BindGroup0"),
-                layout: &bind_group_layout,
-                entries: &entries,
-            });
-            Self(bind_group)
-        }
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            pass.set_bind_group(0, &self.0, &[]);
-        }
-    }
-    #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
-    #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
-    #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
-    #[doc = "   - Bind group 1: More frequent updates"]
-    #[doc = "   - Bind group 2: More frequent updates"]
-    #[doc = "   - Bind group 3: Most frequent updates (e.g. per draw resources)"]
-    #[derive(Debug, Copy, Clone)]
-    pub struct WgpuBindGroups<'a> {
-        pub bind_group0: &'a WgpuBindGroup0,
-    }
-    impl<'a> WgpuBindGroups<'a> {
-        pub fn set(&self, pass: &mut impl SetBindGroup) {
-            self.bind_group0.set(pass);
-        }
-    }
-    #[derive(Debug)]
-    pub struct WgpuPipelineLayout;
-    impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 1]) -> [wgpu::BindGroupLayout; 1] {
-            entries
-        }
-    }
-    pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
-        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("CollisionForcesReset::PipelineLayout"),
-            bind_group_layouts: &[Some(&WgpuBindGroup0::get_bind_group_layout(device))],
-            immediate_size: 4u32,
-        })
-    }
-    pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
-        let source = std::borrow::Cow::Borrowed(SHADER_STRING);
-        device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("collision_forces_reset.wgsl"),
-            source: wgpu::ShaderSource::Wgsl(source),
-        })
-    }
-    pub const SHADER_STRING: &str = r#"
-const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
-
-var<immediate> thread_offset: u32;
-@group(0) @binding(0) 
-var<uniform> object_count: u32;
-@group(0) @binding(1) 
-var<storage, read_write> collision_forces: array<u32>;
-
-@compute @workgroup_size(64, 1, 1) 
-fn reset_collision_forces(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let _e3 = thread_offset;
-    let object_index = (gid.x + _e3);
-    let _e6 = object_count;
-    if (object_index >= _e6) {
-        return;
-    }
-    collision_forces[(object_index * 2u)] = 0u;
-    collision_forces[((object_index * 2u) + 1u)] = 0u;
     return;
 }
 "#;
