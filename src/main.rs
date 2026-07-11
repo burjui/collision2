@@ -543,7 +543,6 @@ fn spawn_simulation_thread(
             "candidate_count",
             BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         );
-
         let grid_min_x: DeviceBuffer<f32> = DeviceBuffer::new(
             &device,
             1,
@@ -776,7 +775,9 @@ fn spawn_simulation_thread(
                 print_sim_rate();
                 std::io::stdout().flush().unwrap();
                 exit_requested.store(true, Ordering::SeqCst);
-                if let Some(event_loop_proxy) = &event_loop_proxy {
+                if let Some(event_loop_proxy) = &event_loop_proxy
+                    && CONFIG.exit_at_limit
+                {
                     event_loop_proxy.send_event(AppEvent::ExitEventLoop).unwrap();
                 }
                 break;

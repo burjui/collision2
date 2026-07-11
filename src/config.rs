@@ -14,6 +14,8 @@ pub struct Config {
     #[serde(default = "default_headless")]
     pub headless: bool,
     pub sim_time_limit: Option<f32>,
+    #[serde(default = "default_exit_at_limit")]
+    pub exit_at_limit: bool,
     #[serde(default = "default_n_frames")]
     pub n_frames: usize,
     #[serde(default = "default_n_compute")]
@@ -66,6 +68,10 @@ fn default_dt() -> f32 {
 
 fn default_headless() -> bool {
     false
+}
+
+fn default_exit_at_limit() -> bool {
+    true
 }
 
 fn default_n_frames() -> usize {
