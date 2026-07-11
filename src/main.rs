@@ -79,6 +79,12 @@ use crate::{
     shape_renderer::ShapeRenderer,
 };
 
+const UNIFORM: BufferUsages = BufferUsages::UNIFORM;
+const STORAGE: BufferUsages = BufferUsages::STORAGE;
+const COPY_DST: BufferUsages = BufferUsages::COPY_DST;
+const COPY_SRC: BufferUsages = BufferUsages::COPY_SRC;
+const INDIRECT: BufferUsages = BufferUsages::INDIRECT;
+
 fn main() {
     println!("{:#?}", *CONFIG);
 
@@ -99,9 +105,9 @@ fn main() {
     println!("Object count: {}", object_count);
 
     let object_count_buffer: DeviceBuffer<u32> =
-        DeviceBuffer::from_data(&device, &[object_count], "object_count", BufferUsages::UNIFORM);
+        DeviceBuffer::from_data(&device, &[object_count], "object_count", UNIFORM);
     // TODO: don't store leaves
-    let storage_copy_dst: BufferUsages = BufferUsages::STORAGE | BufferUsages::COPY_DST;
+    let storage_copy_dst: BufferUsages = STORAGE | COPY_DST;
 
     let masses = DeviceBuffer::from_data(&device, &objects.masses, "masses", storage_copy_dst);
     let colors = DeviceBuffer::from_data(&device, &objects.colors, "colors", storage_copy_dst);
@@ -250,8 +256,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let (surface_config, swapchain_format) =
             init_surface(self.desired_maximum_frame_latency, &surface, &self.adapter, &self.device, &window);
 
-        let camera =
-            DeviceBuffer::<Camera>::new(&self.device, 1, "camera", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
+        let camera = DeviceBuffer::<Camera>::new(&self.device, 1, "camera", UNIFORM | COPY_DST);
         let shape_renderer = ShapeRenderer::new(
             &self.device,
             swapchain_format,
@@ -533,85 +538,38 @@ fn spawn_simulation_thread(
 ) -> JoinHandle<()> {
     thread::spawn({
         let dt: f32 = CONFIG.dt;
-        let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", BufferUsages::UNIFORM);
+        let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", UNIFORM);
         let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
-        let candidates =
-            DeviceBuffer::new(&device, max_candidates, "candidates", BufferUsages::STORAGE | BufferUsages::COPY_SRC);
-        let candidate_count = DeviceBuffer::new(
-            &device,
-            1,
-            "candidate_count",
-            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
-        );
-        let grid_min_x: DeviceBuffer<f32> = DeviceBuffer::new(
-            &device,
-            1,
-            "grid min x",
-            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
-        );
-        let grid_min_y: DeviceBuffer<f32> = DeviceBuffer::new(
-            &device,
-            1,
-            "grid min y",
-            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
-        );
-        let grid_max_x: DeviceBuffer<f32> = DeviceBuffer::new(
-            &device,
-            1,
-            "grid max x",
-            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
-        );
-        let grid_max_y: DeviceBuffer<f32> = DeviceBuffer::new(
-            &device,
-            1,
-            "grid max y",
-            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
-        );
+        let candidates = DeviceBuffer::new(&device, max_candidates, "candidates", STORAGE | COPY_SRC);
+        let candidate_count = DeviceBuffer::new(&device, 1, "candidate_count", STORAGE | UNIFORM | COPY_DST | COPY_SRC);
+        let grid_min_x: DeviceBuffer<f32> = DeviceBuffer::new(&device, 1, "grid min x", STORAGE | UNIFORM | COPY_SRC);
+        let grid_min_y: DeviceBuffer<f32> = DeviceBuffer::new(&device, 1, "grid min y", STORAGE | UNIFORM | COPY_SRC);
+        let grid_max_x: DeviceBuffer<f32> = DeviceBuffer::new(&device, 1, "grid max x", STORAGE | UNIFORM | COPY_SRC);
+        let grid_max_y: DeviceBuffer<f32> = DeviceBuffer::new(&device, 1, "grid max y", STORAGE | UNIFORM | COPY_SRC);
         let cell_size: DeviceBuffer<f32> = DeviceBuffer::from_data(
             &device,
             &[CONFIG.particle_radius * 2.0],
             "cell size",
-            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
+            STORAGE | UNIFORM | COPY_SRC,
         );
-        let grid_size_x: DeviceBuffer<u32> = DeviceBuffer::new(
-            &device,
-            1,
-            "grid size x",
-            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
-        );
-        let grid_size_y: DeviceBuffer<u32> = DeviceBuffer::new(
-            &device,
-            1,
-            "grid size y",
-            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
-        );
-        let first_aabb: DeviceBuffer<AABB> =
-            DeviceBuffer::new(&device, 1, "first aabb", BufferUsages::UNIFORM | BufferUsages::COPY_DST);
+        let grid_size_x: DeviceBuffer<u32> = DeviceBuffer::new(&device, 1, "grid size x", STORAGE | UNIFORM | COPY_SRC);
+        let grid_size_y: DeviceBuffer<u32> = DeviceBuffer::new(&device, 1, "grid size y", STORAGE | UNIFORM | COPY_SRC);
+        let first_aabb: DeviceBuffer<AABB> = DeviceBuffer::new(&device, 1, "first aabb", UNIFORM | COPY_DST);
         let object_cells: DeviceBuffer<CellPosition> =
-            DeviceBuffer::new(&device, object_count, "object cells", BufferUsages::STORAGE | BufferUsages::COPY_SRC);
+            DeviceBuffer::new(&device, object_count, "object cells", STORAGE | COPY_SRC);
         let max_cells = object_count * 10; // TODO: calculate properly
-        let cell_object_count: DeviceBuffer<u32> = DeviceBuffer::new(
-            &device,
-            max_cells,
-            "cell object count",
-            BufferUsages::STORAGE | BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
-        );
+        let cell_object_count: DeviceBuffer<u32> =
+            DeviceBuffer::new(&device, max_cells, "cell object count", STORAGE | UNIFORM | COPY_DST | COPY_SRC);
         let dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs> = DeviceBuffer::new(
             &device,
             N_CELL_INDIRECT_DISPATCHES,
             "cell offsets dispatch dimensions",
-            BufferUsages::STORAGE | BufferUsages::INDIRECT | BufferUsages::COPY_DST,
+            STORAGE | INDIRECT | COPY_DST,
         );
-        let current_cell_offset = DeviceBuffer::new(
-            &device,
-            1,
-            "current cell offset",
-            BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
-        );
-        let cell_offsets: DeviceBuffer<u32> =
-            DeviceBuffer::new(&device, max_cells, "cell offsets", BufferUsages::STORAGE);
+        let current_cell_offset = DeviceBuffer::new(&device, 1, "current cell offset", STORAGE | COPY_SRC | COPY_DST);
+        let cell_offsets: DeviceBuffer<u32> = DeviceBuffer::new(&device, max_cells, "cell offsets", STORAGE);
         let cells: DeviceBuffer<u32> =
-            DeviceBuffer::new(&device, object_count * MAX_OBJECTS_PER_CELL, "cells", BufferUsages::STORAGE);
+            DeviceBuffer::new(&device, object_count * MAX_OBJECTS_PER_CELL, "cells", STORAGE);
 
         // TODO: USE STRUCTS, too easy to mix up the parameters
         let reset_grid_aabb = ResetGridAABB::new(
@@ -700,24 +658,10 @@ fn spawn_simulation_thread(
             dispatch_dimensions.clone(),
         );
 
-        let collision_forces = DeviceBuffer::new(
-            &device,
-            object_count * 2,
-            "collision forces",
-            BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
-        );
-        let stiffness = DeviceBuffer::from_data(
-            &device,
-            &[CONFIG.stiffness],
-            "stiffness",
-            BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
-        );
-        let restitution = DeviceBuffer::from_data(
-            &device,
-            &[CONFIG.restitution],
-            "restitution",
-            BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
-        );
+        let collision_forces =
+            DeviceBuffer::new(&device, object_count * 2, "collision forces", STORAGE | COPY_SRC | COPY_DST);
+        let stiffness = DeviceBuffer::from_data(&device, &[CONFIG.stiffness], "stiffness", UNIFORM | COPY_SRC);
+        let restitution = DeviceBuffer::from_data(&device, &[CONFIG.restitution], "restitution", UNIFORM | COPY_SRC);
         let mut narrow_phase = NarrowPhase::new(
             &device,
             dispatch_dimensions.clone(),
@@ -734,12 +678,7 @@ fn spawn_simulation_thread(
             min: [world_aabb.min[0] + safety_margin, world_aabb.min[1] + safety_margin],
             max: [world_aabb.max[0] - safety_margin, world_aabb.max[1] - safety_margin],
         };
-        let constraints_buffer = DeviceBuffer::from_data(
-            &device,
-            &[constraints],
-            "constraints",
-            BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
-        );
+        let constraints_buffer = DeviceBuffer::from_data(&device, &[constraints], "constraints", UNIFORM | COPY_SRC);
         let mut integrator = Integrator::new(
             &device,
             object_count,
