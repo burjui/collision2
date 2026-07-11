@@ -24,7 +24,6 @@ var<immediate> thread_offset: u32;
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn broad_phase_grid(
     @builtin(global_invocation_id) gid: vec3u,
-    @builtin(num_workgroups) nwg: vec3u,
     @builtin(local_invocation_index) local_invocation_index: u32
 ) {
     let object_index = gid.x + thread_offset;

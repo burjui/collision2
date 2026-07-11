@@ -13,10 +13,7 @@ var<immediate> thread_offset: u32;
 @group(1) @binding(0) var<storage, read> aabbs: array<AABB>;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
-fn assign_object_cells(
-    @builtin(global_invocation_id) gid: vec3u,
-    @builtin(num_workgroups) nwg: vec3u
-) {
+fn assign_object_cells(@builtin(global_invocation_id) gid: vec3u) {
     let object_index = gid.x + thread_offset;
     if object_index >= object_count {
         return;

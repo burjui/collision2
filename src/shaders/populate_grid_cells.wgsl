@@ -9,10 +9,7 @@ var<immediate> thread_offset: u32;
 @group(0) @binding(4) var<storage, read_write> cells: array<u32>;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
-fn populate_object_cells(
-    @builtin(global_invocation_id) gid: vec3u,
-    @builtin(num_workgroups) nwg: vec3u
-) {
+fn populate_object_cells(@builtin(global_invocation_id) gid: vec3u) {
     let object_index = gid.x + thread_offset;
     if object_index >= object_count {
         return;

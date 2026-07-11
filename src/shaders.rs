@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: 570f864c1e06655af6fc01b40a4cd873226f797bc9bdac9f71a72497dc7fdf87
+// SourceHash: e63a41eb1e6c96b38089866edd7fdf7f7c527c449cbe5e93c58de49fcf5a6031
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -2061,7 +2061,7 @@ var<storage, read_write> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23L
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
 @compute @workgroup_size(64, 1, 1) 
-fn assign_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
+fn assign_object_cells(@builtin(global_invocation_id) gid: vec3<u32>) {
     let _e3 = thread_offset;
     let object_index = (gid.x + _e3);
     let _e6 = object_count;
@@ -2897,7 +2897,7 @@ var<storage> cell_offsets: array<u32>;
 var<storage, read_write> cells: array<u32>;
 
 @compute @workgroup_size(64, 1, 1) 
-fn populate_object_cells(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
+fn populate_object_cells(@builtin(global_invocation_id) gid: vec3<u32>) {
     let _e3 = thread_offset;
     let object_index = (gid.x + _e3);
     let _e6 = object_count;
@@ -3392,7 +3392,7 @@ fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
+fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
     var local: bool;
     var i: u32;
     var j: u32;
@@ -3804,7 +3804,7 @@ var<uniform> object_count: u32;
 var<storage, read_write> collision_forces: array<u32>;
 
 @compute @workgroup_size(64, 1, 1) 
-fn reset_collision_forces(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
+fn reset_collision_forces(@builtin(global_invocation_id) gid: vec3<u32>) {
     let _e3 = thread_offset;
     let object_index = (gid.x + _e3);
     let _e6 = object_count;

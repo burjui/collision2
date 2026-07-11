@@ -6,10 +6,7 @@ var<immediate> thread_offset: u32;
 @group(0) @binding(1) var<storage, read_write> collision_forces: array<u32>;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
-fn reset_collision_forces(
-    @builtin(global_invocation_id) gid: vec3u,
-    @builtin(num_workgroups) nwg: vec3u
-) {
+fn reset_collision_forces(@builtin(global_invocation_id) gid: vec3u) {
     let object_index = gid.x + thread_offset;
     if object_index >= object_count {
         return;
