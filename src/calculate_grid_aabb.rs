@@ -1,6 +1,8 @@
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
+    buffer_sets::BroadPhaseBuffers,
+    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::calculate_grid_aabb::{
@@ -22,20 +24,17 @@ impl CalculateGridAABB {
         device: &Device,
         object_count: u32,
         object_count_buffer: DeviceBuffer<u32>,
-        grid_min_x: DeviceBuffer<f32>,
-        grid_max_x: DeviceBuffer<f32>,
-        grid_min_y: DeviceBuffer<f32>,
-        grid_max_y: DeviceBuffer<f32>,
+        broad_phase_buffers: &BroadPhaseBuffers,
         phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.as_entire_buffer_binding(),
-                grid_min_x: grid_min_x.as_entire_buffer_binding(),
-                grid_max_x: grid_max_x.as_entire_buffer_binding(),
-                grid_min_y: grid_min_y.as_entire_buffer_binding(),
-                grid_max_y: grid_max_y.as_entire_buffer_binding(),
+                grid_min_x: broad_phase_buffers.grid_min_x.as_entire_buffer_binding(),
+                grid_max_x: broad_phase_buffers.grid_max_x.as_entire_buffer_binding(),
+                grid_min_y: broad_phase_buffers.grid_min_y.as_entire_buffer_binding(),
+                grid_max_y: broad_phase_buffers.grid_max_y.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_calculate_grid_aabb_pipeline_embed_source(device);
@@ -58,8 +57,12 @@ impl CalculateGridAABB {
             )
         });
     }
+}
 
-    pub fn compute(&self, compute_pass: &mut ComputePass) {
+impl ComputeStage for CalculateGridAABB {
+    const LABEL: &'static str = "Calculate grid AABB";
+
+    fn compute_impl(&self, compute_pass: &mut ComputePass) {
         let phase_state_bind_group = self.phase_state_cache.get_current();
         compute_pass.set_pipeline(&self.pipeline);
         self.bind_group.set(compute_pass);

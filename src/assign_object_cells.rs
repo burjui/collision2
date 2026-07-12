@@ -2,14 +2,13 @@ use wgpu::{ComputePipeline, Device};
 
 // use crate::shaders::common::CellPosition;
 use crate::{
+    buffer_sets::BroadPhaseBuffers,
+    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
-    shaders::{
-        assign_object_cells::{
-            WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
-            WgpuBindGroup1EntriesParams, compute::create_assign_object_cells_pipeline_embed_source,
-        },
-        common::CellPosition,
+    shaders::assign_object_cells::{
+        WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
+        WgpuBindGroup1EntriesParams, compute::create_assign_object_cells_pipeline_embed_source,
     },
     util::{PhaseStateCache, dispatch_compute},
 };
@@ -26,24 +25,19 @@ impl AssignObjectCells {
         device: &Device,
         object_count: u32,
         object_count_buffer: DeviceBuffer<u32>,
-        grid_min_x: DeviceBuffer<f32>,
-        grid_min_y: DeviceBuffer<f32>,
-        cell_size: DeviceBuffer<f32>,
-        grid_size_x: DeviceBuffer<u32>,
-        cell_object_count: DeviceBuffer<u32>,
-        object_cells: DeviceBuffer<CellPosition>,
+        broad_phase_buffers: &BroadPhaseBuffers,
         phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.as_entire_buffer_binding(),
-                grid_min_x: grid_min_x.as_entire_buffer_binding(),
-                grid_min_y: grid_min_y.as_entire_buffer_binding(),
-                cell_size: cell_size.as_entire_buffer_binding(),
-                grid_size_x: grid_size_x.as_entire_buffer_binding(),
-                cell_object_count: cell_object_count.as_entire_buffer_binding(),
-                object_cells: object_cells.as_entire_buffer_binding(),
+                grid_min_x: broad_phase_buffers.grid_min_x.as_entire_buffer_binding(),
+                grid_min_y: broad_phase_buffers.grid_min_y.as_entire_buffer_binding(),
+                cell_size: broad_phase_buffers.cell_size.as_entire_buffer_binding(),
+                grid_size_x: broad_phase_buffers.grid_size_x.as_entire_buffer_binding(),
+                cell_object_count: broad_phase_buffers.cell_object_count.as_entire_buffer_binding(),
+                object_cells: broad_phase_buffers.object_cells.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_assign_object_cells_pipeline_embed_source(device);
@@ -66,8 +60,12 @@ impl AssignObjectCells {
             )
         });
     }
+}
 
-    pub fn compute(&self, compute_pass: &mut wgpu::ComputePass) {
+impl ComputeStage for AssignObjectCells {
+    const LABEL: &'static str = "Assign object cells";
+
+    fn compute_impl(&self, compute_pass: &mut wgpu::ComputePass) {
         let phase_state_bind_group = self.phase_state_cache.get_current();
         compute_pass.set_pipeline(&self.pipeline);
         self.bind_group.set(compute_pass);

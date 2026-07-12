@@ -5,6 +5,7 @@
 // SourceHash: c8802dc9edfb9a514083193d0150c88aa6a1a5acaf9068c4bc6646c41e752a7e
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
     Common,
@@ -768,19 +769,19 @@ const SHAPE_CIRCLE: u32 = 1u;
 const COLORING_SPEED_MIN: f32 = 0f;
 const COLORING_SPEED_MAX: f32 = 100000f;
 
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<storage> colors: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(2) 
+@group(0) @binding(2)
 var<storage> shapes: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(3) 
+@group(0) @binding(3)
 var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(0) 
+@group(1) @binding(0)
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(1) 
+@group(1) @binding(1)
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(2) 
+@group(1) @binding(2)
 var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 
 fn wavelength_to_rgb(lambda: f32) -> vec3<f32> {
@@ -851,7 +852,7 @@ fn sdf_cirle(p: vec2<f32>) -> f32 {
     return (length(p) - 0.5f);
 }
 
-@vertex 
+@vertex
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput = VertexOutput();
     var velocity: vec2<f32>;
@@ -891,7 +892,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     return _e102;
 }
 
-@fragment 
+@fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     var color: vec4<f32>;
 
@@ -1172,14 +1173,14 @@ struct FragmentOutput {
 const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const UNIT_QUAD_VERTICES: array<vec2<f32>, 5> = array<vec2<f32>, 5>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
 
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
-@group(1) @binding(0) 
+@group(1) @binding(0)
 var<storage> flags_1: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(1) 
+@group(1) @binding(1)
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
-@vertex 
+@vertex
 fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i: u32) -> VertexOutput {
     var out: VertexOutput = VertexOutput();
     var flags: u32 = FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX;
@@ -1208,7 +1209,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
     return _e70;
 }
 
-@fragment 
+@fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     if ((in.flags & FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
         discard;
@@ -1412,18 +1413,18 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
     max: vec2<f32>,
 }
 
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> first_aabb: AABBX_naga_oil_mod_XMNXW23LPNYX;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<storage, read_write> grid_min_x: f32;
-@group(0) @binding(2) 
+@group(0) @binding(2)
 var<storage, read_write> grid_max_x: f32;
-@group(0) @binding(3) 
+@group(0) @binding(3)
 var<storage, read_write> grid_min_y: f32;
-@group(0) @binding(4) 
+@group(0) @binding(4)
 var<storage, read_write> grid_max_y: f32;
 
-@compute @workgroup_size(1, 1, 1) 
+@compute @workgroup_size(1, 1, 1)
 fn reset_grid_aabb() {
     let _e3 = first_aabb.min.x;
     grid_min_x = _e3;
@@ -1700,20 +1701,20 @@ struct AABBX_naga_oil_mod_XMNXW23LPNYX {
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 
 var<immediate> thread_offset: u32;
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> object_count: u32;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<storage, read_write> grid_min_x: atomic<u32>;
-@group(0) @binding(2) 
+@group(0) @binding(2)
 var<storage, read_write> grid_max_x: atomic<u32>;
-@group(0) @binding(3) 
+@group(0) @binding(3)
 var<storage, read_write> grid_min_y: atomic<u32>;
-@group(0) @binding(4) 
+@group(0) @binding(4)
 var<storage, read_write> grid_max_y: atomic<u32>;
-@group(1) @binding(0) 
+@group(1) @binding(0)
 var<storage, read_write> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
-@compute @workgroup_size(64, 1, 1) 
+@compute @workgroup_size(64, 1, 1)
 fn calculate_grid_aabb(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(subgroup_invocation_id) sid: u32) {
     let _e3 = thread_offset;
     let i = (gid.x + _e3);
@@ -2040,24 +2041,24 @@ struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 
 var<immediate> thread_offset: u32;
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> object_count: u32;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<uniform> grid_min_x: f32;
-@group(0) @binding(2) 
+@group(0) @binding(2)
 var<uniform> grid_min_y: f32;
-@group(0) @binding(3) 
+@group(0) @binding(3)
 var<uniform> cell_size: f32;
-@group(0) @binding(4) 
+@group(0) @binding(4)
 var<uniform> grid_size_x: u32;
-@group(0) @binding(5) 
+@group(0) @binding(5)
 var<storage, read_write> cell_object_count: array<atomic<u32>>;
-@group(0) @binding(6) 
+@group(0) @binding(6)
 var<storage, read_write> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(0) 
+@group(1) @binding(0)
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
 
-@compute @workgroup_size(64, 1, 1) 
+@compute @workgroup_size(64, 1, 1)
 fn assign_object_cells(@builtin(global_invocation_id) gid: vec3<u32>) {
     let _e3 = thread_offset;
     let object_index = (gid.x + _e3);
@@ -2341,28 +2342,28 @@ const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 const MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 65535u;
 const N_CELL_INDIRECT_DISPATCHES: u32 = 3u;
 
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> grid_min_x: f32;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<uniform> grid_max_x: f32;
-@group(0) @binding(2) 
+@group(0) @binding(2)
 var<uniform> grid_min_y: f32;
-@group(0) @binding(3) 
+@group(0) @binding(3)
 var<uniform> grid_max_y: f32;
-@group(0) @binding(4) 
+@group(0) @binding(4)
 var<uniform> cell_size: f32;
-@group(0) @binding(5) 
+@group(0) @binding(5)
 var<storage, read_write> grid_size_x: u32;
-@group(0) @binding(6) 
+@group(0) @binding(6)
 var<storage, read_write> grid_size_y: u32;
-@group(0) @binding(7) 
+@group(0) @binding(7)
 var<storage, read_write> cell_offsets_dispatch_dimensions: array<DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX, 3>;
 
 fn div_ceilX_naga_oil_mod_XMNXW23LPNYX(a: u32, b: u32) -> u32 {
     return (((a + b) - 1u) / b);
 }
 
-@compute @workgroup_size(1, 1, 1) 
+@compute @workgroup_size(1, 1, 1)
 fn calculate_cell_offsets_dispatch_dimensions() {
     var i: u32 = 0u;
 
@@ -2650,24 +2651,24 @@ pub mod calculate_cell_offsets {
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 
 var<immediate> thread_offset: u32;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<uniform> grid_min_x: f32;
-@group(0) @binding(2) 
+@group(0) @binding(2)
 var<uniform> grid_min_y: f32;
-@group(0) @binding(3) 
+@group(0) @binding(3)
 var<uniform> cell_size: f32;
-@group(0) @binding(4) 
+@group(0) @binding(4)
 var<uniform> grid_size_x: u32;
-@group(0) @binding(5) 
+@group(0) @binding(5)
 var<uniform> grid_size_y: u32;
-@group(0) @binding(6) 
+@group(0) @binding(6)
 var<storage> cell_object_count: array<u32>;
-@group(0) @binding(7) 
+@group(0) @binding(7)
 var<storage, read_write> current_cell_offset: atomic<u32>;
-@group(0) @binding(8) 
+@group(0) @binding(8)
 var<storage, read_write> cell_offsets: array<u32>;
 
-@compute @workgroup_size(64, 1, 1) 
+@compute @workgroup_size(64, 1, 1)
 fn calculate_cell_offsets(@builtin(global_invocation_id) gid: vec3<u32>) {
     let _e3 = thread_offset;
     let cell_index = (gid.x + _e3);
@@ -2882,18 +2883,18 @@ struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 
 var<immediate> thread_offset: u32;
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> object_count: u32;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<uniform> grid_size_x: u32;
-@group(0) @binding(2) 
+@group(0) @binding(2)
 var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(3) 
+@group(0) @binding(3)
 var<storage> cell_offsets: array<u32>;
-@group(0) @binding(4) 
+@group(0) @binding(4)
 var<storage, read_write> cells: array<u32>;
 
-@compute @workgroup_size(64, 1, 1) 
+@compute @workgroup_size(64, 1, 1)
 fn populate_object_cells(@builtin(global_invocation_id) gid: vec3<u32>) {
     let _e3 = thread_offset;
     let object_index = (gid.x + _e3);
@@ -3333,33 +3334,33 @@ const FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 const MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 
 var<immediate> thread_offset: u32;
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> object_count: u32;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<uniform> grid_min_x: f32;
-@group(0) @binding(3) 
+@group(0) @binding(3)
 var<uniform> grid_min_y: f32;
-@group(0) @binding(5) 
+@group(0) @binding(5)
 var<uniform> cell_size: f32;
-@group(0) @binding(4) 
+@group(0) @binding(4)
 var<uniform> grid_size_x: u32;
-@group(0) @binding(2) 
+@group(0) @binding(2)
 var<uniform> grid_size_y: u32;
-@group(0) @binding(6) 
+@group(0) @binding(6)
 var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(7) 
+@group(0) @binding(7)
 var<storage> cell_object_count: array<u32>;
-@group(0) @binding(8) 
+@group(0) @binding(8)
 var<storage> cell_offsets: array<u32>;
-@group(0) @binding(9) 
+@group(0) @binding(9)
 var<storage> cells: array<u32>;
-@group(0) @binding(10) 
+@group(0) @binding(10)
 var<storage, read_write> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(11) 
+@group(0) @binding(11)
 var<storage, read_write> candidate_count: atomic<u32>;
-@group(1) @binding(1) 
+@group(1) @binding(1)
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(2) 
+@group(1) @binding(2)
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 
 fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW23LPNYX) -> bool {
@@ -3388,7 +3389,7 @@ fn aabb_overlaps(a: AABBX_naga_oil_mod_XMNXW23LPNYX, b: AABBX_naga_oil_mod_XMNXW
     return _e33;
 }
 
-@compute @workgroup_size(64, 1, 1) 
+@compute @workgroup_size(64, 1, 1)
 fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
     var local: bool;
     var i: u32;
@@ -3638,16 +3639,16 @@ struct DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX {
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 const MAX_DISPATCH_DIMENSIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 65535u;
 
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> candidate_count: u32;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<storage, read_write> narrow_phase_dispatch_dimensions: DispatchIndirectArgsX_naga_oil_mod_XMNXW23LPNYX;
 
 fn div_ceilX_naga_oil_mod_XMNXW23LPNYX(a: u32, b: u32) -> u32 {
     return (((a + b) - 1u) / b);
 }
 
-@compute @workgroup_size(1, 1, 1) 
+@compute @workgroup_size(1, 1, 1)
 fn calculate_narrow_phase_dispatch_dimensions() {
     let _e1 = candidate_count;
     let _e3 = div_ceilX_naga_oil_mod_XMNXW23LPNYX(_e1, WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX);
@@ -4060,21 +4061,21 @@ const STIFFNESS: f32 = 100000f;
 const RESTITUTION: f32 = 0f;
 const GAMMA_COEFF: f32 = 212.13202f;
 
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> stiffness: f32;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<uniform> restitution: f32;
-@group(1) @binding(0) 
+@group(1) @binding(0)
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(1) 
+@group(1) @binding(1)
 var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(2) 
+@group(1) @binding(2)
 var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
-@group(2) @binding(0) 
+@group(2) @binding(0)
 var<uniform> candidate_count: u32;
-@group(2) @binding(1) 
+@group(2) @binding(1)
 var<storage> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
-@group(3) @binding(0) 
+@group(3) @binding(0)
 var<storage, read_write> collision_forces: array<atomic<u32>>;
 
 fn flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid_1: vec3<u32>, nwg_1: vec3<u32>, workgroup_size: u32) -> u32 {
@@ -4145,7 +4146,7 @@ fn cas_add_force(i_1: u32, value_1: vec2<f32>) {
     return;
 }
 
-@compute @workgroup_size(64, 1, 1) 
+@compute @workgroup_size(64, 1, 1)
 fn narrow_phase(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
     let _e3 = flat_invocation_indexX_naga_oil_mod_XMNXW23LPNYX(gid, nwg, WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX);
     let _e5 = candidate_count;
@@ -4799,39 +4800,39 @@ const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 
 var<immediate> thread_offset: u32;
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> dt: f32;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<uniform> gravitational_constant: f32;
-@group(0) @binding(2) 
+@group(0) @binding(2)
 var<uniform> global_acceleration: vec2<f32>;
-@group(0) @binding(3) 
+@group(0) @binding(3)
 var<uniform> object_count: u32;
-@group(0) @binding(4) 
+@group(0) @binding(4)
 var<uniform> constraints: AABBX_naga_oil_mod_XMNXW23LPNYX;
-@group(0) @binding(5) 
+@group(0) @binding(5)
 var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
-@group(1) @binding(0) 
+@group(1) @binding(0)
 var<uniform> blackhole_count: u32;
-@group(1) @binding(1) 
+@group(1) @binding(1)
 var<uniform> blackhole_mass_scale: f32;
-@group(1) @binding(2) 
+@group(1) @binding(2)
 var<uniform> blackhole_size_scale: f32;
-@group(1) @binding(3) 
+@group(1) @binding(3)
 var<storage> blackholes: array<BlackHole>;
-@group(2) @binding(0) 
+@group(2) @binding(0)
 var<storage> collision_forces: array<vec2<f32>>;
-@group(3) @binding(0) 
+@group(3) @binding(0)
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-@group(3) @binding(1) 
+@group(3) @binding(1)
 var<storage> aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(3) @binding(3) 
+@group(3) @binding(3)
 var<storage> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
-@group(3) @binding(4) 
+@group(3) @binding(4)
 var<storage, read_write> integrated_flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
-@group(3) @binding(5) 
+@group(3) @binding(5)
 var<storage, read_write> integrated_aabbs: array<AABBX_naga_oil_mod_XMNXW23LPNYX>;
-@group(3) @binding(6) 
+@group(3) @binding(6)
 var<storage, read_write> integrated_velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 
 fn blackhole_gravity(blackhole: BlackHole, position: vec2<f32>, mass: f32) -> vec2<f32> {
@@ -4907,7 +4908,7 @@ fn integrate_euler_symplectic(state_3: ObjectPhaseState, index_1: u32, aabb_1: A
     return _e25;
 }
 
-@compute @workgroup_size(64, 1, 1) 
+@compute @workgroup_size(64, 1, 1)
 fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {
     var f: u32;
     var state: ObjectPhaseState;

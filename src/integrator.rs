@@ -1,6 +1,7 @@
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 use crate::{
+    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::{
@@ -124,8 +125,12 @@ impl Integrator {
             )
         });
     }
+}
 
-    pub fn compute(&self, compute_pass: &mut ComputePass) {
+impl ComputeStage for Integrator {
+    const LABEL: &'static str = "Integrate";
+
+    fn compute_impl(&self, compute_pass: &mut ComputePass) {
         let phase_state_bind_group = self.phase_state_cache.get_current();
         compute_pass.set_pipeline(&self.pipeline);
         self.main_bind_group.set(compute_pass);

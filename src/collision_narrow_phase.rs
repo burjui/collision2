@@ -1,6 +1,8 @@
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
+    buffer_sets::BroadPhaseBuffers,
+    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::{
@@ -10,7 +12,7 @@ use crate::{
             WgpuBindGroup3, WgpuBindGroup3Entries, WgpuBindGroup3EntriesParams,
             compute::create_narrow_phase_pipeline_embed_source,
         },
-        common::{CollisionCandidate, DispatchIndirectArgs, Mass},
+        common::{DispatchIndirectArgs, Mass},
     },
     util::PhaseStateCache,
 };
@@ -31,8 +33,7 @@ impl NarrowPhase {
         dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
         stiffness: DeviceBuffer<f32>,
         restitution: DeviceBuffer<f32>,
-        candidates: DeviceBuffer<CollisionCandidate>,
-        candidate_count: DeviceBuffer<u32>,
+        broad_phase_buffers: &BroadPhaseBuffers,
         masses: DeviceBuffer<Mass>,
         collision_forces: DeviceBuffer<u32>,
         phase_state_ring_config: PhaseStateRingConfig,
@@ -47,8 +48,8 @@ impl NarrowPhase {
         let input_bind_group = WgpuBindGroup2::from_bindings(
             device,
             WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
-                candidates: candidates.as_entire_buffer_binding(),
-                candidate_count: candidate_count.as_entire_buffer_binding(),
+                candidates: broad_phase_buffers.candidates.as_entire_buffer_binding(),
+                candidate_count: broad_phase_buffers.candidate_count.as_entire_buffer_binding(),
             }),
         );
         let output_bind_group = WgpuBindGroup3::from_bindings(
@@ -82,8 +83,12 @@ impl NarrowPhase {
             )
         });
     }
+}
 
-    pub fn compute(&self, compute_pass: &mut ComputePass) {
+impl ComputeStage for NarrowPhase {
+    const LABEL: &'static str = "Collision narrow phase";
+
+    fn compute_impl(&self, compute_pass: &mut ComputePass) {
         let pipeline = self.pipeline.clone();
         let phase_state_bind_group = self.phase_state_cache.get_current();
         compute_pass.set_pipeline(&pipeline);

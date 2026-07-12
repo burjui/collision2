@@ -2,6 +2,7 @@
 
 pub mod aabb_renderer;
 pub mod assign_object_cells;
+pub mod buffer_sets;
 pub mod calculate_cell_offsets;
 pub mod calculate_cell_offsets_dispatch_dimensions;
 pub mod calculate_grid_aabb;
@@ -9,6 +10,7 @@ pub mod collision_broad_phase_grid;
 pub mod collision_narrow_phase;
 pub mod collision_narrow_phase_dispatch_dimensions;
 pub mod command_timings;
+pub mod compute_stage;
 pub mod config;
 pub mod device_buffer;
 pub mod integrator;
@@ -55,12 +57,14 @@ use winit::{
 use crate::{
     aabb_renderer::AabbRenderer,
     assign_object_cells::AssignObjectCells,
+    buffer_sets::BroadPhaseBuffers,
     calculate_cell_offsets::CalculateCellOffsets,
-    calculate_cell_offsets_dispatch_dimensions::CalculateCellIterationDispatchDimensions,
+    calculate_cell_offsets_dispatch_dimensions::CellIterationDispatchDimensions,
     calculate_grid_aabb::CalculateGridAABB,
     collision_broad_phase_grid::CollisionBroadPhaseGrid,
     collision_narrow_phase::NarrowPhase,
-    collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgsCalculator,
+    collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgs,
+    compute_stage::ComputeStage,
     config::CONFIG,
     device_buffer::DeviceBuffer,
     integrator::Integrator,
@@ -71,10 +75,7 @@ use crate::{
     scene::create_scene,
     shaders::{
         calculate_cell_offsets_dispatch_dimensions::N_CELL_INDIRECT_DISPATCHES,
-        common::{
-            AABB, Camera, CellPosition, Color, DispatchIndirectArgs, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL,
-            Shape,
-        },
+        common::{AABB, Camera, Color, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL, Shape},
     },
     shape_renderer::ShapeRenderer,
 };
@@ -104,8 +105,7 @@ fn main() {
     let object_count: u32 = objects.flags.len().try_into().unwrap();
     println!("Object count: {}", object_count);
 
-    let object_count_buffer: DeviceBuffer<u32> =
-        DeviceBuffer::from_data(&device, &[object_count], "object_count", UNIFORM);
+    let object_count_buffer = DeviceBuffer::from_data(&device, &[object_count], "object_count", UNIFORM);
     // TODO: don't store leaves
     let storage_copy_dst: BufferUsages = STORAGE | COPY_DST;
 
@@ -542,143 +542,103 @@ fn spawn_simulation_thread(
         let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
         let candidates = DeviceBuffer::new(&device, max_candidates, "candidates", STORAGE | COPY_SRC);
         let candidate_count = DeviceBuffer::new(&device, 1, "candidate_count", STORAGE | UNIFORM | COPY_DST | COPY_SRC);
-        let grid_min_x: DeviceBuffer<f32> = DeviceBuffer::new(&device, 1, "grid min x", STORAGE | UNIFORM | COPY_SRC);
-        let grid_min_y: DeviceBuffer<f32> = DeviceBuffer::new(&device, 1, "grid min y", STORAGE | UNIFORM | COPY_SRC);
-        let grid_max_x: DeviceBuffer<f32> = DeviceBuffer::new(&device, 1, "grid max x", STORAGE | UNIFORM | COPY_SRC);
-        let grid_max_y: DeviceBuffer<f32> = DeviceBuffer::new(&device, 1, "grid max y", STORAGE | UNIFORM | COPY_SRC);
-        let cell_size: DeviceBuffer<f32> = DeviceBuffer::from_data(
+        let grid_min_x = DeviceBuffer::new(&device, 1, "grid min x", STORAGE | UNIFORM | COPY_SRC);
+        let grid_min_y = DeviceBuffer::new(&device, 1, "grid min y", STORAGE | UNIFORM | COPY_SRC);
+        let grid_max_x = DeviceBuffer::new(&device, 1, "grid max x", STORAGE | UNIFORM | COPY_SRC);
+        let grid_max_y = DeviceBuffer::new(&device, 1, "grid max y", STORAGE | UNIFORM | COPY_SRC);
+        let cell_size = DeviceBuffer::from_data(
             &device,
             &[CONFIG.particle_radius * 2.0],
             "cell size",
             STORAGE | UNIFORM | COPY_SRC,
         );
-        let grid_size_x: DeviceBuffer<u32> = DeviceBuffer::new(&device, 1, "grid size x", STORAGE | UNIFORM | COPY_SRC);
-        let grid_size_y: DeviceBuffer<u32> = DeviceBuffer::new(&device, 1, "grid size y", STORAGE | UNIFORM | COPY_SRC);
-        let first_aabb: DeviceBuffer<AABB> = DeviceBuffer::new(&device, 1, "first aabb", UNIFORM | COPY_DST);
-        let object_cells: DeviceBuffer<CellPosition> =
-            DeviceBuffer::new(&device, object_count, "object cells", STORAGE | COPY_SRC);
+        let grid_size_x = DeviceBuffer::new(&device, 1, "grid size x", STORAGE | UNIFORM | COPY_SRC);
+        let grid_size_y = DeviceBuffer::new(&device, 1, "grid size y", STORAGE | UNIFORM | COPY_SRC);
+        let first_aabb = DeviceBuffer::new(&device, 1, "first aabb", UNIFORM | COPY_DST);
+        let object_cells = DeviceBuffer::new(&device, object_count, "object cells", STORAGE | COPY_SRC);
         let max_cells = object_count * 10; // TODO: calculate properly
-        let cell_object_count: DeviceBuffer<u32> =
+        let cell_object_count =
             DeviceBuffer::new(&device, max_cells, "cell object count", STORAGE | UNIFORM | COPY_DST | COPY_SRC);
-        let dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs> = DeviceBuffer::new(
+        let dispatch_dimensions = DeviceBuffer::new(
             &device,
             N_CELL_INDIRECT_DISPATCHES,
             "cell offsets dispatch dimensions",
             STORAGE | INDIRECT | COPY_DST,
         );
         let current_cell_offset = DeviceBuffer::new(&device, 1, "current cell offset", STORAGE | COPY_SRC | COPY_DST);
-        let cell_offsets: DeviceBuffer<u32> = DeviceBuffer::new(&device, max_cells, "cell offsets", STORAGE);
-        let cells: DeviceBuffer<u32> =
-            DeviceBuffer::new(&device, object_count * MAX_OBJECTS_PER_CELL, "cells", STORAGE);
-
-        // TODO: USE STRUCTS, too easy to mix up the parameters
-        let reset_grid_aabb = ResetGridAABB::new(
-            &device,
-            first_aabb.clone(),
-            grid_min_x.clone(),
-            grid_max_x.clone(),
-            grid_min_y.clone(),
-            grid_max_y.clone(),
-        );
-        let mut calculate_grid_aabb = CalculateGridAABB::new(
-            &device,
-            object_count,
-            object_count_buffer.clone(),
-            grid_min_x.clone(),
-            grid_max_x.clone(),
-            grid_min_y.clone(),
-            grid_max_y.clone(),
-            phase_state_ring_config,
-        );
-        let calculate_cell_offsets_dispatch_dimensions = CalculateCellIterationDispatchDimensions::new(
-            &device,
-            grid_min_x.clone(),
-            grid_max_x,
-            grid_min_y.clone(),
-            grid_max_y,
-            cell_size.clone(),
-            grid_size_x.clone(),
-            grid_size_y.clone(),
-            dispatch_dimensions.clone(),
-        );
-        let mut assign_object_cells = AssignObjectCells::new(
-            &device,
-            object_count,
-            object_count_buffer.clone(),
-            grid_min_x.clone(),
-            grid_min_y.clone(),
-            cell_size.clone(),
-            grid_size_x.clone(),
-            cell_object_count.clone(),
-            object_cells.clone(),
-            phase_state_ring_config,
-        );
-        let calculate_cell_offsets = CalculateCellOffsets::new(
-            &device,
-            dispatch_dimensions.clone(),
-            grid_min_x.clone(),
-            grid_min_y.clone(),
-            cell_size.clone(),
-            grid_size_x.clone(),
-            grid_size_y.clone(),
-            cell_object_count.clone(),
-            current_cell_offset.clone(),
-            cell_offsets.clone(),
-        );
-        let populate_grid_cells = PopulateGridCells::new(
-            &device,
-            object_count,
-            object_count_buffer.clone(),
-            grid_size_x.clone(),
-            object_cells.clone(),
-            cell_offsets.clone(),
-            cells.clone(),
-        );
-        let mut broad_phase_grid = CollisionBroadPhaseGrid::new(
-            &device,
-            object_count,
-            object_count_buffer.clone(),
-            grid_min_x.clone(),
-            grid_min_y.clone(),
-            cell_size.clone(),
-            grid_size_x.clone(),
-            grid_size_y.clone(),
-            object_cells.clone(),
-            cell_object_count.clone(),
-            cell_offsets.clone(),
-            cells.clone(),
-            candidates.clone(),
-            candidate_count.clone(),
-            phase_state_ring_config,
-        );
-
-        let narrow_phase_dispatch_dimensions_calculator = NarrowPhaseDispatchIndirectArgsCalculator::new(
-            &device,
-            candidate_count.clone(),
-            dispatch_dimensions.clone(),
-        );
-
+        let cell_offsets = DeviceBuffer::new(&device, max_cells, "cell offsets", STORAGE);
+        let cells = DeviceBuffer::new(&device, object_count * MAX_OBJECTS_PER_CELL, "cells", STORAGE);
         let collision_forces =
             DeviceBuffer::new(&device, object_count * 2, "collision forces", STORAGE | COPY_SRC | COPY_DST);
         let stiffness = DeviceBuffer::from_data(&device, &[CONFIG.stiffness], "stiffness", UNIFORM | COPY_SRC);
         let restitution = DeviceBuffer::from_data(&device, &[CONFIG.restitution], "restitution", UNIFORM | COPY_SRC);
-        let mut narrow_phase = NarrowPhase::new(
-            &device,
-            dispatch_dimensions.clone(),
-            stiffness.clone(),
-            restitution.clone(),
-            candidates.clone(),
-            candidate_count.clone(),
-            masses.clone(),
-            collision_forces.clone(),
-            phase_state_ring_config,
-        );
         let safety_margin = CONFIG.particle_radius * 2.0;
         let constraints = AABB {
             min: [world_aabb.min[0] + safety_margin, world_aabb.min[1] + safety_margin],
             max: [world_aabb.max[0] - safety_margin, world_aabb.max[1] - safety_margin],
         };
         let constraints_buffer = DeviceBuffer::from_data(&device, &[constraints], "constraints", UNIFORM | COPY_SRC);
+        let broad_phase_buffers = BroadPhaseBuffers {
+            first_aabb: first_aabb.clone(),
+            grid_min_x,
+            grid_max_x,
+            grid_min_y,
+            grid_max_y,
+            cell_size,
+            grid_size_x,
+            grid_size_y,
+            object_cells,
+            current_cell_offset: current_cell_offset.clone(),
+            cell_object_count: cell_object_count.clone(),
+            cell_offsets,
+            cells,
+            candidates,
+            candidate_count: candidate_count.clone(),
+        };
+
+        let reset_grid_aabb = ResetGridAABB::new(&device, &broad_phase_buffers);
+        let mut calculate_grid_aabb = CalculateGridAABB::new(
+            &device,
+            object_count,
+            object_count_buffer.clone(),
+            &broad_phase_buffers,
+            phase_state_ring_config,
+        );
+        let cell_offsets_dispatch_dimensions =
+            CellIterationDispatchDimensions::new(&device, &broad_phase_buffers, dispatch_dimensions.clone());
+        let mut assign_object_cells = AssignObjectCells::new(
+            &device,
+            object_count,
+            object_count_buffer.clone(),
+            &broad_phase_buffers,
+            phase_state_ring_config,
+        );
+        let calculate_cell_offsets =
+            CalculateCellOffsets::new(&device, dispatch_dimensions.clone(), &broad_phase_buffers);
+        let populate_grid_cells =
+            PopulateGridCells::new(&device, object_count, object_count_buffer.clone(), &broad_phase_buffers);
+        let mut broad_phase_grid = CollisionBroadPhaseGrid::new(
+            &device,
+            object_count,
+            object_count_buffer.clone(),
+            &broad_phase_buffers,
+            phase_state_ring_config,
+        );
+        let narrow_phase_dispatch_dimensions = NarrowPhaseDispatchIndirectArgs::new(
+            &device,
+            broad_phase_buffers.candidate_count.clone(),
+            dispatch_dimensions.clone(),
+        );
+        let mut narrow_phase = NarrowPhase::new(
+            &device,
+            dispatch_dimensions.clone(),
+            stiffness.clone(),
+            restitution.clone(),
+            &broad_phase_buffers,
+            masses.clone(),
+            collision_forces.clone(),
+            phase_state_ring_config,
+        );
         let mut integrator = Integrator::new(
             &device,
             object_count,
@@ -704,15 +664,12 @@ fn spawn_simulation_thread(
             let sim_time = sim_step_count as f32 * dt;
             let real_time = start_instant.elapsed().as_secs_f32();
             let print_sim_rate =
-                || println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
-            if CONFIG.printouts {
-                print_sim_rate();
-            }
+                move || println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
 
             if CONFIG.sim_time_limit.is_some_and(|max_sim_time| sim_time >= max_sim_time) {
                 println!("Simulation time limit reached");
                 print_sim_rate();
-                std::io::stdout().flush().unwrap();
+                stdout().flush().unwrap();
                 exit_requested.store(true, Ordering::SeqCst);
                 if let Some(event_loop_proxy) = &event_loop_proxy
                     && CONFIG.exit_at_limit
@@ -760,37 +717,20 @@ fn spawn_simulation_thread(
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
 
             // Broad phase
-            timings.measure_compute(&mut compute_pass, "Reset grid AABB", |compute_pass| {
-                reset_grid_aabb.compute(compute_pass)
-            });
-            timings.measure_compute(&mut compute_pass, "Calculate grid AABB", |compute_pass| {
-                calculate_grid_aabb.compute(compute_pass)
-            });
-            timings.measure_compute(&mut compute_pass, "Calculate cell offsets dispatch dimensions", |compute_pass| {
-                calculate_cell_offsets_dispatch_dimensions.compute(compute_pass)
-            });
-            timings.measure_compute(&mut compute_pass, "Assign object cells", |compute_pass| {
-                assign_object_cells.compute(compute_pass)
-            });
-            timings.measure_compute(&mut compute_pass, "Calculate cell offsets", |compute_pass| {
-                calculate_cell_offsets.compute(compute_pass)
-            });
-            timings.measure_compute(&mut compute_pass, "Populate grid cells", |compute_pass| {
-                populate_grid_cells.compute(compute_pass)
-            });
-            timings.measure_compute(&mut compute_pass, "Broad phase grid", |compute_pass| {
-                broad_phase_grid.compute(compute_pass)
-            });
+            reset_grid_aabb.compute(&mut compute_pass, timings);
+            calculate_grid_aabb.compute(&mut compute_pass, timings);
+            cell_offsets_dispatch_dimensions.compute(&mut compute_pass, timings);
+            assign_object_cells.compute(&mut compute_pass, timings);
+            calculate_cell_offsets.compute(&mut compute_pass, timings);
+            populate_grid_cells.compute(&mut compute_pass, timings);
+            broad_phase_grid.compute(&mut compute_pass, timings);
 
             // Narrow phase
-            timings.measure_compute(&mut compute_pass, "Narrow phase dispatch dimensions calculator", |compute_pass| {
-                narrow_phase_dispatch_dimensions_calculator.compute(compute_pass);
-            });
-            timings
-                .measure_compute(&mut compute_pass, "Narrow phase", |compute_pass| narrow_phase.compute(compute_pass));
+            narrow_phase_dispatch_dimensions.compute(&mut compute_pass, timings);
+            narrow_phase.compute(&mut compute_pass, timings);
 
             // Integrate
-            timings.measure_compute(&mut compute_pass, "Integrator", |compute_pass| integrator.compute(compute_pass));
+            integrator.compute(&mut compute_pass, timings);
 
             drop(compute_pass);
 
@@ -809,6 +749,7 @@ fn spawn_simulation_thread(
                             }
                         });
                         println!("compute done in {:?}", start.elapsed());
+                        print_sim_rate();
                     }
                     let _ = tx.send(());
                 }
