@@ -689,7 +689,7 @@ fn spawn_simulation_thread(
             collision_forces.clone(),
             phase_state_ring_config,
         );
-
+        let timestamp_period = queue.get_timestamp_period();
         let (tx, rx) = channel::bounded(phase_state_ring_config.n_compute);
         let mut sim_step_count: usize = 0;
         let mut compute_submitted: usize = 0;
@@ -794,26 +794,23 @@ fn spawn_simulation_thread(
 
             drop(compute_pass);
 
-            timings.resolve(&mut encoder);
+            let timings_reader = timings.resolve(&mut encoder);
 
             // Submit work
             let start = Instant::now();
             queue.submit([encoder.finish()]);
             queue.on_submitted_work_done({
-                if CONFIG.printouts {
-                    timings.read(queue.get_timestamp_period(), |timings| {
-                        for (label, duration) in timings {
-                            println!("{}: {:?}", label, duration);
-                        }
-                    });
-                }
-
                 let tx = tx.clone();
                 move || {
-                    let _ = tx.send(());
                     if CONFIG.printouts {
+                        timings_reader.read(timestamp_period, |timings| {
+                            for (label, duration) in timings {
+                                println!("{}: {:?}", label, duration);
+                            }
+                        });
                         println!("compute done in {:?}", start.elapsed());
                     }
+                    let _ = tx.send(());
                 }
             });
 
