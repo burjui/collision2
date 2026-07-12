@@ -794,7 +794,7 @@ fn spawn_simulation_thread(
 
             drop(compute_pass);
 
-            let timings_reader = timings.resolve(&mut encoder);
+            let timings_reader = timings.resolve(&mut encoder, timestamp_period);
 
             // Submit work
             let start = Instant::now();
@@ -803,7 +803,7 @@ fn spawn_simulation_thread(
                 let tx = tx.clone();
                 move || {
                     if CONFIG.printouts {
-                        timings_reader.read(timestamp_period, |timings| {
+                        timings_reader.read(|timings| {
                             for (label, duration) in timings {
                                 println!("{}: {:?}", label, duration);
                             }

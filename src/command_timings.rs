@@ -8,10 +8,10 @@ use crate::device_buffer::DeviceBuffer;
 
 #[derive(Clone)]
 pub struct CommandTimings {
+    device: Device,
     capacity: u32,
     query_set: QuerySet,
     query_buffer: DeviceBuffer<u64>,
-    query_readback_buffer: DeviceBuffer<u64>,
     requests: Vec<&'static str>,
     requests_readback: Vec<&'static str>,
 }
@@ -29,17 +29,11 @@ impl CommandTimings {
             "CommandTimings query buffer",
             BufferUsages::QUERY_RESOLVE | BufferUsages::COPY_SRC,
         );
-        let query_readback_buffer = DeviceBuffer::new(
-            device,
-            capacity * 2,
-            "CommandTimings query readback buffer",
-            BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-        );
         Self {
+            device: device.clone(),
             capacity,
             query_set,
             query_buffer,
-            query_readback_buffer,
             requests: Vec::new(),
             requests_readback: Vec::new(),
         }
@@ -76,14 +70,22 @@ impl CommandTimings {
         render_pass.write_timestamp(&self.query_set, slot + 1);
     }
 
-    pub fn resolve(&mut self, encoder: &mut CommandEncoder) -> CommandTimingsReader {
+    pub fn resolve(&mut self, encoder: &mut CommandEncoder, timestamp_period: f32) -> CommandTimingsReader {
         encoder.resolve_query_set(&self.query_set, 0..self.request_slot_count(), self.query_buffer.buffer(), 0);
-        encoder.copy_buffer_to_buffer(self.query_buffer.buffer(), 0, self.query_readback_buffer.buffer(), 0, None);
+
+        let query_readback_buffer = DeviceBuffer::new(
+            &self.device,
+            self.capacity * 2,
+            "CommandTimings query readback buffer",
+            BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+        );
+        encoder.copy_buffer_to_buffer(self.query_buffer.buffer(), 0, query_readback_buffer.buffer(), 0, None);
         self.requests_readback.clear();
         self.requests_readback.extend(self.requests.drain(..));
         CommandTimingsReader {
-            query_readback_buffer: self.query_readback_buffer.clone(),
+            query_readback_buffer: query_readback_buffer,
             requests_readback: self.requests_readback.clone(),
+            timestamp_period,
         }
     }
 
@@ -102,15 +104,13 @@ impl CommandTimings {
 pub struct CommandTimingsReader {
     query_readback_buffer: DeviceBuffer<u64>,
     requests_readback: Vec<&'static str>,
+    timestamp_period: f32,
 }
 
 impl CommandTimingsReader {
-    pub fn read(
-        &self,
-        timestamp_period: f32,
-        callback: impl FnOnce(Vec<(&'static str, Duration)>) + WasmNotSend + 'static + Clone,
-    ) {
+    pub fn read(&self, callback: impl FnOnce(Vec<(&'static str, Duration)>) + WasmNotSend + 'static + Clone) {
         let labels = self.requests_readback.clone();
+        let timestamp_period = self.timestamp_period;
         self.query_readback_buffer.read(self.requests_readback.len() * 2, move |result| {
             let timestamps = result.unwrap();
             callback(
