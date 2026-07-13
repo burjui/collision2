@@ -91,6 +91,7 @@ fn main() {
 
     let wgpu_instance = wgpu::Instance::new(InstanceDescriptor::new_without_display_handle());
     let (adapter, device, queue) = init_wgpu(&wgpu_instance);
+    println!("{:#?}", adapter.get_info());
 
     let mut objects = Objects::default();
     // Dimensions have to be positive, refer to calculate_grid_aabb.wgsl
@@ -104,6 +105,8 @@ fn main() {
 
     let object_count: u32 = objects.flags.len().try_into().unwrap();
     println!("Object count: {}", object_count);
+
+    stdout().flush().unwrap();
 
     let object_count_buffer = DeviceBuffer::from_data(&device, &[object_count], "object_count", UNIFORM);
     // TODO: don't store leaves
@@ -132,8 +135,6 @@ fn main() {
         Some(EventLoop::with_user_event().build().expect("Failed to create event loop"))
     };
     let event_loop_proxy = event_loop.as_ref().map(|event_loop| event_loop.create_proxy());
-
-    stdout().flush().unwrap();
 
     let sim_join_handle = spawn_simulation_thread(
         device.clone(),
