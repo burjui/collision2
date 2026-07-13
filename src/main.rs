@@ -36,14 +36,16 @@ use std::{
 };
 
 use crossbeam::channel;
+use image::{ImageBuffer, Rgba};
 use nalgebra::Vector2;
 use pollster::block_on;
 use shaders::common::Mass;
 use wgpu::{
-    Adapter, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, CurrentSurfaceTexture, Device,
-    DeviceDescriptor, InstanceDescriptor, PollType, PowerPreference, PresentMode, Queue, RenderPassColorAttachment,
-    RenderPassDescriptor, RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureView,
-    TextureViewDescriptor,
+    Adapter, BufferUsages, CommandEncoder, CommandEncoderDescriptor, ComputePassDescriptor, CurrentSurfaceTexture,
+    Device, DeviceDescriptor, Extent3d, InstanceDescriptor, Origin3d, PollType, PowerPreference, PresentMode, Queue,
+    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, Surface, SurfaceConfiguration,
+    TexelCopyBufferInfo, TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureFormat, TextureUsages,
+    TextureView, TextureViewDescriptor, wgt::TextureDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
@@ -85,6 +87,7 @@ const STORAGE: BufferUsages = BufferUsages::STORAGE;
 const COPY_DST: BufferUsages = BufferUsages::COPY_DST;
 const COPY_SRC: BufferUsages = BufferUsages::COPY_SRC;
 const INDIRECT: BufferUsages = BufferUsages::INDIRECT;
+const MAP_READ: BufferUsages = BufferUsages::MAP_READ;
 
 fn main() {
     println!("{:#?}", *CONFIG);
@@ -136,6 +139,10 @@ fn main() {
     };
     let event_loop_proxy = event_loop.as_ref().map(|event_loop| event_loop.create_proxy());
 
+    let render_parameters = RenderParameters {
+        offset: Vector2::new(world_aabb.size().x * 0.5, -world_aabb.size().y * 0.5),
+        ..Default::default()
+    };
     let sim_join_handle = spawn_simulation_thread(
         device.clone(),
         queue.clone(),
@@ -144,9 +151,12 @@ fn main() {
         world_aabb,
         phase_state_ring_config,
         phase_state_ring.clone(),
+        colors.clone(),
+        shapes.clone(),
         masses.clone(),
         exit_requested.clone(),
         event_loop_proxy.clone(),
+        render_parameters,
     );
 
     let poll_join_handle = thread::spawn({
@@ -161,11 +171,6 @@ fn main() {
             }
         }
     });
-
-    let render_parameters = RenderParameters {
-        offset: Vector2::new(world_aabb.size().x * 0.5, -world_aabb.size().y * 0.5),
-        ..Default::default()
-    };
 
     if let Some(event_loop) = event_loop {
         let mut app = App {
@@ -218,6 +223,7 @@ enum AppEvent {
     ExitEventLoop,
 }
 
+#[derive(Copy, Clone)]
 struct RenderParameters {
     enabled: bool,
     draw_aabbs: bool,
@@ -315,6 +321,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         0..self.object_count,
                         &self.device,
                         &self.queue,
+                        |_| {},
                     );
                     state.window.pre_present_notify();
                     surface_texture.present();
@@ -464,6 +471,7 @@ fn render_scene(
     instances: Range<u32>,
     device: &Device,
     queue: &Queue,
+    before_submit: impl FnOnce(&mut CommandEncoder),
 ) {
     let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -499,6 +507,8 @@ fn render_scene(
     }
 
     drop(render_pass);
+
+    before_submit(&mut encoder);
     queue.submit([encoder.finish()]);
 }
 
@@ -533,11 +543,16 @@ fn spawn_simulation_thread(
     world_aabb: AABB,
     phase_state_ring_config: PhaseStateRingConfig,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
+    colors: DeviceBuffer<Color>,
+    shapes: DeviceBuffer<Shape>,
     masses: DeviceBuffer<Mass>,
     exit_requested: Arc<AtomicBool>,
     event_loop_proxy: Option<EventLoopProxy<AppEvent>>,
+    render_parameters: RenderParameters,
 ) -> JoinHandle<()> {
     thread::spawn({
+        const EXPORT_FRAME_SIZE: PhysicalSize<u32> = PhysicalSize::new(1920, 1080);
+
         let dt: f32 = CONFIG.dt;
         let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", UNIFORM);
         let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
@@ -657,6 +672,51 @@ fn spawn_simulation_thread(
         let mut last_frame_instant = Instant::now();
         let start_instant = Instant::now();
 
+        let export_frame_texture = device.create_texture(&TextureDescriptor {
+            label: Some("Frame export"),
+            size: Extent3d {
+                width: EXPORT_FRAME_SIZE.width,
+                height: EXPORT_FRAME_SIZE.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Rgba8UnormSrgb,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC | TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let world_height = world_aabb.max().y - world_aabb.min().y;
+        let camera_matrix = orthographic_camera(EXPORT_FRAME_SIZE.cast(), world_height, &render_parameters);
+        let camera_buffer =
+            DeviceBuffer::<Camera>::from_data(&device, &[Camera::new(camera_matrix)], "camera", UNIFORM | COPY_DST);
+        let mut shape_renderer = ShapeRenderer::new(
+            &device,
+            export_frame_texture.format(),
+            camera_buffer.clone(),
+            colors.clone(),
+            shapes.clone(),
+            masses.clone(),
+            phase_state_ring_config,
+        );
+        let mut aabb_renderer = AabbRenderer::new(
+            &device,
+            export_frame_texture.format(),
+            camera_buffer.clone(),
+            object_count,
+            phase_state_ring_config,
+        );
+        let padded_bytes_per_row = (EXPORT_FRAME_SIZE.width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+        let export_frame_staging_buffer = DeviceBuffer::<u8>::new(
+            &device,
+            padded_bytes_per_row * EXPORT_FRAME_SIZE.height,
+            "export frame staging buffer",
+            COPY_DST | MAP_READ,
+        );
+        if let Some(output_path) = &CONFIG.output_path {
+            std::fs::create_dir_all(output_path).unwrap();
+        }
+
         move || loop {
             if exit_requested.load(Ordering::Relaxed) {
                 break;
@@ -765,6 +825,70 @@ fn spawn_simulation_thread(
 
             // Print stats
             sim_step_count += 1;
+
+            if let Some(output_path) = &CONFIG.output_path {
+                // Render to the export texture
+                let texture_view = export_frame_texture.create_view(&Default::default());
+                render_scene(
+                    texture_view,
+                    &render_parameters,
+                    &mut shape_renderer,
+                    &mut aabb_renderer,
+                    &phase_state_ring,
+                    0..object_count,
+                    &device,
+                    &queue,
+                    {
+                        let export_frame_texture = export_frame_texture.clone();
+                        let export_frame_staging_buffer = export_frame_staging_buffer.clone();
+                        move |encoder| {
+                            encoder.copy_texture_to_buffer(
+                                TexelCopyTextureInfo {
+                                    texture: &export_frame_texture,
+                                    mip_level: 0,
+                                    origin: Origin3d::ZERO,
+                                    aspect: TextureAspect::All,
+                                },
+                                TexelCopyBufferInfo {
+                                    buffer: export_frame_staging_buffer.buffer(),
+                                    layout: wgpu::TexelCopyBufferLayout {
+                                        offset: 0,
+                                        bytes_per_row: Some(padded_bytes_per_row),
+                                        rows_per_image: Some(EXPORT_FRAME_SIZE.height),
+                                    },
+                                },
+                                Extent3d {
+                                    width: EXPORT_FRAME_SIZE.width,
+                                    height: EXPORT_FRAME_SIZE.height,
+                                    depth_or_array_layers: 1,
+                                },
+                            );
+                        }
+                    },
+                );
+                let (tx, rx) = channel::bounded(1);
+                queue.on_submitted_work_done({
+                    let export_frame_staging_buffer = export_frame_staging_buffer.clone();
+                    move || {
+                        assert!(padded_bytes_per_row == EXPORT_FRAME_SIZE.width * 4);
+                        let frame_size_in_bytes = padded_bytes_per_row * EXPORT_FRAME_SIZE.height;
+                        export_frame_staging_buffer.read(frame_size_in_bytes.try_into().unwrap(), move |result| {
+                            let data = result.unwrap();
+                            let _ = tx.send(data);
+                        });
+                    }
+                });
+                let data = rx.recv().unwrap();
+                rayon::spawn(move || {
+                    let image = ImageBuffer::<Rgba<u8>, _>::from_raw(
+                        EXPORT_FRAME_SIZE.width,
+                        EXPORT_FRAME_SIZE.height,
+                        data.as_slice(),
+                    )
+                    .expect("invalid image size");
+                    image.save(format!("{output_path}/{:06}.png", sim_step_count)).unwrap();
+                });
+            }
         }
     })
 }

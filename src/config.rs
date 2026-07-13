@@ -41,6 +41,8 @@ pub struct Config {
     pub stiffness: f32,
     #[serde(default = "default_restitution")]
     pub restitution: f32,
+
+    pub output_path: Option<String>,
 }
 
 impl Config {

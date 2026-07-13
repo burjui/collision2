@@ -88,7 +88,7 @@ fn velocity_to_color(velocity: vec2f, relative_speed: f32) -> vec4f {
     let t = clamp(relative_speed, 0.0, 1.0);
     let lambda = mix(700.0, 380.0, t);
     let rgb = wavelength_to_rgb(lambda);
-    let intensity = spectral_intensity(lambda);
+    let intensity = max(0.2, spectral_intensity(lambda));
     return vec4f(rgb * intensity, 0.1);
 }
 

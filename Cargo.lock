@@ -536,6 +536,7 @@ dependencies = [
  "nalgebra",
  "pollster",
  "rand 0.10.1",
+ "rayon",
  "serde",
  "wgpu",
  "wgsl_bindgen",
