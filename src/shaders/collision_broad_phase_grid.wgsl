@@ -37,7 +37,7 @@ fn broad_phase_grid(
     const FORCE_AREA_SIZE: i32 = 1;
 
     // let m1 = masses[object_index].inner;
-    let c1 = positions[object_index];
+    let c1 = positions[object_index].inner;
     let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
     let cell = vec2i(object_cells[object_index].cell);
     let min_cell = vec2u(max(vec2i(), cell - vec2i(FORCE_AREA_SIZE)));
@@ -56,12 +56,16 @@ fn broad_phase_grid(
                     continue;
                 }
 
-                let c2 = positions[other_object_index];
+                let c2 = positions[other_object_index].inner;
                 if (flags[other_object_index].inner & FLAG_COLLISION) == 0 {
                     continue;
                 }
 
-                if !aabb_overlaps(c1, c2) {
+                let delta = c1 - c2;
+                let distance_squared = dot(delta, delta);
+                let particle_size = particle_radius * 2;
+                let particle_size_squared = particle_size * particle_size;
+                if distance_squared > particle_size_squared || distance_squared < 1e-10 {
                     continue;
                 }
                 let candidates_index = atomicAdd(&candidate_count, 1);
@@ -72,18 +76,6 @@ fn broad_phase_grid(
             }
         }
     }
-}
-
-// TODO: length?
-fn aabb_overlaps(a: Position, b: Position) -> bool {
-    let a_min = a.inner - particle_radius;
-    let a_max = a.inner + particle_radius;
-    let b_min = b.inner - particle_radius;
-    let b_max = b.inner + particle_radius;
-    return a_min.x < b_max.x &&
-           a_max.x > b_min.x &&
-           a_min.y < b_max.y &&
-           a_max.y > b_min.y;
 }
 
 fn cas_add_force(i: u32, value: vec2f) {

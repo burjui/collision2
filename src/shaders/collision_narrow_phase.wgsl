@@ -51,10 +51,6 @@ fn collision_repulsion_pair(
 ) -> vec2f {
     let separation_vector = x1.inner - x2.inner;
     let distance = length(separation_vector);
-    if (distance < 1e-10) {
-        return vec2f(0.0);
-    }
-
     let n = separation_vector / distance;
     let interaction_distance = particle_radius * 2;
     let penetration = interaction_distance - distance;
