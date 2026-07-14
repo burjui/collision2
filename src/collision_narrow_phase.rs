@@ -35,7 +35,7 @@ impl NarrowPhase {
         restitution: DeviceBuffer<f32>,
         broad_phase_buffers: &BroadPhaseBuffers,
         masses: DeviceBuffer<Mass>,
-        collision_forces: DeviceBuffer<u32>,
+        forces: DeviceBuffer<u32>,
         phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let constants_bind_group = WgpuBindGroup0::from_bindings(
@@ -55,7 +55,7 @@ impl NarrowPhase {
         let output_bind_group = WgpuBindGroup3::from_bindings(
             device,
             WgpuBindGroup3Entries::new(WgpuBindGroup3EntriesParams {
-                collision_forces: collision_forces.as_entire_buffer_binding(),
+                forces: forces.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_narrow_phase_pipeline_embed_source(device);

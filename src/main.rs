@@ -593,8 +593,7 @@ fn spawn_simulation_thread(
         let current_cell_offset = DeviceBuffer::new(&device, 1, "current cell offset", STORAGE | COPY_SRC | COPY_DST);
         let cell_offsets = DeviceBuffer::new(&device, max_cells, "cell offsets", STORAGE);
         let cells = DeviceBuffer::new(&device, object_count * MAX_OBJECTS_PER_CELL, "cells", STORAGE);
-        let collision_forces =
-            DeviceBuffer::new(&device, object_count * 2, "collision forces", STORAGE | COPY_SRC | COPY_DST);
+        let forces = DeviceBuffer::new(&device, object_count * 2, "collision forces", STORAGE | COPY_SRC | COPY_DST);
         let stiffness = DeviceBuffer::from_data(&device, &[CONFIG.stiffness], "stiffness", UNIFORM | COPY_SRC);
         let restitution = DeviceBuffer::from_data(&device, &[CONFIG.restitution], "restitution", UNIFORM | COPY_SRC);
         let safety_margin = CONFIG.particle_radius * 2.0;
@@ -619,6 +618,8 @@ fn spawn_simulation_thread(
             cells,
             candidates,
             candidate_count: candidate_count.clone(),
+            masses: masses.clone(),
+            forces: forces.clone(),
         };
 
         let reset_grid_aabb = ResetGridAABB::new(&device, &broad_phase_buffers);
@@ -661,7 +662,7 @@ fn spawn_simulation_thread(
             restitution.clone(),
             &broad_phase_buffers,
             masses.clone(),
-            collision_forces.clone(),
+            forces.clone(),
             phase_state_ring_config,
         );
         let mut integrator = Integrator::new(
@@ -671,7 +672,7 @@ fn spawn_simulation_thread(
             constraints_buffer.clone(),
             dt_buffer,
             masses.clone(),
-            collision_forces.clone(),
+            forces.clone(),
             phase_state_ring_config,
         );
         let timestamp_period = queue.get_timestamp_period();
@@ -787,7 +788,7 @@ fn spawn_simulation_thread(
                 encoder.clear_buffer(dispatch_dimensions.buffer(), 0, None);
                 encoder.clear_buffer(current_cell_offset.buffer(), 0, None);
                 encoder.clear_buffer(candidate_count.buffer(), 0, None);
-                encoder.clear_buffer(collision_forces.buffer(), 0, None);
+                encoder.clear_buffer(forces.buffer(), 0, None);
             });
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());

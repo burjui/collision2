@@ -12,7 +12,7 @@
 @group(2) @binding(0) var<uniform> candidate_count: u32;
 @group(2) @binding(1) var<storage, read> candidates: array<CollisionCandidate>;
 
-@group(3) @binding(0) var<storage, read_write> collision_forces: array<atomic<u32>>;
+@group(3) @binding(0) var<storage, read_write> forces: array<atomic<u32>>;
 
 const STIFFNESS: f32 = 100000;
 const RESTITUTION: f32 = 0.0;
@@ -82,18 +82,20 @@ fn effective_mass(m1: f32, m2: f32) -> f32 {
     return m1 * m2 / (m1 + m2);
 }
 
+// TODO: atomic f32
+
 fn cas_add_force(i: u32, value: vec2f) {
     cas_add_force_component(i * 2, value.x);
     cas_add_force_component(i * 2 + 1, value.y);
 }
 
 fn cas_add_force_component(i: u32, value: f32) {
-    var old = atomicLoad(&collision_forces[i]);
+    var old = atomicLoad(&forces[i]);
     loop {
         let old_f = bitcast<f32>(old);
         let new_f = old_f + value;
         let new_value = bitcast<u32>(new_f);
-        let res = atomicCompareExchangeWeak(&collision_forces[i], old, new_value);
+        let res = atomicCompareExchangeWeak(&forces[i], old, new_value);
         if res.exchanged {
             break;
         }

@@ -7,14 +7,16 @@ use crate::{
     phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::collision_broad_phase_grid::{
         WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
-        WgpuBindGroup1EntriesParams, compute::create_broad_phase_grid_pipeline_embed_source,
+        WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries, WgpuBindGroup2EntriesParams,
+        compute::create_broad_phase_grid_pipeline_embed_source,
     },
     util::{PhaseStateCache, dispatch_compute},
 };
 
 pub struct CollisionBroadPhaseGrid {
     object_count: u32,
-    bind_group: WgpuBindGroup0,
+    main_bind_group: WgpuBindGroup0,
+    forces_bind_group: WgpuBindGroup2,
     pipeline: ComputePipeline,
     phase_state_cache: PhaseStateCache<WgpuBindGroup1>,
 }
@@ -27,7 +29,7 @@ impl CollisionBroadPhaseGrid {
         broad_phase_buffers: &BroadPhaseBuffers,
         phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
-        let bind_group = WgpuBindGroup0::from_bindings(
+        let main_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.as_entire_buffer_binding(),
@@ -42,13 +44,22 @@ impl CollisionBroadPhaseGrid {
                 cells: broad_phase_buffers.cells.as_entire_buffer_binding(),
                 candidates: broad_phase_buffers.candidates.as_entire_buffer_binding(),
                 candidate_count: broad_phase_buffers.candidate_count.as_entire_buffer_binding(),
+                masses: broad_phase_buffers.masses.as_entire_buffer_binding(),
+            }),
+        );
+
+        let forces_bind_group = WgpuBindGroup2::from_bindings(
+            device,
+            WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
+                forces: broad_phase_buffers.forces.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_broad_phase_grid_pipeline_embed_source(device);
         let phase_state_cache = PhaseStateCache::new(phase_state_ring_config);
         Self {
             object_count,
-            bind_group,
+            main_bind_group,
+            forces_bind_group,
             pipeline,
             phase_state_cache,
         }
@@ -73,7 +84,8 @@ impl ComputeStage for CollisionBroadPhaseGrid {
     fn compute_impl(&self, compute_pass: &mut ComputePass) {
         let phase_state_bind_group = self.phase_state_cache.get_current();
         compute_pass.set_pipeline(&self.pipeline);
-        self.bind_group.set(compute_pass);
+        self.main_bind_group.set(compute_pass);
+        self.forces_bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
         dispatch_compute(compute_pass, self.object_count);
     }

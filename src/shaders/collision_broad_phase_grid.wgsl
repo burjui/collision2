@@ -1,5 +1,5 @@
 #import common::{
-    AABB, Flags, CollisionCandidate, CellPosition,
+    AABB, Flags, Mass, CollisionCandidate, CellPosition,
     FLAG_PHYSICAL, FLAG_COLLISION, MAX_CANDIDATES_PER_OBJECT, WORKGROUP_SIZE
 }
 
@@ -17,9 +17,12 @@ var<immediate> thread_offset: u32;
 @group(0) @binding(9) var<storage, read> cells: array<u32>;
 @group(0) @binding(10) var<storage, read_write> candidates: array<CollisionCandidate>;
 @group(0) @binding(11) var<storage, read_write> candidate_count: atomic<u32>;
+@group(0) @binding(12) var<storage, read> masses: array<Mass>;
 
 @group(1) @binding(1) var<storage, read> aabbs: array<AABB>;
 @group(1) @binding(2) var<storage, read> flags: array<Flags>;
+
+@group(2) @binding(0) var<storage, read_write> forces: array<atomic<u32>>;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn broad_phase_grid(
@@ -31,11 +34,15 @@ fn broad_phase_grid(
         return;
     }
 
+    const FORCE_AREA_SIZE: i32 = 1;
+
     let aabb = aabbs[object_index];
+    let m1 = masses[object_index].inner;
+    let c1 = aabb.min + (aabb.max - aabb.min) / 2;
     let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
     let cell = vec2i(object_cells[object_index].cell);
-    let min_cell = vec2u(max(vec2i(), cell - vec2i(1, 1)));
-    let max_cell = vec2u(min(cell + vec2i(1, 1), vec2i(vec2u(grid_size_x - 1, grid_size_y - 1))));
+    let min_cell = vec2u(max(vec2i(), cell - vec2i(1, 1) * FORCE_AREA_SIZE));
+    let max_cell = vec2u(min(cell + vec2i(1, 1) * FORCE_AREA_SIZE, vec2i(vec2u(grid_size_x - 1, grid_size_y - 1))));
     for (var i = min_cell.x; i <= max_cell.x; i++) {
         for (var j = min_cell.y; j <= max_cell.y; j++) {
             let cell_index = i + j * grid_size_x;
@@ -49,11 +56,24 @@ fn broad_phase_grid(
                 if other_object_index >= object_index {
                     continue;
                 }
+
+                let other_aabb = aabbs[other_object_index];
+                // let m2 = masses[other_object_index].inner;
+                // let c2 = other_aabb.min + (other_aabb.max - other_aabb.min) / 2;
+                // let separation_vector = c2 - c1;
+                // let r = length(separation_vector);
+                // let direction = normalize(separation_vector);
+                // let G: f32 = 10000;
+                // let magnitude = G * m1 * m2 / (r * r);
+                // let force = direction * magnitude;
+                // cas_add_force(object_index, force);
+                // cas_add_force(other_object_index, -force);
+
                 if (flags[other_object_index].inner & FLAG_COLLISION) == 0 {
                     continue;
                 }
-                let object_aabb = aabbs[other_object_index];
-                if !aabb_overlaps(aabb, object_aabb) {
+
+                if !aabb_overlaps(aabb, other_aabb) {
                     continue;
                 }
                 let candidates_index = atomicAdd(&candidate_count, 1);
@@ -71,4 +91,23 @@ fn aabb_overlaps(a: AABB, b: AABB) -> bool {
            a.max.x > b.min.x &&
            a.min.y < b.max.y &&
            a.max.y > b.min.y;
+}
+
+fn cas_add_force(i: u32, value: vec2f) {
+    cas_add_force_component(i * 2, value.x);
+    cas_add_force_component(i * 2 + 1, value.y);
+}
+
+fn cas_add_force_component(i: u32, value: f32) {
+    var old = atomicLoad(&forces[i]);
+    loop {
+        let old_f = bitcast<f32>(old);
+        let new_f = old_f + value;
+        let new_value = bitcast<u32>(new_f);
+        let res = atomicCompareExchangeWeak(&forces[i], old, new_value);
+        if res.exchanged {
+            break;
+        }
+        old = res.old_value;
+    }
 }

@@ -40,7 +40,7 @@ impl Integrator {
         constraints: DeviceBuffer<AABB>,
         dt: DeviceBuffer<f32>,
         masses: DeviceBuffer<Mass>,
-        collision_forces: DeviceBuffer<u32>,
+        forces: DeviceBuffer<u32>,
         phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let mut blackholes = Vec::new();
@@ -105,7 +105,7 @@ impl Integrator {
         let collision_bind_group = WgpuBindGroup2::from_bindings(
             device,
             WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
-                collision_forces: collision_forces.as_entire_buffer_binding(),
+                forces: forces.as_entire_buffer_binding(),
             }),
         );
         let phase_state_cache = PhaseStateCache::new(phase_state_ring_config);

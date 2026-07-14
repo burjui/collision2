@@ -17,7 +17,7 @@ var <immediate> thread_offset: u32;
 @group(1) @binding(2) var<uniform> blackhole_size_scale: f32;
 @group(1) @binding(3) var<storage, read> blackholes: array<BlackHole>;
 
-@group(2) @binding(0) var<storage, read> collision_forces: array<vec2f>;
+@group(2) @binding(0) var<storage, read> forces: array<vec2f>;
 
 @group(3) @binding(0) var<storage, read> flags: array<Flags>;
 @group(3) @binding(1) var<storage, read> aabbs: array<AABB>;
@@ -100,21 +100,21 @@ struct ObjectPhaseState {
 }
 
 fn integrate_euler_symplectic(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> ObjectPhaseState {
-    let a = global_acceleration + forces(state, index, aabb, mass) / mass;
+    let a = global_acceleration + total_force(state, index, aabb, mass) / mass;
     var new_state = state;
     new_state.velocity += a * dt;
     new_state.position += new_state.velocity * dt;
     return new_state;
 }
 
-fn forces(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
+fn total_force(state: ObjectPhaseState, index: u32, aabb: AABB, mass: f32) -> vec2f {
     var total_force = vec2f();
     for (var bh_index: u32 = 0; bh_index < blackhole_count; bh_index += 1) {
         var blackhole = blackholes[bh_index];
         total_force += blackhole_gravity(blackhole, state.position, mass);
         total_force += frame_dragging(blackhole, state, mass);
     }
-    total_force += collision_forces[index];
+    total_force += forces[index];
     return total_force;
 }
 

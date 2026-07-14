@@ -1,6 +1,6 @@
 use crate::{
     device_buffer::DeviceBuffer,
-    shaders::common::{AABB, CellPosition, CollisionCandidate},
+    shaders::common::{AABB, CellPosition, CollisionCandidate, Mass},
 };
 
 pub struct BroadPhaseBuffers {
@@ -19,4 +19,6 @@ pub struct BroadPhaseBuffers {
     pub cells: DeviceBuffer<u32>,
     pub candidates: DeviceBuffer<CollisionCandidate>,
     pub candidate_count: DeviceBuffer<u32>,
+    pub masses: DeviceBuffer<Mass>,
+    pub forces: DeviceBuffer<u32>,
 }
