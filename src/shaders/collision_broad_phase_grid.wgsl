@@ -31,16 +31,11 @@ fn broad_phase_grid(
         return;
     }
 
-    let cell = object_cells[object_index].cell;
-
-    let can_decrement = vec2(cell.x > 0, cell.y > 0);
-    let min_cell = select(cell, cell - vec2u(1, 1), can_decrement);
-
-    let can_increment = vec2(cell.x + 1 < grid_size_x, cell.y + 1 < grid_size_y);
-    let max_cell = select(cell, cell + vec2u(1, 1), can_increment);
-
     let aabb = aabbs[object_index];
     let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
+    let cell = vec2i(object_cells[object_index].cell);
+    let min_cell = vec2u(max(vec2i(), cell - vec2i(1, 1)));
+    let max_cell = vec2u(min(cell + vec2i(1, 1), vec2i(vec2u(grid_size_x - 1, grid_size_y - 1))));
     for (var i = min_cell.x; i <= max_cell.x; i++) {
         for (var j = min_cell.y; j <= max_cell.y; j++) {
             let cell_index = i + j * grid_size_x;

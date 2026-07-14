@@ -14,16 +14,14 @@ const SHAPE_RECT: u32 = 0;
 const SHAPE_CIRCLE: u32 = 1;
 
 @group(0) @binding(0) var<uniform> camera: Camera;
-@group(0) @binding(1) var<storage, read> colors: array<Color>;
-@group(0) @binding(2) var<storage, read> shapes: array<Shape>;
-@group(0) @binding(3) var<storage, read> masses: array<Mass>;
+@group(0) @binding(1) var<uniform> energy_spectrum_width: f32;
+@group(0) @binding(2) var<storage, read> colors: array<Color>;
+@group(0) @binding(3) var<storage, read> shapes: array<Shape>;
+@group(0) @binding(4) var<storage, read> masses: array<Mass>;
 
 @group(1) @binding(0) var<storage, read> flags: array<Flags>;
 @group(1) @binding(1) var<storage, read> aabbs: array<AABB>;
 @group(1) @binding(2) var<storage, read> velocities: array<Velocity>;
-
-const COLORING_SPEED_MIN: f32 = 0;
-const COLORING_SPEED_MAX: f32 = 100000;
 
 @vertex
 fn vs_main(
@@ -39,11 +37,8 @@ fn vs_main(
     if (f & FLAG_VELOCITY_COLOR) != 0 {
         var velocity = velocities[i].inner;
         let mass = masses[i].inner;
-        let relative_speed = clamp(
-            (mass * pow(length(velocity), 2) / 2 - COLORING_SPEED_MIN) / (COLORING_SPEED_MAX - COLORING_SPEED_MIN),
-            0, 1
-        );
-        out.color = velocity_to_color(velocity, sqrt(relative_speed));
+        let spectral_position = saturate((mass * pow(length(velocity), 2) / 2) / pow(energy_spectrum_width, 2));
+        out.color = spectral_color(sqrt(spectral_position));
     } else {
         out.color = colors[i].inner;
     }
@@ -65,28 +60,23 @@ fn vs_main(
     return out;
 }
 
-struct FragmentOutput {
-    @location(0) color: vec4f
-}
-
 @fragment
-fn fs_main(in: VertexOutput) -> FragmentOutput {
+fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     var color = in.color;
     let d = sdf_cirle(in.quad_position);
     let w = fwidth(d) / 2; // fwidth has to be calculated before any branching
     if in.shape == SHAPE_CIRCLE {
         color.a *= smoothstep(w, -w, d);
     }
-    return FragmentOutput(color);
+    return color;
 }
 
 fn sdf_cirle(p: vec2f) -> f32 {
     return length(p) - 0.5;
 }
 
-fn velocity_to_color(velocity: vec2f, relative_speed: f32) -> vec4f {
-    let t = clamp(relative_speed, 0.0, 1.0);
-    let lambda = mix(700.0, 380.0, t);
+fn spectral_color(spectral_position: f32) -> vec4f {
+    let lambda = mix(700.0, 380.0, spectral_position);
     let rgb = wavelength_to_rgb(lambda);
     let intensity = max(0.2, spectral_intensity(lambda));
     return vec4f(rgb * intensity, 0.1);

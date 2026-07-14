@@ -100,7 +100,7 @@ fn main() {
     // Dimensions have to be positive, refer to calculate_grid_aabb.wgsl
     let world_aabb = AABB {
         min: [0.0, 0.0],
-        max: [6400.0, 4000.0],
+        max: CONFIG.world_size(),
     };
     let world_size = world_aabb.size();
     println!("World size: {}x{}", world_size.x, world_size.y);
@@ -112,12 +112,10 @@ fn main() {
     stdout().flush().unwrap();
 
     let object_count_buffer = DeviceBuffer::from_data(&device, &[object_count], "object_count", UNIFORM);
-    // TODO: don't store leaves
-    let storage_copy_dst: BufferUsages = STORAGE | COPY_DST;
-
-    let masses = DeviceBuffer::from_data(&device, &objects.masses, "masses", storage_copy_dst);
-    let colors = DeviceBuffer::from_data(&device, &objects.colors, "colors", storage_copy_dst);
-    let shapes = DeviceBuffer::from_data(&device, &objects.shapes, "shapes", storage_copy_dst);
+    let spectrum_width = DeviceBuffer::from_data(&device, &[CONFIG.spectrum_width], "energy spectrum width", UNIFORM);
+    let masses = DeviceBuffer::from_data(&device, &objects.masses, "masses", STORAGE | COPY_DST);
+    let colors = DeviceBuffer::from_data(&device, &objects.colors, "colors", STORAGE | COPY_DST);
+    let shapes = DeviceBuffer::from_data(&device, &objects.shapes, "shapes", STORAGE | COPY_DST);
     let phase_state_ring_config = PhaseStateRingConfig {
         n_frames: CONFIG.n_frames,
         n_compute: CONFIG.n_compute,
@@ -143,6 +141,7 @@ fn main() {
         offset: Vector2::new(world_aabb.size().x * 0.5, -world_aabb.size().y * 0.5),
         ..Default::default()
     };
+    let pause_simulation = Arc::new(AtomicBool::new(false));
     let sim_join_handle = spawn_simulation_thread(
         device.clone(),
         queue.clone(),
@@ -151,12 +150,14 @@ fn main() {
         world_aabb,
         phase_state_ring_config,
         phase_state_ring.clone(),
+        spectrum_width.clone(),
         colors.clone(),
         shapes.clone(),
         masses.clone(),
         exit_requested.clone(),
         event_loop_proxy.clone(),
         render_parameters,
+        pause_simulation.clone(),
     );
 
     let poll_join_handle = thread::spawn({
@@ -183,13 +184,15 @@ fn main() {
             world_aabb,
             cursor_position: None,
             object_count,
-            masses,
+            spectrum_width: spectrum_width.clone(),
             colors,
             shapes,
+            masses,
             phase_state_ring_config,
             phase_state_ring,
             exit_requested,
             desired_maximum_frame_latency: phase_state_ring_config.n_frames,
+            pause_simulation: pause_simulation.clone(),
         };
         event_loop.run_app(&mut app).expect("Failed to run app");
     } else {
@@ -208,13 +211,15 @@ struct App<'a> {
     world_aabb: AABB,
     cursor_position: Option<Vector2<f32>>,
     object_count: u32,
-    masses: DeviceBuffer<Mass>,
+    spectrum_width: DeviceBuffer<f32>,
     colors: DeviceBuffer<Color>,
     shapes: DeviceBuffer<Shape>,
+    masses: DeviceBuffer<Mass>,
     phase_state_ring_config: PhaseStateRingConfig,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     exit_requested: Arc<AtomicBool>,
     desired_maximum_frame_latency: usize,
+    pause_simulation: Arc<AtomicBool>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -268,6 +273,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             &self.device,
             swapchain_format,
             camera.clone(),
+            self.spectrum_width.clone(),
             self.colors.clone(),
             self.shapes.clone(),
             self.masses.clone(),
@@ -305,8 +311,8 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 if let Some(state) = &mut self.sim_state {
                     let view_size = state.window.inner_size();
                     let world_height = self.world_aabb.max().y - self.world_aabb.min().y;
-                    let camera = orthographic_camera(view_size.cast(), world_height, &self.render_parameters);
-                    state.camera.write(&self.queue, &[Camera::new(camera)]);
+                    let camera_matrix = orthographic_camera(view_size.cast(), world_height, &self.render_parameters);
+                    state.camera.write(&self.queue, &[Camera::new(camera_matrix)]);
 
                     let CurrentSurfaceTexture::Success(surface_texture) = state.surface.get_current_texture() else {
                         panic!("Failed to get current surface texture");
@@ -337,6 +343,11 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             }
 
             WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::Escape) => event_loop.exit(),
+
+            WindowEvent::KeyboardInput { event, .. } if key_pressed(&event, KeyCode::Space) => {
+                self.pause_simulation.fetch_not(Ordering::SeqCst);
+            }
+
             WindowEvent::CloseRequested => event_loop.exit(),
 
             WindowEvent::MouseWheel {
@@ -519,10 +530,6 @@ fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32, params: 
     let right = world_width * 0.5;
     let bottom = -world_height * 0.5;
     let top = world_height * 0.5;
-    // let left = 0.0;
-    // let right = world_width;
-    // let bottom = 0.0;
-    // let top = world_height;
     let sx = params.zoom * 2.0 / (right - left);
     let sy = params.zoom * 2.0 / (top - bottom);
     let tx = -params.offset.x * 2.0 / (right - left);
@@ -543,12 +550,14 @@ fn spawn_simulation_thread(
     world_aabb: AABB,
     phase_state_ring_config: PhaseStateRingConfig,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
+    spectrum_width: DeviceBuffer<f32>,
     colors: DeviceBuffer<Color>,
     shapes: DeviceBuffer<Shape>,
     masses: DeviceBuffer<Mass>,
     exit_requested: Arc<AtomicBool>,
     event_loop_proxy: Option<EventLoopProxy<AppEvent>>,
     render_parameters: RenderParameters,
+    pause_simulation: Arc<AtomicBool>,
 ) -> JoinHandle<()> {
     thread::spawn({
         const EXPORT_FRAME_SIZE: PhysicalSize<u32> = PhysicalSize::new(1920, 1080);
@@ -572,7 +581,7 @@ fn spawn_simulation_thread(
         let grid_size_y = DeviceBuffer::new(&device, 1, "grid size y", STORAGE | UNIFORM | COPY_SRC);
         let first_aabb = DeviceBuffer::new(&device, 1, "first aabb", UNIFORM | COPY_DST);
         let object_cells = DeviceBuffer::new(&device, object_count, "object cells", STORAGE | COPY_SRC);
-        let max_cells = object_count * 10; // TODO: calculate properly
+        let max_cells = object_count * 10; // TODO: calculate max_cells properly
         let cell_object_count =
             DeviceBuffer::new(&device, max_cells, "cell object count", STORAGE | UNIFORM | COPY_DST | COPY_SRC);
         let dispatch_dimensions = DeviceBuffer::new(
@@ -694,6 +703,7 @@ fn spawn_simulation_thread(
             &device,
             export_frame_texture.format(),
             camera_buffer.clone(),
+            spectrum_width.clone(),
             colors.clone(),
             shapes.clone(),
             masses.clone(),
@@ -745,6 +755,11 @@ fn spawn_simulation_thread(
             {
                 event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
                 last_frame_instant = Instant::now();
+            }
+
+            if pause_simulation.load(Ordering::Relaxed) {
+                thread::yield_now();
+                continue;
             }
 
             // Set integrator buffers, advance the 2-state sliding window that the integrator uses

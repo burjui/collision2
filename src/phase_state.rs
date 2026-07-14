@@ -10,7 +10,6 @@ use crate::{
 /// Set of object phase states (change every frame)
 #[derive(Clone)]
 pub struct PhaseState {
-    // TODO: split AABBs of objects and nodes
     aabbs: DeviceBuffer<AABB>,
     velocities: DeviceBuffer<Velocity>,
     flags: DeviceBuffer<Flags>,

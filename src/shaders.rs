@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: cfa01c7d78f62f94f899131909801458c5c3a6a777433fc59b58dd62d0791547
+// SourceHash: f5559bcd1eaff594a81a885d0c9598bc02668601461970487e1055f74f9f7c67
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -151,7 +151,7 @@ pub mod common {
     pub const FLAG_VELOCITY_COLOR: u32 = 8u32;
     pub const FLAG_COLLISION: u32 = 16u32;
     pub const MAX_CANDIDATES_PER_OBJECT: u32 = 16u32;
-    pub const MAX_OBJECTS_PER_CELL: u32 = 4u32;
+    pub const MAX_OBJECTS_PER_CELL: u32 = 2u32;
     pub const MAX_DISPATCH_DIMENSION: u32 = 65535u32;
     #[repr(C, align(16))]
     #[derive(Debug, PartialEq, Clone, Copy)]
@@ -373,7 +373,7 @@ const FLAG_PHYSICAL: u32 = 4u;
 const FLAG_VELOCITY_COLOR: u32 = 8u;
 const FLAG_COLLISION: u32 = 16u;
 const MAX_CANDIDATES_PER_OBJECT: u32 = 16u;
-const MAX_OBJECTS_PER_CELL: u32 = 4u;
+const MAX_OBJECTS_PER_CELL: u32 = 2u;
 const MAX_DISPATCH_DIMENSION: u32 = 65535u;
 
 fn flat_invocation_index(gid: vec3<u32>, nwg: vec3<u32>, workgroup_size: u32) -> u32 {
@@ -415,8 +415,6 @@ pub mod render_shape {
     use super::{_root, _root::*};
     pub const SHAPE_RECT: u32 = 0u32;
     pub const SHAPE_CIRCLE: u32 = 1u32;
-    pub const COLORING_SPEED_MIN: f32 = 0f32;
-    pub const COLORING_SPEED_MAX: f32 = 100000f32;
     pub const ENTRY_VS_MAIN: &str = "vs_main";
     pub const ENTRY_FS_MAIN: &str = "fs_main";
     #[derive(Debug)]
@@ -476,6 +474,7 @@ pub mod render_shape {
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub camera: wgpu::BufferBinding<'a>,
+        pub energy_spectrum_width: wgpu::BufferBinding<'a>,
         pub colors: wgpu::BufferBinding<'a>,
         pub shapes: wgpu::BufferBinding<'a>,
         pub masses: wgpu::BufferBinding<'a>,
@@ -483,6 +482,7 @@ pub mod render_shape {
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
         pub camera: wgpu::BindGroupEntry<'a>,
+        pub energy_spectrum_width: wgpu::BindGroupEntry<'a>,
         pub colors: wgpu::BindGroupEntry<'a>,
         pub shapes: wgpu::BindGroupEntry<'a>,
         pub masses: wgpu::BindGroupEntry<'a>,
@@ -494,22 +494,32 @@ pub mod render_shape {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(params.camera),
                 },
-                colors: wgpu::BindGroupEntry {
+                energy_spectrum_width: wgpu::BindGroupEntry {
                     binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.energy_spectrum_width),
+                },
+                colors: wgpu::BindGroupEntry {
+                    binding: 2,
                     resource: wgpu::BindingResource::Buffer(params.colors),
                 },
                 shapes: wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.shapes),
                 },
                 masses: wgpu::BindGroupEntry {
-                    binding: 3,
+                    binding: 4,
                     resource: wgpu::BindingResource::Buffer(params.masses),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
-            [self.camera, self.colors, self.shapes, self.masses]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
+            [
+                self.camera,
+                self.energy_spectrum_width,
+                self.colors,
+                self.shapes,
+                self.masses,
+            ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -532,18 +542,18 @@ pub mod render_shape {
                     },
                     count: None,
                 },
-                #[doc = " @binding(1): \"colors\""]
+                #[doc = " @binding(1): \"energy_spectrum_width\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"shapes\""]
+                #[doc = " @binding(2): \"colors\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
@@ -554,9 +564,20 @@ pub mod render_shape {
                     },
                     count: None,
                 },
-                #[doc = " @binding(3): \"masses\""]
+                #[doc = " @binding(3): \"shapes\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(4): \"masses\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -756,25 +777,21 @@ struct VertexOutput {
     @location(2) @interpolate(flat) shape: u32,
 }
 
-struct FragmentOutput {
-    @location(0) color: vec4<f32>,
-}
-
 const UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_VELOCITY_COLORX_naga_oil_mod_XMNXW23LPNYX: u32 = 8u;
 const SHAPE_RECT: u32 = 0u;
 const SHAPE_CIRCLE: u32 = 1u;
-const COLORING_SPEED_MIN: f32 = 0f;
-const COLORING_SPEED_MAX: f32 = 100000f;
 
 @group(0) @binding(0) 
 var<uniform> camera: CameraX_naga_oil_mod_XMNXW23LPNYX;
 @group(0) @binding(1) 
-var<storage> colors: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
+var<uniform> energy_spectrum_width: f32;
 @group(0) @binding(2) 
-var<storage> shapes: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> colors: array<ColorX_naga_oil_mod_XMNXW23LPNYX>;
 @group(0) @binding(3) 
+var<storage> shapes: array<ShapeX_naga_oil_mod_XMNXW23LPNYX>;
+@group(0) @binding(4) 
 var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(0) 
 var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
@@ -839,13 +856,12 @@ fn spectral_intensity(lambda_1: f32) -> f32 {
     return 1f;
 }
 
-fn velocity_to_color(velocity_1: vec2<f32>, relative_speed: f32) -> vec4<f32> {
-    let t = clamp(relative_speed, 0f, 1f);
-    let lambda_2 = mix(700f, 380f, t);
-    let _e7 = wavelength_to_rgb(lambda_2);
-    let _e8 = spectral_intensity(lambda_2);
-    let intensity = max(0.2f, _e8);
-    return vec4<f32>((_e7 * intensity), 0.1f);
+fn spectral_color(spectral_position: f32) -> vec4<f32> {
+    let lambda_2 = mix(700f, 380f, spectral_position);
+    let _e4 = wavelength_to_rgb(lambda_2);
+    let _e5 = spectral_intensity(lambda_2);
+    let intensity = max(0.2f, _e5);
+    return vec4<f32>((_e4 * intensity), 0.1f);
 }
 
 fn sdf_cirle(p: vec2<f32>) -> f32 {
@@ -868,32 +884,32 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, @builtin(instance_index) i:
         velocity = _e19;
         let mass = masses[i].inner;
         let _e25 = velocity;
-        let relative_speed_1 = clamp(((((mass * pow(length(_e25), 2f)) / 2f) - COLORING_SPEED_MIN) / 100000f), 0f, 1f);
-        let _e40 = velocity;
-        let _e42 = velocity_to_color(_e40, sqrt(relative_speed_1));
-        out.color = _e42;
+        let _e33 = energy_spectrum_width;
+        let spectral_position_1 = saturate((((mass * pow(length(_e25), 2f)) / 2f) / pow(_e33, 2f)));
+        let _e40 = spectral_color(sqrt(spectral_position_1));
+        out.color = _e40;
     } else {
-        let _e47 = colors[i].inner;
-        out.color = _e47;
+        let _e45 = colors[i].inner;
+        out.color = _e45;
     }
     let aabb = aabbs[i];
     scale = (aabb.max - aabb.min);
     let center = ((aabb.min + aabb.max) / vec2(2f));
-    let _e62 = scale.x;
-    let _e64 = scale.y;
-    let model = mat4x4<f32>(vec4<f32>(_e62, 0f, 0f, 0f), vec4<f32>(0f, _e64, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
+    let _e60 = scale.x;
+    let _e62 = scale.y;
+    let model = mat4x4<f32>(vec4<f32>(_e60, 0f, 0f, 0f), vec4<f32>(0f, _e62, 0f, 0f), vec4<f32>(0f, 0f, 1f, 0f), vec4<f32>(center.x, center.y, 0f, 1f));
     let vertex = UNIT_QUAD_VERTICESX_naga_oil_mod_XMNXW23LPNYX[vertex_index];
-    let _e90 = camera.inner;
-    out.clip_position = ((_e90 * model) * vec4<f32>(vertex, 0f, 1f));
+    let _e88 = camera.inner;
+    out.clip_position = ((_e88 * model) * vec4<f32>(vertex, 0f, 1f));
     out.quad_position = vertex;
-    let _e101 = shapes[i].inner;
-    out.shape = _e101;
-    let _e102 = out;
-    return _e102;
+    let _e99 = shapes[i].inner;
+    out.shape = _e99;
+    let _e100 = out;
+    return _e100;
 }
 
 @fragment 
-fn fs_main(in: VertexOutput) -> FragmentOutput {
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var color: vec4<f32>;
 
     color = in.color;
@@ -905,7 +921,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         color.w = (_e12 * smoothstep(w, -(w), _e4));
     }
     let _e16 = color;
-    return FragmentOutput(_e16);
+    return _e16;
 }
 "#;
 }
@@ -3409,36 +3425,35 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(loca
     if _e20 {
         return;
     }
-    let cell = object_cells[object_index].cell;
-    let can_decrement = vec2<bool>((cell.x > 0u), (cell.y > 0u));
-    let min_cell = select(cell, (cell - vec2<u32>(1u, 1u)), can_decrement);
-    let _e41 = grid_size_x;
-    let _e47 = grid_size_y;
-    let can_increment = vec2<bool>(((cell.x + 1u) < _e41), ((cell.y + 1u) < _e47));
-    let max_cell = select(cell, (cell + vec2<u32>(1u, 1u)), can_increment);
     let aabb = aabbs[object_index];
-    let _e59 = object_count;
-    let max_candidates = (_e59 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
+    let _e25 = object_count;
+    let max_candidates = (_e25 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
+    let _e31 = object_cells[object_index].cell;
+    let cell = vec2<i32>(_e31);
+    let min_cell = vec2<u32>(max(vec2<i32>(), (cell - vec2<i32>(1i, 1i))));
+    let _e45 = grid_size_x;
+    let _e49 = grid_size_y;
+    let max_cell = vec2<u32>(min((cell + vec2<i32>(1i, 1i)), vec2<i32>(vec2<u32>((_e45 - 1u), (_e49 - 1u)))));
     i = min_cell.x;
     loop {
-        let _e64 = i;
-        if (_e64 <= max_cell.x) {
+        let _e58 = i;
+        if (_e58 <= max_cell.x) {
         } else {
             break;
         }
         {
             j = min_cell.y;
             loop {
-                let _e69 = j;
-                if (_e69 <= max_cell.y) {
+                let _e63 = j;
+                if (_e63 <= max_cell.y) {
                 } else {
                     break;
                 }
                 {
-                    let _e72 = i;
-                    let _e73 = j;
-                    let _e75 = grid_size_x;
-                    let cell_index = (_e72 + (_e73 * _e75));
+                    let _e66 = i;
+                    let _e67 = j;
+                    let _e69 = grid_size_x;
+                    let cell_index = (_e66 + (_e67 * _e69));
                     let object_count_1 = cell_object_count[cell_index];
                     if (object_count_1 == 0u) {
                         continue;
@@ -3446,47 +3461,47 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(loca
                     let cell_offset = cell_offsets[cell_index];
                     k = 0u;
                     loop {
-                        let _e88 = k;
-                        if (_e88 < object_count_1) {
+                        let _e82 = k;
+                        if (_e82 < object_count_1) {
                         } else {
                             break;
                         }
                         {
-                            let _e91 = k;
-                            let other_object_index = cells[(cell_offset + _e91)];
+                            let _e85 = k;
+                            let other_object_index = cells[(cell_offset + _e85)];
                             if (other_object_index >= object_index) {
                                 continue;
                             }
-                            let _e99 = flags[other_object_index].inner;
-                            if ((_e99 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+                            let _e93 = flags[other_object_index].inner;
+                            if ((_e93 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
                                 continue;
                             }
                             let object_aabb = aabbs[other_object_index];
-                            let _e107 = aabb_overlaps(aabb, object_aabb);
-                            if !(_e107) {
+                            let _e101 = aabb_overlaps(aabb, object_aabb);
+                            if !(_e101) {
                                 continue;
                             }
-                            let _e111 = atomicAdd((&candidate_count), 1u);
-                            if (_e111 >= max_candidates) {
+                            let _e105 = atomicAdd((&candidate_count), 1u);
+                            if (_e105 >= max_candidates) {
                                 return;
                             }
-                            candidates[_e111] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(object_index, other_object_index);
+                            candidates[_e105] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(object_index, other_object_index);
                         }
                         continuing {
-                            let _e117 = k;
-                            k = (_e117 + 1u);
+                            let _e111 = k;
+                            k = (_e111 + 1u);
                         }
                     }
                 }
                 continuing {
-                    let _e120 = j;
-                    j = (_e120 + 1u);
+                    let _e114 = j;
+                    j = (_e114 + 1u);
                 }
             }
         }
         continuing {
-            let _e123 = i;
-            i = (_e123 + 1u);
+            let _e117 = i;
+            i = (_e117 + 1u);
         }
     }
     return;
