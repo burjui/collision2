@@ -125,7 +125,7 @@ fn main() {
         &device,
         object_count,
         &objects.flags,
-        &objects.aabbs,
+        &objects.positions,
         &objects.velocities,
     )));
 
@@ -142,11 +142,13 @@ fn main() {
         ..Default::default()
     };
     let pause_simulation = Arc::new(AtomicBool::new(false));
+    let particle_radius = DeviceBuffer::from_data(&device, &[CONFIG.particle_radius], "particle radius", UNIFORM);
     let sim_join_handle = spawn_simulation_thread(
         device.clone(),
         queue.clone(),
         object_count,
         object_count_buffer,
+        particle_radius.clone(),
         world_aabb,
         phase_state_ring_config,
         phase_state_ring.clone(),
@@ -184,6 +186,7 @@ fn main() {
             world_aabb,
             cursor_position: None,
             object_count,
+            particle_radius,
             spectrum_width: spectrum_width.clone(),
             colors,
             shapes,
@@ -211,6 +214,7 @@ struct App<'a> {
     world_aabb: AABB,
     cursor_position: Option<Vector2<f32>>,
     object_count: u32,
+    particle_radius: DeviceBuffer<f32>,
     spectrum_width: DeviceBuffer<f32>,
     colors: DeviceBuffer<Color>,
     shapes: DeviceBuffer<Shape>,
@@ -273,6 +277,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             &self.device,
             swapchain_format,
             camera.clone(),
+            self.particle_radius.clone(),
             self.spectrum_width.clone(),
             self.colors.clone(),
             self.shapes.clone(),
@@ -283,6 +288,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             &self.device,
             swapchain_format,
             camera.clone(),
+            self.particle_radius.clone(),
             self.object_count,
             self.phase_state_ring_config,
         );
@@ -547,6 +553,7 @@ fn spawn_simulation_thread(
     queue: Queue,
     object_count: u32,
     object_count_buffer: DeviceBuffer<u32>,
+    particle_radius: DeviceBuffer<f32>,
     world_aabb: AABB,
     phase_state_ring_config: PhaseStateRingConfig,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
@@ -571,17 +578,15 @@ fn spawn_simulation_thread(
         let grid_min_y = DeviceBuffer::new(&device, 1, "grid min y", STORAGE | UNIFORM | COPY_SRC);
         let grid_max_x = DeviceBuffer::new(&device, 1, "grid max x", STORAGE | UNIFORM | COPY_SRC);
         let grid_max_y = DeviceBuffer::new(&device, 1, "grid max y", STORAGE | UNIFORM | COPY_SRC);
-        let cell_size = DeviceBuffer::from_data(
-            &device,
-            &[CONFIG.particle_radius * 2.0],
-            "cell size",
-            STORAGE | UNIFORM | COPY_SRC,
-        );
         let grid_size_x = DeviceBuffer::new(&device, 1, "grid size x", STORAGE | UNIFORM | COPY_SRC);
         let grid_size_y = DeviceBuffer::new(&device, 1, "grid size y", STORAGE | UNIFORM | COPY_SRC);
-        let first_aabb = DeviceBuffer::new(&device, 1, "first aabb", UNIFORM | COPY_DST);
         let object_cells = DeviceBuffer::new(&device, object_count, "object cells", STORAGE | COPY_SRC);
-        let max_cells = object_count * 10; // TODO: calculate max_cells properly
+        let cell_size = CONFIG.particle_radius * 2.0;
+        let grid_size = world_aabb.size() / cell_size;
+        let grid_cells_x = grid_size.x.ceil() as u32;
+        let grid_cells_y = grid_size.y.ceil() as u32;
+        // Add a small safety margin (1 extra cell per dimension)
+        let max_cells = (grid_cells_x + 1) * (grid_cells_y + 1);
         let cell_object_count =
             DeviceBuffer::new(&device, max_cells, "cell object count", STORAGE | UNIFORM | COPY_DST | COPY_SRC);
         let dispatch_dimensions = DeviceBuffer::new(
@@ -603,14 +608,13 @@ fn spawn_simulation_thread(
         };
         let constraints_buffer = DeviceBuffer::from_data(&device, &[constraints], "constraints", UNIFORM | COPY_SRC);
         let broad_phase_buffers = BroadPhaseBuffers {
-            first_aabb: first_aabb.clone(),
-            grid_min_x,
-            grid_max_x,
-            grid_min_y,
-            grid_max_y,
-            cell_size,
-            grid_size_x,
-            grid_size_y,
+            particle_radius: particle_radius.clone(),
+            grid_min_x: grid_min_x.clone(),
+            grid_max_x: grid_max_x.clone(),
+            grid_min_y: grid_min_y.clone(),
+            grid_max_y: grid_max_y.clone(),
+            grid_size_x: grid_size_x.clone(),
+            grid_size_y: grid_size_y.clone(),
             object_cells,
             current_cell_offset: current_cell_offset.clone(),
             cell_object_count: cell_object_count.clone(),
@@ -627,6 +631,7 @@ fn spawn_simulation_thread(
             &device,
             object_count,
             object_count_buffer.clone(),
+            particle_radius.clone(),
             &broad_phase_buffers,
             phase_state_ring_config,
         );
@@ -636,6 +641,7 @@ fn spawn_simulation_thread(
             &device,
             object_count,
             object_count_buffer.clone(),
+            particle_radius.clone(),
             &broad_phase_buffers,
             phase_state_ring_config,
         );
@@ -647,6 +653,7 @@ fn spawn_simulation_thread(
             &device,
             object_count,
             object_count_buffer.clone(),
+            particle_radius.clone(),
             &broad_phase_buffers,
             phase_state_ring_config,
         );
@@ -660,6 +667,7 @@ fn spawn_simulation_thread(
             dispatch_dimensions.clone(),
             stiffness.clone(),
             restitution.clone(),
+            particle_radius.clone(),
             &broad_phase_buffers,
             masses.clone(),
             forces.clone(),
@@ -669,6 +677,7 @@ fn spawn_simulation_thread(
             &device,
             object_count,
             object_count_buffer.clone(),
+            particle_radius.clone(),
             constraints_buffer.clone(),
             dt_buffer,
             masses.clone(),
@@ -704,6 +713,7 @@ fn spawn_simulation_thread(
             &device,
             export_frame_texture.format(),
             camera_buffer.clone(),
+            particle_radius.clone(),
             spectrum_width.clone(),
             colors.clone(),
             shapes.clone(),
@@ -714,6 +724,7 @@ fn spawn_simulation_thread(
             &device,
             export_frame_texture.format(),
             camera_buffer.clone(),
+            particle_radius.clone(),
             object_count,
             phase_state_ring_config,
         );
@@ -781,7 +792,6 @@ fn spawn_simulation_thread(
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
 
             // Reset buffers
-            first_aabb.copy(0..1, current_phase_state.aabbs(), 0..1, &mut encoder);
             let timings = current_phase_state.command_timings();
             timings.measure(&mut encoder, "Clear buffers", |encoder| {
                 encoder.clear_buffer(cell_object_count.buffer(), 0, None);

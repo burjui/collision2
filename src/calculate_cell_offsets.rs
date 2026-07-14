@@ -33,7 +33,6 @@ impl CalculateCellOffsets {
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 grid_min_x: broad_phase_buffers.grid_min_x.as_entire_buffer_binding(),
                 grid_min_y: broad_phase_buffers.grid_min_y.as_entire_buffer_binding(),
-                cell_size: broad_phase_buffers.cell_size.as_entire_buffer_binding(),
                 grid_size_x: broad_phase_buffers.grid_size_x.as_entire_buffer_binding(),
                 grid_size_y: broad_phase_buffers.grid_size_y.as_entire_buffer_binding(),
                 cell_object_count: broad_phase_buffers.cell_object_count.as_entire_buffer_binding(),

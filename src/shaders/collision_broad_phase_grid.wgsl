@@ -1,25 +1,25 @@
 #import common::{
-    AABB, Flags, Mass, CollisionCandidate, CellPosition,
+    Position, Flags, Mass, CollisionCandidate, CellPosition,
     FLAG_PHYSICAL, FLAG_COLLISION, MAX_CANDIDATES_PER_OBJECT, WORKGROUP_SIZE
 }
 
 var<immediate> thread_offset: u32;
 
 @group(0) @binding(0) var<uniform> object_count: u32;
-@group(0) @binding(1) var<uniform> grid_min_x: f32;
+@group(0) @binding(1) var<uniform> particle_radius: f32;
+@group(0) @binding(2) var<uniform> grid_min_x: f32;
 @group(0) @binding(3) var<uniform> grid_min_y: f32;
-@group(0) @binding(5) var<uniform> cell_size: f32;
-@group(0) @binding(4) var<uniform> grid_size_x: u32;
-@group(0) @binding(2) var<uniform> grid_size_y: u32;
-@group(0) @binding(6) var<storage, read> object_cells: array<CellPosition>;
-@group(0) @binding(7) var<storage, read> cell_object_count: array<u32>;
-@group(0) @binding(8) var<storage, read> cell_offsets: array<u32>;
-@group(0) @binding(9) var<storage, read> cells: array<u32>;
-@group(0) @binding(10) var<storage, read_write> candidates: array<CollisionCandidate>;
-@group(0) @binding(11) var<storage, read_write> candidate_count: atomic<u32>;
-@group(0) @binding(12) var<storage, read> masses: array<Mass>;
+@group(0) @binding(5) var<uniform> grid_size_x: u32;
+@group(0) @binding(6) var<uniform> grid_size_y: u32;
+@group(0) @binding(7) var<storage, read> object_cells: array<CellPosition>;
+@group(0) @binding(8) var<storage, read> cell_object_count: array<u32>;
+@group(0) @binding(9) var<storage, read> cell_offsets: array<u32>;
+@group(0) @binding(10) var<storage, read> cells: array<u32>;
+@group(0) @binding(11) var<storage, read_write> candidates: array<CollisionCandidate>;
+@group(0) @binding(12) var<storage, read_write> candidate_count: atomic<u32>;
+@group(0) @binding(13) var<storage, read> masses: array<Mass>;
 
-@group(1) @binding(1) var<storage, read> aabbs: array<AABB>;
+@group(1) @binding(1) var<storage, read> positions: array<Position>;
 @group(1) @binding(2) var<storage, read> flags: array<Flags>;
 
 @group(2) @binding(0) var<storage, read_write> forces: array<atomic<u32>>;
@@ -36,13 +36,12 @@ fn broad_phase_grid(
 
     const FORCE_AREA_SIZE: i32 = 1;
 
-    let aabb = aabbs[object_index];
-    let m1 = masses[object_index].inner;
-    let c1 = aabb.min + (aabb.max - aabb.min) / 2;
+    // let m1 = masses[object_index].inner;
+    let c1 = positions[object_index];
     let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
     let cell = vec2i(object_cells[object_index].cell);
-    let min_cell = vec2u(max(vec2i(), cell - vec2i(1, 1) * FORCE_AREA_SIZE));
-    let max_cell = vec2u(min(cell + vec2i(1, 1) * FORCE_AREA_SIZE, vec2i(vec2u(grid_size_x - 1, grid_size_y - 1))));
+    let min_cell = vec2u(max(vec2i(), cell - vec2i(FORCE_AREA_SIZE)));
+    let max_cell = vec2u(min(cell + vec2i(FORCE_AREA_SIZE), vec2i(vec2u(grid_size_x - 1, grid_size_y - 1))));
     for (var i = min_cell.x; i <= max_cell.x; i++) {
         for (var j = min_cell.y; j <= max_cell.y; j++) {
             let cell_index = i + j * grid_size_x;
@@ -57,23 +56,12 @@ fn broad_phase_grid(
                     continue;
                 }
 
-                let other_aabb = aabbs[other_object_index];
-                // let m2 = masses[other_object_index].inner;
-                // let c2 = other_aabb.min + (other_aabb.max - other_aabb.min) / 2;
-                // let separation_vector = c2 - c1;
-                // let r = length(separation_vector);
-                // let direction = normalize(separation_vector);
-                // let G: f32 = 10000;
-                // let magnitude = G * m1 * m2 / (r * r);
-                // let force = direction * magnitude;
-                // cas_add_force(object_index, force);
-                // cas_add_force(other_object_index, -force);
-
+                let c2 = positions[other_object_index];
                 if (flags[other_object_index].inner & FLAG_COLLISION) == 0 {
                     continue;
                 }
 
-                if !aabb_overlaps(aabb, other_aabb) {
+                if !aabb_overlaps(c1, c2) {
                     continue;
                 }
                 let candidates_index = atomicAdd(&candidate_count, 1);
@@ -86,11 +74,16 @@ fn broad_phase_grid(
     }
 }
 
-fn aabb_overlaps(a: AABB, b: AABB) -> bool {
-    return a.min.x < b.max.x &&
-           a.max.x > b.min.x &&
-           a.min.y < b.max.y &&
-           a.max.y > b.min.y;
+// TODO: length?
+fn aabb_overlaps(a: Position, b: Position) -> bool {
+    let a_min = a.inner - particle_radius;
+    let a_max = a.inner + particle_radius;
+    let b_min = b.inner - particle_radius;
+    let b_max = b.inner + particle_radius;
+    return a_min.x < b_max.x &&
+           a_max.x > b_min.x &&
+           a_min.y < b_max.y &&
+           a_max.y > b_min.y;
 }
 
 fn cas_add_force(i: u32, value: vec2f) {

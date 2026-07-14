@@ -1,7 +1,6 @@
 use color::{AlphaColor, Srgb};
-use nalgebra::Vector2;
 
-use crate::shaders::common::{AABB, Color, Flags, Mass, Shape, Velocity};
+use crate::shaders::common::{Color, Flags, Mass, Position, Shape, Velocity};
 
 pub struct ObjectPrototype {
     pub flags: u32,
@@ -16,7 +15,7 @@ pub struct ObjectPrototype {
 #[derive(Default)]
 pub struct Objects {
     pub flags: Vec<Flags>,
-    pub aabbs: Vec<AABB>,
+    pub positions: Vec<Position>,
     pub velocities: Vec<Velocity>,
     pub masses: Vec<Mass>,
     pub colors: Vec<Color>,
@@ -26,9 +25,7 @@ pub struct Objects {
 impl Objects {
     pub fn push(&mut self, prototype: ObjectPrototype) {
         self.flags.push(Flags::new(prototype.flags));
-        let position = Vector2::from(prototype.position);
-        let size = Vector2::from(prototype.size);
-        self.aabbs.push(AABB::new((position - size / 2.0).into(), (position + size / 2.0).into()));
+        self.positions.push(Position::new(prototype.position));
         self.velocities.push(Velocity::new(prototype.velocity));
         self.masses.push(Mass::new(prototype.mass));
         self.colors.push(Color::new(prototype.color.components));
@@ -45,7 +42,7 @@ impl Objects {
 
     pub fn reserve(&mut self, additional: usize) {
         self.flags.reserve(additional);
-        self.aabbs.reserve(additional);
+        self.positions.reserve(additional);
         self.velocities.reserve(additional);
         self.masses.reserve(additional);
         self.colors.reserve(additional);

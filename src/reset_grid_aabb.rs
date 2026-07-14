@@ -19,7 +19,6 @@ impl ResetGridAABB {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                first_aabb: broad_phase_buffers.first_aabb.as_entire_buffer_binding(),
                 grid_min_x: broad_phase_buffers.grid_min_x.as_entire_buffer_binding(),
                 grid_max_x: broad_phase_buffers.grid_max_x.as_entire_buffer_binding(),
                 grid_min_y: broad_phase_buffers.grid_min_y.as_entire_buffer_binding(),

@@ -81,9 +81,9 @@ impl CommandTimings {
         );
         encoder.copy_buffer_to_buffer(self.query_buffer.buffer(), 0, query_readback_buffer.buffer(), 0, None);
         self.requests_readback.clear();
-        self.requests_readback.extend(self.requests.drain(..));
+        self.requests_readback.append(&mut self.requests);
         CommandTimingsReader {
-            query_readback_buffer: query_readback_buffer,
+            query_readback_buffer,
             requests_readback: self.requests_readback.clone(),
             timestamp_period,
         }

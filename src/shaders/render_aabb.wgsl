@@ -1,8 +1,9 @@
-#import common::{ Camera, Flags, AABB, FLAG_DRAW_AABB }
+#import common::{ Camera, Flags, Position, FLAG_DRAW_AABB }
 
 @group(0) @binding(0) var<uniform> camera: Camera;
-@group(1) @binding(0) var<storage, read> flags: array<Flags>;
-@group(1) @binding(1) var<storage, read> aabbs: array<AABB>;
+@group(0) @binding(1) var<uniform> particle_radius: f32;
+@group(1) @binding(2) var<storage, read> flags: array<Flags>;
+@group(1) @binding(3) var<storage, read> positions: array<Position>;
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,
@@ -34,19 +35,18 @@ fn vs_main(
         }
     }
 
-    let aabb = aabbs[i];
-    let scale = (aabb.max - aabb.min);
-    let center = ((aabb.min + aabb.max) / vec2(2f));
+    let scale = particle_radius * 2;
+    let position = positions[i].inner;
     let model = mat4x4f(
-        scale.x, 0, 0, 0,
-        0, scale.y, 0, 0,
+        scale, 0, 0, 0,
+        0, scale, 0, 0,
         0, 0, 1, 0,
-        center.x, center.y, 0, 1,
+        position.x, position.y, 0, 1,
     );
     let vertex = UNIT_QUAD_VERTICES[vertex_index];
     out.clip_position = camera.inner * model * vec4f(vertex, 0, 1);
     out.flags = flags_;
-    out.scale = max(scale.x, scale.y);
+    out.scale = scale;
     out.quad_position = vertex;
 
     return out;

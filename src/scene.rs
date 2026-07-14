@@ -67,6 +67,8 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     };
     objects.extend(particles);
 
+    println!("positions[0]: {:?}", objects.positions[0]);
+
     let _borders = world_borders(world_aabb);
     // for border in _borders {
     //     objects.push(border);

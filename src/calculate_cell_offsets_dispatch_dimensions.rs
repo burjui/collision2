@@ -27,11 +27,11 @@ impl CellIterationDispatchDimensions {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
+                particle_radius: broad_phase_buffers.particle_radius.as_entire_buffer_binding(),
                 grid_min_x: broad_phase_buffers.grid_min_x.as_entire_buffer_binding(),
                 grid_max_x: broad_phase_buffers.grid_max_x.as_entire_buffer_binding(),
                 grid_min_y: broad_phase_buffers.grid_min_y.as_entire_buffer_binding(),
                 grid_max_y: broad_phase_buffers.grid_max_y.as_entire_buffer_binding(),
-                cell_size: broad_phase_buffers.cell_size.as_entire_buffer_binding(),
                 grid_size_x: broad_phase_buffers.grid_size_x.as_entire_buffer_binding(),
                 grid_size_y: broad_phase_buffers.grid_size_y.as_entire_buffer_binding(),
                 cell_offsets_dispatch_dimensions: cell_offsets_dispatch_dimensions.as_entire_buffer_binding(),

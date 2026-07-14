@@ -24,6 +24,14 @@ struct Shape {
     inner: u32
 }
 
+struct Position {
+    inner: vec2f
+}
+
+struct Radius {
+    inner: f32
+}
+
 struct AABB {
     min: vec2f,
     max: vec2f
@@ -66,6 +74,8 @@ const MAX_CANDIDATES_PER_OBJECT: u32 = 16;
 const MAX_OBJECTS_PER_CELL: u32 = 2;
 
 const MAX_DISPATCH_DIMENSION: u32 = 65535;
+
+const INFINITY: f32 = 1e10;
 
 fn flat_invocation_index(gid: vec3u, nwg: vec3u, workgroup_size: u32) -> u32 {
     return gid.x +

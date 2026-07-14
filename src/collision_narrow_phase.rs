@@ -33,6 +33,7 @@ impl NarrowPhase {
         dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
         stiffness: DeviceBuffer<f32>,
         restitution: DeviceBuffer<f32>,
+        particle_radius: DeviceBuffer<f32>,
         broad_phase_buffers: &BroadPhaseBuffers,
         masses: DeviceBuffer<Mass>,
         forces: DeviceBuffer<u32>,
@@ -43,6 +44,7 @@ impl NarrowPhase {
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 stiffness: stiffness.as_entire_buffer_binding(),
                 restitution: restitution.as_entire_buffer_binding(),
+                particle_radius: particle_radius.as_entire_buffer_binding(),
             }),
         );
         let input_bind_group = WgpuBindGroup2::from_bindings(
@@ -76,7 +78,7 @@ impl NarrowPhase {
             WgpuBindGroup1::from_bindings(
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
-                    aabbs: phase_state.aabbs().as_entire_buffer_binding(),
+                    positions: phase_state.positions().as_entire_buffer_binding(),
                     velocities: phase_state.velocities().as_entire_buffer_binding(),
                     masses: self.masses.as_entire_buffer_binding(),
                 }),

@@ -4,13 +4,13 @@ use crate::{
     command_timings::CommandTimings,
     config::CONFIG,
     device_buffer::DeviceBuffer,
-    shaders::common::{AABB, Flags, Velocity},
+    shaders::common::{Flags, Position, Velocity},
 };
 
 /// Set of object phase states (change every frame)
 #[derive(Clone)]
 pub struct PhaseState {
-    aabbs: DeviceBuffer<AABB>,
+    positions: DeviceBuffer<Position>,
     velocities: DeviceBuffer<Velocity>,
     flags: DeviceBuffer<Flags>,
     command_timings: CommandTimings,
@@ -21,19 +21,19 @@ impl PhaseState {
         index: usize,
         device: &Device,
         object_count: u32,
-        initial_aabbs: &[AABB],
+        initial_positions: &[Position],
         initial_velocities: &[Velocity],
         initial_flags: &[Flags],
     ) -> Self {
-        let aabbs_name = format!("aabbs #{index}");
+        let positions_name = format!("positions #{index}");
         let velocities_name = format!("velocities #{index}");
         let flags_name = format!("flags #{index}");
-        let (aabbs, velocities, flags) = if index == 0 {
+        let (positions, velocities, flags) = if index == 0 {
             (
                 DeviceBuffer::from_data(
                     device,
-                    initial_aabbs,
-                    &aabbs_name,
+                    initial_positions,
+                    &positions_name,
                     BufferUsages::STORAGE | BufferUsages::COPY_SRC,
                 ),
                 DeviceBuffer::from_data(
@@ -46,7 +46,12 @@ impl PhaseState {
             )
         } else {
             (
-                DeviceBuffer::new(device, object_count, &aabbs_name, BufferUsages::STORAGE | BufferUsages::COPY_SRC),
+                DeviceBuffer::new(
+                    device,
+                    object_count,
+                    &positions_name,
+                    BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+                ),
                 DeviceBuffer::new(
                     device,
                     object_count,
@@ -57,15 +62,15 @@ impl PhaseState {
             )
         };
         Self {
-            aabbs,
+            positions,
             velocities,
             flags,
             command_timings: CommandTimings::new(device, 20),
         }
     }
 
-    pub fn aabbs(&self) -> &DeviceBuffer<AABB> {
-        &self.aabbs
+    pub fn positions(&self) -> &DeviceBuffer<Position> {
+        &self.positions
     }
 
     pub fn velocities(&self) -> &DeviceBuffer<Velocity> {
@@ -106,7 +111,7 @@ impl PhaseStateRing {
         device: &Device,
         object_count: u32,
         initial_flags: &[Flags],
-        initial_aabbs: &[AABB],
+        initial_positions: &[Position],
         initial_velocities: &[Velocity],
     ) -> Self {
         assert!(config.n_frames >= if CONFIG.headless { 0 } else { 1 });
@@ -115,7 +120,7 @@ impl PhaseStateRing {
         Self {
             capacity,
             states: (0..capacity)
-                .map(|i| PhaseState::new(i, device, object_count, initial_aabbs, initial_velocities, initial_flags))
+                .map(|i| PhaseState::new(i, device, object_count, initial_positions, initial_velocities, initial_flags))
                 .collect(),
             frame_index: 0,
             compute_index: 0,

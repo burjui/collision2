@@ -6,7 +6,6 @@ var<immediate> thread_offset: u32;
 
 @group(0) @binding(1) var<uniform> grid_min_x: f32;
 @group(0) @binding(2) var<uniform> grid_min_y: f32;
-@group(0) @binding(3) var<uniform> cell_size: f32;
 @group(0) @binding(4) var<uniform> grid_size_x: u32;
 @group(0) @binding(5) var<uniform> grid_size_y: u32;
 @group(0) @binding(6) var<storage, read> cell_object_count: array<u32>;

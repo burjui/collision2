@@ -29,6 +29,7 @@ impl AabbRenderer {
         device: &Device,
         swapchain_format: TextureFormat,
         camera_buffer: DeviceBuffer<Camera>,
+        particle_radius: DeviceBuffer<f32>,
         n_aabbs: u32,
         phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
@@ -61,6 +62,7 @@ impl AabbRenderer {
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 camera: camera_buffer.as_entire_buffer_binding(),
+                particle_radius: particle_radius.as_entire_buffer_binding(),
             }),
         );
         let phase_state_cache = PhaseStateCache::new(phase_state_ring_config);
@@ -78,7 +80,7 @@ impl AabbRenderer {
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
                     flags: phase_state.flags().as_entire_buffer_binding(),
-                    aabbs: phase_state.aabbs().as_entire_buffer_binding(),
+                    positions: phase_state.positions().as_entire_buffer_binding(),
                 }),
             )
         });

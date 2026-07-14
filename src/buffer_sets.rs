@@ -1,15 +1,14 @@
 use crate::{
     device_buffer::DeviceBuffer,
-    shaders::common::{AABB, CellPosition, CollisionCandidate, Mass},
+    shaders::common::{CellPosition, CollisionCandidate, Mass},
 };
 
 pub struct BroadPhaseBuffers {
-    pub first_aabb: DeviceBuffer<AABB>,
+    pub particle_radius: DeviceBuffer<f32>,
     pub grid_min_x: DeviceBuffer<f32>,
     pub grid_max_x: DeviceBuffer<f32>,
     pub grid_min_y: DeviceBuffer<f32>,
     pub grid_max_y: DeviceBuffer<f32>,
-    pub cell_size: DeviceBuffer<f32>,
     pub grid_size_x: DeviceBuffer<u32>,
     pub grid_size_y: DeviceBuffer<u32>,
     pub object_cells: DeviceBuffer<CellPosition>,

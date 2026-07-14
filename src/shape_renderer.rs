@@ -30,6 +30,7 @@ impl ShapeRenderer {
         device: &Device,
         swapchain_format: TextureFormat,
         camera: DeviceBuffer<Camera>,
+        particle_radius: DeviceBuffer<f32>,
         energy_spectrum_width: DeviceBuffer<f32>,
         colors: DeviceBuffer<Color>,
         shapes: DeviceBuffer<Shape>,
@@ -61,6 +62,7 @@ impl ShapeRenderer {
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 camera: camera.as_entire_buffer_binding(),
+                particle_radius: particle_radius.as_entire_buffer_binding(),
                 energy_spectrum_width: energy_spectrum_width.as_entire_buffer_binding(),
                 colors: colors.as_entire_buffer_binding(),
                 shapes: shapes.as_entire_buffer_binding(),
@@ -81,7 +83,7 @@ impl ShapeRenderer {
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
                     flags: phase_state.flags().as_entire_buffer_binding(),
-                    aabbs: phase_state.aabbs().as_entire_buffer_binding(),
+                    positions: phase_state.positions().as_entire_buffer_binding(),
                     velocities: phase_state.velocities().as_entire_buffer_binding(),
                 }),
             )

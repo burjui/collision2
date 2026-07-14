@@ -25,6 +25,7 @@ impl AssignObjectCells {
         device: &Device,
         object_count: u32,
         object_count_buffer: DeviceBuffer<u32>,
+        particle_radius: DeviceBuffer<f32>,
         broad_phase_buffers: &BroadPhaseBuffers,
         phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
@@ -32,10 +33,11 @@ impl AssignObjectCells {
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.as_entire_buffer_binding(),
+                particle_radius: particle_radius.as_entire_buffer_binding(),
                 grid_min_x: broad_phase_buffers.grid_min_x.as_entire_buffer_binding(),
                 grid_min_y: broad_phase_buffers.grid_min_y.as_entire_buffer_binding(),
-                cell_size: broad_phase_buffers.cell_size.as_entire_buffer_binding(),
                 grid_size_x: broad_phase_buffers.grid_size_x.as_entire_buffer_binding(),
+                grid_size_y: broad_phase_buffers.grid_size_y.as_entire_buffer_binding(),
                 cell_object_count: broad_phase_buffers.cell_object_count.as_entire_buffer_binding(),
                 object_cells: broad_phase_buffers.object_cells.as_entire_buffer_binding(),
             }),
@@ -55,7 +57,7 @@ impl AssignObjectCells {
             WgpuBindGroup1::from_bindings(
                 device,
                 WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
-                    aabbs: phase_state.aabbs().as_entire_buffer_binding(),
+                    positions: phase_state.positions().as_entire_buffer_binding(),
                 }),
             )
         });

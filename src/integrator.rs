@@ -11,8 +11,7 @@ use crate::{
         integrate::{
             BlackHole, WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1,
             WgpuBindGroup1Entries, WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries,
-            WgpuBindGroup2EntriesParams, WgpuBindGroup3, WgpuBindGroup3Entries, WgpuBindGroup3EntriesParams,
-            compute::create_integrate_pipeline_embed_source,
+            WgpuBindGroup2EntriesParams, compute::create_integrate_pipeline_embed_source,
         },
     },
     util::{PhaseStateCache, dispatch_compute},
@@ -22,9 +21,8 @@ pub struct Integrator {
     object_count: u32,
     main_bind_group: WgpuBindGroup0,
     blackhole_bind_group: WgpuBindGroup1,
-    collision_bind_group: WgpuBindGroup2,
     pipeline: ComputePipeline,
-    phase_state_cache: PhaseStateCache<WgpuBindGroup3>,
+    phase_state_cache: PhaseStateCache<WgpuBindGroup2>,
 }
 
 impl Integrator {
@@ -37,6 +35,7 @@ impl Integrator {
         device: &Device,
         object_count: u32,
         object_count_buffer: DeviceBuffer<u32>,
+        particle_radius: DeviceBuffer<f32>,
         constraints: DeviceBuffer<AABB>,
         dt: DeviceBuffer<f32>,
         masses: DeviceBuffer<Mass>,
@@ -89,8 +88,10 @@ impl Integrator {
                 gravitational_constant: gravitational_constant.as_entire_buffer_binding(),
                 global_acceleration: global_acceleration_buffer.as_entire_buffer_binding(),
                 object_count: object_count_buffer.as_entire_buffer_binding(),
+                particle_radius: particle_radius.as_entire_buffer_binding(),
                 constraints: constraints.as_entire_buffer_binding(),
                 masses: masses.as_entire_buffer_binding(),
+                forces: forces.as_entire_buffer_binding(),
             }),
         );
         let blackhole_bind_group = WgpuBindGroup1::from_bindings(
@@ -102,18 +103,11 @@ impl Integrator {
                 blackholes: blackholes_buffer.as_entire_buffer_binding(),
             }),
         );
-        let collision_bind_group = WgpuBindGroup2::from_bindings(
-            device,
-            WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
-                forces: forces.as_entire_buffer_binding(),
-            }),
-        );
         let phase_state_cache = PhaseStateCache::new(phase_state_ring_config);
         Self {
             object_count,
             main_bind_group,
             blackhole_bind_group,
-            collision_bind_group,
             pipeline,
             phase_state_cache,
         }
@@ -121,15 +115,15 @@ impl Integrator {
 
     pub fn prepare(&mut self, device: &Device, phase_state_index: usize, src: &PhaseState, dst: &PhaseState) {
         self.phase_state_cache.update(phase_state_index, || {
-            WgpuBindGroup3::from_bindings(
+            WgpuBindGroup2::from_bindings(
                 device,
-                WgpuBindGroup3Entries::new(WgpuBindGroup3EntriesParams {
+                WgpuBindGroup2Entries::new(WgpuBindGroup2EntriesParams {
                     flags: src.flags().as_entire_buffer_binding(),
-                    aabbs: src.aabbs().as_entire_buffer_binding(),
+                    positions: src.positions().as_entire_buffer_binding(),
                     velocities: src.velocities().as_entire_buffer_binding(),
                     integrated_flags: dst.flags().as_entire_buffer_binding(),
                     integrated_velocities: dst.velocities().as_entire_buffer_binding(),
-                    integrated_aabbs: dst.aabbs().as_entire_buffer_binding(),
+                    integrated_positions: dst.positions().as_entire_buffer_binding(),
                 }),
             )
         });
@@ -144,7 +138,6 @@ impl ComputeStage for Integrator {
         compute_pass.set_pipeline(&self.pipeline);
         self.main_bind_group.set(compute_pass);
         self.blackhole_bind_group.set(compute_pass);
-        self.collision_bind_group.set(compute_pass);
         phase_state_bind_group.set(compute_pass);
         dispatch_compute(compute_pass, self.object_count);
     }

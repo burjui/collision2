@@ -1,11 +1,12 @@
 #define_import_path collision_narrow_phase
 
-#import common::{ AABB, Mass, Velocity, CollisionCandidate, flat_invocation_index, WORKGROUP_SIZE }
+#import common::{ Position, Mass, Velocity, CollisionCandidate, flat_invocation_index, WORKGROUP_SIZE }
 
 @group(0) @binding(0) var<uniform> stiffness: f32;
 @group(0) @binding(1) var<uniform> restitution: f32;
+@group(0) @binding(2) var<uniform> particle_radius: f32;
 
-@group(1) @binding(0) var<storage, read> aabbs: array<AABB>;
+@group(1) @binding(0) var<storage, read> positions: array<Position>;
 @group(1) @binding(1) var<storage, read> velocities: array<Velocity>;
 @group(1) @binding(2) var<storage, read> masses: array<Mass>;
 
@@ -33,36 +34,29 @@ fn narrow_phase(
     let a = candidates.a;
     let b = candidates.b;
     let f = collision_repulsion_pair(
-        aabbs[a], velocities[a].inner, masses[a].inner,
-        aabbs[b], velocities[b].inner, masses[b].inner
+        positions[a], velocities[a].inner, masses[a].inner,
+        positions[b], velocities[b].inner, masses[b].inner
     );
     cas_add_force(a, f);
     cas_add_force(b, -f);
 }
 
 fn collision_repulsion_pair(
-    aabb1: AABB,
+    x1: Position,
     v1: vec2f,
     m1: f32,
-    aabb2: AABB,
+    x2: Position,
     v2: vec2f,
     m2: f32,
 ) -> vec2f {
-    let size1 = aabb1.max - aabb1.min;
-    let size2 = aabb2.max - aabb2.min;
-    let x1 = (aabb1.min + aabb1.max) * 0.5;
-    let x2 = (aabb2.min + aabb2.max) * 0.5;
-    let separation_vector = x1 - x2;
+    let separation_vector = x1.inner - x2.inner;
     let distance = length(separation_vector);
     if (distance < 1e-10) {
         return vec2f(0.0);
     }
 
-    let r1 = 0.5 * size1.x; // assuming circles
-    let r2 = 0.5 * size2.x;
-    let interaction_distance = r1 + r2;
-
     let n = separation_vector / distance;
+    let interaction_distance = particle_radius * 2;
     let penetration = interaction_distance - distance;
     var f_elastic = vec2f();
     f_elastic = STIFFNESS * max(0.0, penetration) * n;
