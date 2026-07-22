@@ -98,7 +98,7 @@ impl<T> DeviceBuffer<T> {
         let buffer = self.buffer.clone();
         self.buffer.map_async(MapMode::Read, .., move |result| {
             callback(result.map(|_| {
-                let view = buffer.get_mapped_range(0..copy_size);
+                let view = buffer.get_mapped_range(0..copy_size).unwrap();
                 let data = bytemuck::cast_slice(&view).to_vec();
                 drop(view);
                 buffer.unmap();

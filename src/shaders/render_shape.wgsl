@@ -7,7 +7,7 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4f,
     @location(0) quad_position: vec2f,
     @location(1) color: vec4f,
-    @location(2) shape: u32
+    @location(2) @interpolate(flat) shape: u32
 };
 
 const SHAPE_RECT: u32 = 0;

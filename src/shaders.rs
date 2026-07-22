@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.22.2
 // Changes made to this file will not be saved.
-// SourceHash: ee336168f9f238dd0c63a49b4d5cfa844b635af1a3480ab88fe11d7ba8e166d0
+// SourceHash: 50549a7ef365528f283725727d5d9f46420bb358b376a2bbbf70cfa43c4b3610
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -447,7 +447,7 @@ pub mod render_shape {
     #[derive(Debug)]
     pub struct VertexEntry<const N: usize> {
         pub entry_point: &'static str,
-        pub buffers: [wgpu::VertexBufferLayout<'static>; N],
+        pub buffers: [Option<wgpu::VertexBufferLayout<'static>>; N],
         pub constants: Vec<(&'static str, f64)>,
     }
     pub fn vertex_state<'a, const N: usize>(
@@ -978,7 +978,7 @@ pub mod render_aabb {
     #[derive(Debug)]
     pub struct VertexEntry<const N: usize> {
         pub entry_point: &'static str,
-        pub buffers: [wgpu::VertexBufferLayout<'static>; N],
+        pub buffers: [Option<wgpu::VertexBufferLayout<'static>>; N],
         pub constants: Vec<(&'static str, f64)>,
     }
     pub fn vertex_state<'a, const N: usize>(

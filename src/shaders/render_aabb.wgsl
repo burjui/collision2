@@ -7,7 +7,7 @@
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,
-    @location(0) flags: u32,
+    @location(0) @interpolate(flat) flags: u32,
     @location(1) scale: f32,
     @location(2) quad_position: vec2f,
 }

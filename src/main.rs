@@ -309,6 +309,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 if let Some(state) = &mut self.sim_state {
                     state.surface_config.width = size.width;
                     state.surface_config.height = size.height;
+                    self.device.poll(PollType::wait_indefinitely()).unwrap();
                     state.surface.configure(&self.device, &state.surface_config);
                 }
             }
@@ -336,7 +337,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         |_| {},
                     );
                     state.window.pre_present_notify();
-                    surface_texture.present();
+                    self.queue.present(surface_texture);
                 }
             }
 
