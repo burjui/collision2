@@ -10,6 +10,8 @@ _Everything_ is done on the GPU: no CPU<->GPU data transfer after the data is up
 - Symplectic Euler integrator.
 - "Black holes"! Only gravitational attraction and frame dragging (Lense-Thirring) are implemented, no Minkowsky space-time or anything like that. Check out `integrator.rs` and the corresponding `integrate.wgsl` for details.
 - Zoom with mouse wheel.
+- Headless mode for benchmarking and recording purposes
+- Can record the simulation to a series of PNGs
 - Simulation step and other parameters are configurable via environment variables corresponsing to the fields of the Config struct in `src/config.rs`.
 
 Notes
