@@ -130,19 +130,19 @@ fn main() {
     )));
 
     let exit_requested = Arc::new(AtomicBool::new(false));
-    let event_loop = if CONFIG.headless {
-        None
-    } else {
-        Some(EventLoop::with_user_event().build().expect("Failed to create event loop"))
-    };
-    let event_loop_proxy = event_loop.as_ref().map(|event_loop| event_loop.create_proxy());
-
     let render_parameters = RenderParameters {
         offset: Vector2::new(world_aabb.size().x * 0.5, -world_aabb.size().y * 0.5),
         ..Default::default()
     };
     let pause_simulation = Arc::new(AtomicBool::new(false));
     let particle_radius = DeviceBuffer::from_data(&device, &[CONFIG.particle_radius], "particle radius", UNIFORM);
+    let can_start = Arc::new(AtomicBool::new(CONFIG.headless));
+    let event_loop = if CONFIG.headless {
+        None
+    } else {
+        Some(EventLoop::with_user_event().build().expect("Failed to create event loop"))
+    };
+    let event_loop_proxy = event_loop.as_ref().map(|event_loop| event_loop.create_proxy());
     let sim_join_handle = spawn_simulation_thread(
         device.clone(),
         queue.clone(),
@@ -157,9 +157,10 @@ fn main() {
         shapes.clone(),
         masses.clone(),
         exit_requested.clone(),
-        event_loop_proxy.clone(),
+        event_loop_proxy,
         render_parameters,
         pause_simulation.clone(),
+        can_start.clone(),
     );
 
     let poll_join_handle = thread::spawn({
@@ -175,7 +176,12 @@ fn main() {
         }
     });
 
-    if let Some(event_loop) = event_loop {
+    if CONFIG.headless {
+        println!("Running in headless mode");
+        sim_join_handle.join().unwrap();
+        poll_join_handle.join().unwrap();
+    } else {
+        println!("Running in windowed mode");
         let mut app = App {
             wgpu_instance,
             adapter,
@@ -196,11 +202,9 @@ fn main() {
             exit_requested,
             desired_maximum_frame_latency: phase_state_ring_config.n_frames,
             pause_simulation: pause_simulation.clone(),
+            can_start,
         };
-        event_loop.run_app(&mut app).expect("Failed to run app");
-    } else {
-        sim_join_handle.join().unwrap();
-        poll_join_handle.join().unwrap();
+        event_loop.unwrap().run_app(&mut app).expect("Failed to run app");
     }
 }
 
@@ -224,6 +228,7 @@ struct App<'a> {
     exit_requested: Arc<AtomicBool>,
     desired_maximum_frame_latency: usize,
     pause_simulation: Arc<AtomicBool>,
+    can_start: Arc<AtomicBool>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -262,11 +267,14 @@ struct SimState<'a> {
 
 impl ApplicationHandler<AppEvent> for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        println!("Initializing window");
         let window = create_window(event_loop);
         let window_size = window.inner_size();
         if CONFIG.printouts {
             println!("Window size: {}x{}", window_size.width, window_size.height);
         }
+
+        println!("Initializing surface");
 
         let surface = self.wgpu_instance.create_surface(window.clone()).unwrap();
         let (surface_config, swapchain_format) =
@@ -301,6 +309,9 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             surface,
             surface_config,
         });
+
+        println!("Surface initialized");
+        self.can_start.store(true, Ordering::SeqCst);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
@@ -309,13 +320,18 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 if let Some(state) = &mut self.sim_state {
                     state.surface_config.width = size.width;
                     state.surface_config.height = size.height;
+                    let was_paused = self.pause_simulation.swap(true, Ordering::SeqCst);
                     self.device.poll(PollType::wait_indefinitely()).unwrap();
                     state.surface.configure(&self.device, &state.surface_config);
+                    self.device.poll(PollType::wait_indefinitely()).unwrap();
+                    self.pause_simulation.store(was_paused, Ordering::SeqCst);
                 }
             }
 
             WindowEvent::RedrawRequested => {
-                if let Some(state) = &mut self.sim_state {
+                if let Some(state) = &mut self.sim_state
+                    && !self.pause_simulation.load(Ordering::Relaxed)
+                {
                     let view_size = state.window.inner_size();
                     let world_height = self.world_aabb.max().y - self.world_aabb.min().y;
                     let camera_matrix = orthographic_camera(view_size.cast(), world_height, &self.render_parameters);
@@ -470,7 +486,7 @@ fn init_surface(
         desired_maximum_frame_latency: u32::try_from(desired_maximum_frame_latency).unwrap(),
         ..surface.get_default_config(adapter, window_size.width, window_size.height).unwrap()
     };
-    surface.configure(device, &surface_config);
+    surface.configure(&device, &surface_config);
     let swapchain_capabilities = surface.get_capabilities(adapter);
     let swapchain_format = swapchain_capabilities.formats[0];
     (surface_config, swapchain_format)
@@ -562,9 +578,17 @@ fn spawn_simulation_thread(
     event_loop_proxy: Option<EventLoopProxy<AppEvent>>,
     render_parameters: RenderParameters,
     pause_simulation: Arc<AtomicBool>,
+    can_start: Arc<AtomicBool>,
 ) -> JoinHandle<()> {
-    thread::spawn({
+    thread::spawn(move || {
         const EXPORT_FRAME_SIZE: PhysicalSize<u32> = PhysicalSize::new(1920, 1080);
+
+        println!("Waiting for surface initialization");
+        while !can_start.load(Ordering::SeqCst) {
+            thread::yield_now();
+        }
+
+        println!("Starting simulation thread");
 
         let dt: f32 = CONFIG.dt;
         let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", UNIFORM);
@@ -736,7 +760,7 @@ fn spawn_simulation_thread(
             std::fs::create_dir_all(output_path).unwrap();
         }
 
-        move || loop {
+        loop {
             if exit_requested.load(Ordering::Relaxed) {
                 break;
             }
@@ -751,19 +775,17 @@ fn spawn_simulation_thread(
                 print_sim_rate();
                 stdout().flush().unwrap();
                 exit_requested.store(true, Ordering::SeqCst);
-                if let Some(event_loop_proxy) = &event_loop_proxy
-                    && CONFIG.exit_at_limit
-                {
-                    event_loop_proxy.send_event(AppEvent::ExitEventLoop).unwrap();
+                if let Some(event_loop_proxy) = &event_loop_proxy {
+                    let _ = event_loop_proxy.send_event(AppEvent::ExitEventLoop);
                 }
                 break;
             }
 
-            if let Some(event_loop_proxy) = &event_loop_proxy
-                && last_frame_instant.elapsed() >= Duration::from_secs_f32(1.0 / CONFIG.fps)
-            {
-                event_loop_proxy.send_event(AppEvent::RedrawRequested).unwrap();
+            if last_frame_instant.elapsed() >= Duration::from_secs_f32(1.0 / CONFIG.fps) {
                 last_frame_instant = Instant::now();
+                if let Some(event_loop_proxy) = &event_loop_proxy {
+                    let _ = event_loop_proxy.send_event(AppEvent::RedrawRequested);
+                }
             }
 
             if pause_simulation.load(Ordering::Relaxed) {

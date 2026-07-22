@@ -137,7 +137,7 @@ fn default_printouts() -> bool {
 }
 
 fn default_fps() -> f32 {
-    30.0
+    60.0
 }
 
 fn default_world_size() -> String {
