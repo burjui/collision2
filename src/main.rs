@@ -42,10 +42,10 @@ use pollster::block_on;
 use shaders::common::Mass;
 use wgpu::{
     Adapter, BufferUsages, CommandEncoder, CommandEncoderDescriptor, ComputePassDescriptor, CurrentSurfaceTexture,
-    Device, DeviceDescriptor, Extent3d, InstanceDescriptor, Origin3d, PollType, PowerPreference, PresentMode, Queue,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, Surface, SurfaceConfiguration,
-    TexelCopyBufferInfo, TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureFormat, TextureUsages,
-    TextureView, TextureViewDescriptor, wgt::TextureDescriptor,
+    Device, DeviceDescriptor, Extent3d, InstanceDescriptor, Origin3d, PollType, PresentMode, Queue,
+    RenderPassColorAttachment, RenderPassDescriptor, Surface, SurfaceConfiguration, TexelCopyBufferInfo,
+    TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureFormat, TextureUsages, TextureView,
+    TextureViewDescriptor, util::initialize_adapter_from_env_or_default, wgt::TextureDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
@@ -427,12 +427,8 @@ fn create_window(event_loop: &ActiveEventLoop) -> Arc<Window> {
 }
 
 fn init_wgpu(instance: &wgpu::Instance) -> (Adapter, Device, Queue) {
-    let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
-        power_preference: PowerPreference::from_env().unwrap_or(PowerPreference::HighPerformance),
-        force_fallback_adapter: false,
-        compatible_surface: None,
-    }))
-    .expect("Failed to find an appropriate adapter");
+    let adapter = block_on(initialize_adapter_from_env_or_default(&instance, None))
+        .expect("Failed to find an appropriate adapter");
 
     let required_features = wgpu::Features::POLYGON_MODE_LINE
         | wgpu::Features::IMMEDIATES
