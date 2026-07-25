@@ -6,6 +6,7 @@ pub mod buffer_sets;
 pub mod calculate_cell_offsets;
 pub mod calculate_cell_offsets_dispatch_dimensions;
 pub mod calculate_grid_aabb;
+pub mod camera;
 pub mod collision_broad_phase_grid;
 pub mod collision_narrow_phase;
 pub mod collision_narrow_phase_dispatch_dimensions;
@@ -17,6 +18,8 @@ pub mod integrator;
 pub mod objects;
 pub mod phase_state;
 pub mod populate_grid_cells;
+pub mod recorder;
+pub mod renderer;
 pub mod reset_grid_aabb;
 pub mod scene;
 pub mod shaders;
@@ -26,7 +29,6 @@ pub mod util;
 use core::panic;
 use std::{
     io::{Write as _, stdout},
-    ops::Range,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -36,16 +38,14 @@ use std::{
 };
 
 use crossbeam::channel;
-use image::{ImageBuffer, Rgba};
 use nalgebra::Vector2;
 use pollster::block_on;
+use renderer::RenderParameters;
 use shaders::common::Mass;
 use wgpu::{
-    Adapter, BufferUsages, CommandEncoder, CommandEncoderDescriptor, ComputePassDescriptor, CurrentSurfaceTexture,
-    Device, DeviceDescriptor, Extent3d, InstanceDescriptor, Origin3d, PollType, PresentMode, Queue,
-    RenderPassColorAttachment, RenderPassDescriptor, Surface, SurfaceConfiguration, TexelCopyBufferInfo,
-    TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureFormat, TextureUsages, TextureView,
-    TextureViewDescriptor, util::initialize_adapter_from_env_or_default, wgt::TextureDescriptor,
+    Adapter, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, CurrentSurfaceTexture, Device,
+    DeviceDescriptor, InstanceDescriptor, PollType, PresentMode, Queue, Surface, SurfaceConfiguration, TextureFormat,
+    TextureViewDescriptor, util::initialize_adapter_from_env_or_default,
 };
 use winit::{
     application::ApplicationHandler,
@@ -63,6 +63,7 @@ use crate::{
     calculate_cell_offsets::CalculateCellOffsets,
     calculate_cell_offsets_dispatch_dimensions::CellIterationDispatchDimensions,
     calculate_grid_aabb::CalculateGridAABB,
+    camera::orthographic_camera,
     collision_broad_phase_grid::CollisionBroadPhaseGrid,
     collision_narrow_phase::NarrowPhase,
     collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgs,
@@ -73,6 +74,8 @@ use crate::{
     objects::Objects,
     phase_state::{PhaseStateRing, PhaseStateRingConfig},
     populate_grid_cells::PopulateGridCells,
+    recorder::{Recorder, RecorderConfig},
+    renderer::render_scene,
     reset_grid_aabb::ResetGridAABB,
     scene::create_scene,
     shaders::{
@@ -87,7 +90,6 @@ const STORAGE: BufferUsages = BufferUsages::STORAGE;
 const COPY_DST: BufferUsages = BufferUsages::COPY_DST;
 const COPY_SRC: BufferUsages = BufferUsages::COPY_SRC;
 const INDIRECT: BufferUsages = BufferUsages::INDIRECT;
-const MAP_READ: BufferUsages = BufferUsages::MAP_READ;
 
 fn main() {
     println!("{:#?}", *CONFIG);
@@ -136,7 +138,7 @@ fn main() {
     };
     let pause_simulation = Arc::new(AtomicBool::new(false));
     let particle_radius = DeviceBuffer::from_data(&device, &[CONFIG.particle_radius], "particle radius", UNIFORM);
-    let can_start = Arc::new(AtomicBool::new(CONFIG.headless));
+    let surface_initialized = Arc::new(AtomicBool::new(CONFIG.headless));
     let event_loop = if CONFIG.headless {
         None
     } else {
@@ -160,7 +162,7 @@ fn main() {
         event_loop_proxy,
         render_parameters,
         pause_simulation.clone(),
-        can_start.clone(),
+        surface_initialized.clone(),
     );
 
     let poll_join_handle = thread::spawn({
@@ -202,7 +204,7 @@ fn main() {
             exit_requested,
             desired_maximum_frame_latency: phase_state_ring_config.n_frames,
             pause_simulation: pause_simulation.clone(),
-            can_start,
+            surface_initialized,
         };
         event_loop.unwrap().run_app(&mut app).expect("Failed to run app");
     }
@@ -228,32 +230,13 @@ struct App<'a> {
     exit_requested: Arc<AtomicBool>,
     desired_maximum_frame_latency: usize,
     pause_simulation: Arc<AtomicBool>,
-    can_start: Arc<AtomicBool>,
+    surface_initialized: Arc<AtomicBool>,
 }
 
 #[derive(Copy, Clone, Debug)]
 enum AppEvent {
     RedrawRequested,
     ExitEventLoop,
-}
-
-#[derive(Copy, Clone)]
-struct RenderParameters {
-    enabled: bool,
-    draw_aabbs: bool,
-    zoom: f32,
-    offset: Vector2<f32>,
-}
-
-impl Default for RenderParameters {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            draw_aabbs: false,
-            zoom: 1.0,
-            offset: Vector2::new(0.0, 0.0),
-        }
-    }
 }
 
 struct SimState<'a> {
@@ -279,7 +262,6 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         let surface = self.wgpu_instance.create_surface(window.clone()).unwrap();
         let (surface_config, swapchain_format) =
             init_surface(self.desired_maximum_frame_latency, &surface, &self.adapter, &self.device, &window);
-
         let camera = DeviceBuffer::<Camera>::new(&self.device, 1, "camera", UNIFORM | COPY_DST);
         let shape_renderer = ShapeRenderer::new(
             &self.device,
@@ -297,10 +279,8 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             swapchain_format,
             camera.clone(),
             self.particle_radius.clone(),
-            self.object_count,
             self.phase_state_ring_config,
         );
-
         self.sim_state = Some(SimState {
             shape_renderer,
             aabb_renderer,
@@ -309,14 +289,12 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             surface,
             surface_config,
         });
-
-        println!("Surface initialized");
-        self.can_start.store(true, Ordering::SeqCst);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) => {
+                println!("Resizing window to {}x{}", size.width, size.height);
                 if let Some(state) = &mut self.sim_state {
                     state.surface_config.width = size.width;
                     state.surface_config.height = size.height;
@@ -325,6 +303,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     state.surface.configure(&self.device, &state.surface_config);
                     self.device.poll(PollType::wait_indefinitely()).unwrap();
                     self.pause_simulation.store(was_paused, Ordering::SeqCst);
+                    self.surface_initialized.store(true, Ordering::SeqCst);
                 }
             }
 
@@ -334,7 +313,12 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 {
                     let view_size = state.window.inner_size();
                     let world_height = self.world_aabb.max().y - self.world_aabb.min().y;
-                    let camera_matrix = orthographic_camera(view_size.cast(), world_height, &self.render_parameters);
+                    let camera_matrix = orthographic_camera(
+                        view_size.cast(),
+                        world_height,
+                        self.render_parameters.zoom,
+                        self.render_parameters.offset,
+                    );
                     state.camera.write(&self.queue, &[Camera::new(camera_matrix)]);
 
                     let CurrentSurfaceTexture::Success(surface_texture) = state.surface.get_current_texture() else {
@@ -342,14 +326,14 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     };
                     let surface_texture_view = surface_texture.texture.create_view(&TextureViewDescriptor::default());
                     render_scene(
+                        &self.device,
+                        &self.queue,
                         surface_texture_view,
                         &self.render_parameters,
                         &mut state.shape_renderer,
                         &mut state.aabb_renderer,
                         &self.phase_state_ring,
                         0..self.object_count,
-                        &self.device,
-                        &self.queue,
                         |_| {},
                     );
                     state.window.pre_present_notify();
@@ -437,14 +421,14 @@ fn key_pressed(event: &KeyEvent, key: KeyCode) -> bool {
 
 fn create_window(event_loop: &ActiveEventLoop) -> Arc<Window> {
     let mut window_attributes = WindowAttributes::default();
-    window_attributes.inner_size = Some(PhysicalSize::new(1600, 800).into());
+    window_attributes.inner_size = Some(PhysicalSize::new(1920, 1080).into());
     window_attributes.fullscreen = Some(Fullscreen::Borderless(None));
     let window = event_loop.create_window(window_attributes).expect("Failed to create window");
     Arc::new(window)
 }
 
 fn init_wgpu(instance: &wgpu::Instance) -> (Adapter, Device, Queue) {
-    let adapter = block_on(initialize_adapter_from_env_or_default(&instance, None))
+    let adapter = block_on(initialize_adapter_from_env_or_default(instance, None))
         .expect("Failed to find an appropriate adapter");
 
     let required_features = wgpu::Features::POLYGON_MODE_LINE
@@ -486,79 +470,10 @@ fn init_surface(
         desired_maximum_frame_latency: u32::try_from(desired_maximum_frame_latency).unwrap(),
         ..surface.get_default_config(adapter, window_size.width, window_size.height).unwrap()
     };
-    surface.configure(&device, &surface_config);
+    surface.configure(device, &surface_config);
     let swapchain_capabilities = surface.get_capabilities(adapter);
     let swapchain_format = swapchain_capabilities.formats[0];
     (surface_config, swapchain_format)
-}
-
-fn render_scene(
-    surface_texture_view: TextureView,
-    render_parameters: &RenderParameters,
-    shape_renderer: &mut ShapeRenderer,
-    aabb_renderer: &mut AabbRenderer,
-    phase_state_ring: &Arc<Mutex<PhaseStateRing>>,
-    instances: Range<u32>,
-    device: &Device,
-    queue: &Queue,
-    before_submit: impl FnOnce(&mut CommandEncoder),
-) {
-    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
-    let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(RenderPassColorAttachment {
-            view: &surface_texture_view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-
-    let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
-    let current_frame_index = phase_state_ring_guard.current_frame_index();
-    let current_frame = phase_state_ring_guard.current_frame().clone();
-    phase_state_ring_guard.advance_frame();
-    drop(phase_state_ring_guard);
-
-    if render_parameters.enabled {
-        shape_renderer.prepare(current_frame_index, device, &current_frame);
-        shape_renderer.render(&mut render_pass, instances.clone());
-    }
-    if render_parameters.draw_aabbs {
-        aabb_renderer.prepare(current_frame_index, device, &current_frame);
-        aabb_renderer.render(&mut render_pass);
-    }
-
-    drop(render_pass);
-
-    before_submit(&mut encoder);
-    queue.submit([encoder.finish()]);
-}
-
-fn orthographic_camera(view_size: PhysicalSize<f32>, world_height: f32, params: &RenderParameters) -> [[f32; 4]; 4] {
-    let aspect = view_size.width / view_size.height;
-    let world_width = world_height * aspect;
-    let left = -world_width * 0.5;
-    let right = world_width * 0.5;
-    let bottom = -world_height * 0.5;
-    let top = world_height * 0.5;
-    let sx = params.zoom * 2.0 / (right - left);
-    let sy = params.zoom * 2.0 / (top - bottom);
-    let tx = -params.offset.x * 2.0 / (right - left);
-    let ty = params.offset.y * 2.0 / (top - bottom);
-    [
-        [sx, 0.0, 0.0, 0.0],
-        [0.0, sy, 0.0, 0.0],
-        [0.0, 0.0, -1.0, 0.0],
-        [tx, ty, 0.0, 1.0],
-    ]
 }
 
 fn spawn_simulation_thread(
@@ -578,13 +493,13 @@ fn spawn_simulation_thread(
     event_loop_proxy: Option<EventLoopProxy<AppEvent>>,
     render_parameters: RenderParameters,
     pause_simulation: Arc<AtomicBool>,
-    can_start: Arc<AtomicBool>,
+    surface_initialized: Arc<AtomicBool>,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
-        const EXPORT_FRAME_SIZE: PhysicalSize<u32> = PhysicalSize::new(1920, 1080);
-
-        println!("Waiting for surface initialization");
-        while !can_start.load(Ordering::SeqCst) {
+        if !surface_initialized.load(Ordering::SeqCst) {
+            println!("Waiting for surface initialization");
+        }
+        while !surface_initialized.load(Ordering::SeqCst) {
             thread::yield_now();
         }
 
@@ -711,55 +626,23 @@ fn spawn_simulation_thread(
         let mut compute_submitted: usize = 0;
         let mut last_frame_instant = Instant::now();
         let start_instant = Instant::now();
-
-        // TODO factor out the frame export code
-        let export_frame_texture = device.create_texture(&TextureDescriptor {
-            label: Some("Frame export"),
-            size: Extent3d {
-                width: EXPORT_FRAME_SIZE.width,
-                height: EXPORT_FRAME_SIZE.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::Rgba8UnormSrgb,
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC | TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
+        let mut recorder = CONFIG.output_path.as_ref().map(|output_path| {
+            Recorder::new(RecorderConfig {
+                device: device.clone(),
+                queue: queue.clone(),
+                output_path: output_path.clone(),
+                world_aabb,
+                render_parameters,
+                particle_radius,
+                spectrum_width,
+                colors,
+                shapes,
+                masses,
+                phase_state_ring: phase_state_ring.clone(),
+                phase_state_ring_config,
+                object_count,
+            })
         });
-        let world_height = world_aabb.max().y - world_aabb.min().y;
-        let camera_matrix = orthographic_camera(EXPORT_FRAME_SIZE.cast(), world_height, &render_parameters);
-        let camera_buffer =
-            DeviceBuffer::<Camera>::from_data(&device, &[Camera::new(camera_matrix)], "camera", UNIFORM | COPY_DST);
-        let mut shape_renderer = ShapeRenderer::new(
-            &device,
-            export_frame_texture.format(),
-            camera_buffer.clone(),
-            particle_radius.clone(),
-            spectrum_width.clone(),
-            colors.clone(),
-            shapes.clone(),
-            masses.clone(),
-            phase_state_ring_config,
-        );
-        let mut aabb_renderer = AabbRenderer::new(
-            &device,
-            export_frame_texture.format(),
-            camera_buffer.clone(),
-            particle_radius.clone(),
-            object_count,
-            phase_state_ring_config,
-        );
-        let padded_bytes_per_row = (EXPORT_FRAME_SIZE.width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-        let export_frame_staging_buffer = DeviceBuffer::<u8>::new(
-            &device,
-            padded_bytes_per_row * EXPORT_FRAME_SIZE.height,
-            "export frame staging buffer",
-            COPY_DST | MAP_READ,
-        );
-        if let Some(output_path) = &CONFIG.output_path {
-            std::fs::create_dir_all(output_path).unwrap();
-        }
 
         loop {
             if exit_requested.load(Ordering::Relaxed) {
@@ -776,10 +659,10 @@ fn spawn_simulation_thread(
                 print_sim_rate();
                 stdout().flush().unwrap();
                 exit_requested.store(true, Ordering::SeqCst);
-                if let Some(event_loop_proxy) = &event_loop_proxy {
-                    if CONFIG.exit_at_limit {
-                        let _ = event_loop_proxy.send_event(AppEvent::ExitEventLoop);
-                    }
+                if let Some(event_loop_proxy) = &event_loop_proxy
+                    && CONFIG.exit_at_limit
+                {
+                    let _ = event_loop_proxy.send_event(AppEvent::ExitEventLoop);
                 }
                 break;
             }
@@ -871,71 +754,10 @@ fn spawn_simulation_thread(
                 compute_submitted -= 1;
             }
 
-            // Print stats
             sim_step_count += 1;
 
-            if let Some(output_path) = &CONFIG.output_path {
-                // Render to the export texture
-                let texture_view = export_frame_texture.create_view(&Default::default());
-                render_scene(
-                    texture_view,
-                    &render_parameters,
-                    &mut shape_renderer,
-                    &mut aabb_renderer,
-                    &phase_state_ring,
-                    0..object_count,
-                    &device,
-                    &queue,
-                    {
-                        let export_frame_texture = export_frame_texture.clone();
-                        let export_frame_staging_buffer = export_frame_staging_buffer.clone();
-                        move |encoder| {
-                            encoder.copy_texture_to_buffer(
-                                TexelCopyTextureInfo {
-                                    texture: &export_frame_texture,
-                                    mip_level: 0,
-                                    origin: Origin3d::ZERO,
-                                    aspect: TextureAspect::All,
-                                },
-                                TexelCopyBufferInfo {
-                                    buffer: export_frame_staging_buffer.buffer(),
-                                    layout: wgpu::TexelCopyBufferLayout {
-                                        offset: 0,
-                                        bytes_per_row: Some(padded_bytes_per_row),
-                                        rows_per_image: Some(EXPORT_FRAME_SIZE.height),
-                                    },
-                                },
-                                Extent3d {
-                                    width: EXPORT_FRAME_SIZE.width,
-                                    height: EXPORT_FRAME_SIZE.height,
-                                    depth_or_array_layers: 1,
-                                },
-                            );
-                        }
-                    },
-                );
-                let (tx, rx) = channel::bounded(1);
-                queue.on_submitted_work_done({
-                    let export_frame_staging_buffer = export_frame_staging_buffer.clone();
-                    move || {
-                        assert!(padded_bytes_per_row == EXPORT_FRAME_SIZE.width * 4);
-                        let frame_size_in_bytes = padded_bytes_per_row * EXPORT_FRAME_SIZE.height;
-                        export_frame_staging_buffer.read(frame_size_in_bytes.try_into().unwrap(), move |result| {
-                            let data = result.unwrap();
-                            let _ = tx.send(data);
-                        });
-                    }
-                });
-                let data = rx.recv().unwrap();
-                rayon::spawn(move || {
-                    let image = ImageBuffer::<Rgba<u8>, _>::from_raw(
-                        EXPORT_FRAME_SIZE.width,
-                        EXPORT_FRAME_SIZE.height,
-                        data.as_slice(),
-                    )
-                    .expect("invalid image size");
-                    image.save(format!("{output_path}/{:06}.png", sim_step_count)).unwrap();
-                });
+            if let Some(recorder) = &mut recorder {
+                recorder.record_frame(sim_step_count);
             }
         }
     })

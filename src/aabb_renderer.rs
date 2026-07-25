@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use wgpu::{
     BlendState, ColorTargetState, Device, MultisampleState, PrimitiveState, RenderPass, RenderPipeline,
     RenderPipelineDescriptor, TextureFormat,
@@ -18,7 +20,6 @@ use crate::{
 };
 
 pub struct AabbRenderer {
-    n_aabbs: u32,
     pipeline: RenderPipeline,
     main_bind_group: WgpuBindGroup0,
     phase_state_cache: PhaseStateCache<WgpuBindGroup1>,
@@ -30,7 +31,6 @@ impl AabbRenderer {
         swapchain_format: TextureFormat,
         camera_buffer: DeviceBuffer<Camera>,
         particle_radius: DeviceBuffer<f32>,
-        n_aabbs: u32,
         phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let pipeline_layout = create_pipeline_layout(device);
@@ -67,7 +67,6 @@ impl AabbRenderer {
         );
         let phase_state_cache = PhaseStateCache::new(phase_state_ring_config);
         Self {
-            n_aabbs,
             pipeline: render_pipeline,
             main_bind_group,
             phase_state_cache,
@@ -86,11 +85,11 @@ impl AabbRenderer {
         });
     }
 
-    pub fn render(&self, render_pass: &mut RenderPass<'_>) {
+    pub fn render(&self, render_pass: &mut RenderPass<'_>, instances: Range<u32>) {
         let phase_state_bind_group = self.phase_state_cache.get_current();
         render_pass.set_pipeline(&self.pipeline);
         self.main_bind_group.set(render_pass);
         phase_state_bind_group.set(render_pass);
-        render_pass.draw(0..6, 0..self.n_aabbs);
+        render_pass.draw(0..6, instances);
     }
 }
