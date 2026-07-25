@@ -712,6 +712,7 @@ fn spawn_simulation_thread(
         let mut last_frame_instant = Instant::now();
         let start_instant = Instant::now();
 
+        // TODO factor out the frame export code
         let export_frame_texture = device.create_texture(&TextureDescriptor {
             label: Some("Frame export"),
             size: Extent3d {
@@ -776,7 +777,9 @@ fn spawn_simulation_thread(
                 stdout().flush().unwrap();
                 exit_requested.store(true, Ordering::SeqCst);
                 if let Some(event_loop_proxy) = &event_loop_proxy {
-                    let _ = event_loop_proxy.send_event(AppEvent::ExitEventLoop);
+                    if CONFIG.exit_at_limit {
+                        let _ = event_loop_proxy.send_event(AppEvent::ExitEventLoop);
+                    }
                 }
                 break;
             }
