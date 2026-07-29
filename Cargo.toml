@@ -8,10 +8,10 @@ anyhow = "1.0"
 winit = "0.30.13"
 wgpu = "30"
 pollster = "0.4.0"
-bytemuck = "1.25.0"
+bytemuck = "1.25.2"
 nalgebra = "0.35.0"
 itertools = "0.15.0"
-rand = "0.10.1"
+rand = "0.10.2"
 crossbeam = "0.8.4"
 color = "0.3.3"
 config = "0.15.25"
@@ -23,4 +23,4 @@ image = { version = "0.25.10", default-features = false, features = [
 rayon = "1.12.0"
 
 [build-dependencies]
-wgsl_bindgen = { git = "https://github.com/burjui/wgsl-bindgen", rev = "9ff2a75481d5559f5d74b1256a5b29de19ffeb4b" }
+wgsl_bindgen = "0.23"
