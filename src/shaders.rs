@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.23.0
 // Changes made to this file will not be saved.
-// SourceHash: 4ab3383e610c91448bde093c5235b5cb77adab4f33189b51e62afd5490dbdbbc
+// SourceHash: 8e3d836ac187ce3dd18979f3854d86eb25f50f3250f3a43ed3ff58271d496278
 
 #![allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -3550,10 +3550,11 @@ fn cas_add_force(i_2: u32, value_1: vec2<f32>) {
 @compute @workgroup_size(64, 1, 1) 
 fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
     var local: bool;
+    var local_1: bool;
     var i: u32;
     var j: u32;
     var k: u32;
-    var local_1: bool;
+    var local_2: bool;
 
     let _e3 = thread_offset;
     let object_index = (gid.x + _e3);
@@ -3565,38 +3566,45 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(loca
         local = true;
     }
     let _e20 = local;
-    if _e20 {
+    if !(_e20) {
+        let _e25 = flags[object_index].inner;
+        local_1 = ((_e25 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u);
+    } else {
+        local_1 = true;
+    }
+    let _e33 = local_1;
+    if _e33 {
         return;
     }
     let c1_ = positions[object_index].inner;
-    let _e26 = object_count;
-    let max_candidates = (_e26 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
-    let _e32 = object_cells[object_index].cell;
-    let cell = vec2<i32>(_e32);
+    let _e39 = object_count;
+    let max_candidates = (_e39 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
+    let _e45 = object_cells[object_index].cell;
+    let cell = vec2<i32>(_e45);
     let min_cell = vec2<u32>(max(vec2<i32>(), (cell - vec2(1i))));
-    let _e43 = grid_size_x;
-    let _e47 = grid_size_y;
-    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e43 - 1u), (_e47 - 1u)))));
+    let _e56 = grid_size_x;
+    let _e60 = grid_size_y;
+    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e56 - 1u), (_e60 - 1u)))));
     i = min_cell.x;
     loop {
-        let _e56 = i;
-        if (_e56 <= max_cell.x) {
+        let _e69 = i;
+        if (_e69 <= max_cell.x) {
         } else {
             break;
         }
         {
             j = min_cell.y;
             loop {
-                let _e61 = j;
-                if (_e61 <= max_cell.y) {
+                let _e74 = j;
+                if (_e74 <= max_cell.y) {
                 } else {
                     break;
                 }
                 {
-                    let _e64 = i;
-                    let _e65 = j;
-                    let _e67 = grid_size_x;
-                    let cell_index = (_e64 + (_e65 * _e67));
+                    let _e77 = i;
+                    let _e78 = j;
+                    let _e80 = grid_size_x;
+                    let cell_index = (_e77 + (_e78 * _e80));
                     let object_count_1 = cell_object_count[cell_index];
                     if (object_count_1 == 0u) {
                         continue;
@@ -3604,57 +3612,57 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(loca
                     let cell_offset = cell_offsets[cell_index];
                     k = 0u;
                     loop {
-                        let _e80 = k;
-                        if (_e80 < object_count_1) {
+                        let _e93 = k;
+                        if (_e93 < object_count_1) {
                         } else {
                             break;
                         }
                         {
-                            let _e83 = k;
-                            let other_object_index = cells[(cell_offset + _e83)];
+                            let _e96 = k;
+                            let other_object_index = cells[(cell_offset + _e96)];
                             if (other_object_index >= object_index) {
                                 continue;
                             }
                             let c2_ = positions[other_object_index].inner;
-                            let _e95 = flags[other_object_index].inner;
-                            if ((_e95 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+                            let _e108 = flags[other_object_index].inner;
+                            if ((_e108 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
                                 continue;
                             }
                             let delta = (c1_ - c2_);
                             let distance_squared = dot(delta, delta);
-                            let _e103 = particle_radius;
-                            let particle_size = (_e103 * 2f);
+                            let _e116 = particle_radius;
+                            let particle_size = (_e116 * 2f);
                             let particle_size_squared = (particle_size * particle_size);
                             if !((distance_squared > particle_size_squared)) {
-                                local_1 = (distance_squared < 0.0000000001f);
+                                local_2 = (distance_squared < 0.0000000001f);
                             } else {
-                                local_1 = true;
+                                local_2 = true;
                             }
-                            let _e114 = local_1;
-                            if _e114 {
+                            let _e127 = local_2;
+                            if _e127 {
                                 continue;
                             }
-                            let _e117 = atomicAdd((&candidate_count), 1u);
-                            if (_e117 >= max_candidates) {
+                            let _e130 = atomicAdd((&candidate_count), 1u);
+                            if (_e130 >= max_candidates) {
                                 return;
                             }
-                            candidates[_e117] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(object_index, other_object_index);
+                            candidates[_e130] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(object_index, other_object_index);
                         }
                         continuing {
-                            let _e123 = k;
-                            k = (_e123 + 1u);
+                            let _e136 = k;
+                            k = (_e136 + 1u);
                         }
                     }
                 }
                 continuing {
-                    let _e126 = j;
-                    j = (_e126 + 1u);
+                    let _e139 = j;
+                    j = (_e139 + 1u);
                 }
             }
         }
         continuing {
-            let _e129 = i;
-            i = (_e129 + 1u);
+            let _e142 = i;
+            i = (_e142 + 1u);
         }
     }
     return;

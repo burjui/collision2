@@ -30,7 +30,10 @@ fn broad_phase_grid(
     @builtin(local_invocation_index) local_invocation_index: u32
 ) {
     let object_index = gid.x + thread_offset;
-    if object_index >= object_count || (flags[object_index].inner & FLAG_PHYSICAL) == 0 {
+    if object_index >= object_count ||
+       (flags[object_index].inner & FLAG_PHYSICAL) == 0 ||
+       (flags[object_index].inner & FLAG_COLLISION) == 0
+    {
         return;
     }
 
