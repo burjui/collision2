@@ -50,6 +50,8 @@ pub struct Config {
     pub particle_padding: f32,
     #[serde(default = "default_particle_shape")]
     pub particle_shape: Shape,
+    #[serde(default = "default_particle_position_rand")]
+    pub particle_position_rand: f32,
 
     #[serde(default = "default_scene_scale")]
     pub scene_scale: f32,
@@ -182,6 +184,10 @@ fn default_particle_padding() -> f32 {
 
 fn default_particle_shape() -> Shape {
     Shape::Circle
+}
+
+fn default_particle_position_rand() -> f32 {
+    0.1
 }
 
 fn default_scene_offset() -> String {

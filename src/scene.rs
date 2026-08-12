@@ -20,8 +20,6 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         max: (world_center + (world_aabb.size() * CONFIG.scene_scale) / 2.0).into(),
     };
     let particles = {
-        const POSITION_RAND_FACTOR: f32 = 0.1;
-
         let effective_radius: f32 = CONFIG.particle_radius + CONFIG.particle_padding;
         let shape_count_f32 = scene_aabb.size() / (effective_radius * 2.0);
         let shape_count: Vector2<u32> = shape_count_f32.try_cast().unwrap();
@@ -33,8 +31,8 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
 
         (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(x, y)| {
             let (i, j) = (x as f32, y as f32);
-            let postition_randomization_range =
-                -CONFIG.particle_radius * POSITION_RAND_FACTOR..=CONFIG.particle_radius * POSITION_RAND_FACTOR;
+            let postition_randomization_range = -CONFIG.particle_radius * CONFIG.particle_position_rand
+                ..=CONFIG.particle_radius * CONFIG.particle_position_rand;
             let position = scene_aabb.min()
                 + Vector2::new(effective_radius * (i * 2.0 + 1.0), effective_radius * (j * 2.0 + 1.0))
                 + Vector2::new(
