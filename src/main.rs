@@ -216,6 +216,7 @@ fn main() {
             desired_maximum_frame_latency: phase_state_ring_config.n_frames,
             pause_simulation: pause_simulation.clone(),
             surface_initialized,
+            lmb_down: false,
         };
         event_loop.unwrap().run_app(&mut app).expect("Failed to run app");
     }
@@ -244,6 +245,7 @@ struct App<'a> {
     desired_maximum_frame_latency: usize,
     pause_simulation: Arc<AtomicBool>,
     surface_initialized: Arc<AtomicBool>,
+    lmb_down: bool,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -403,20 +405,13 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 self.cursor_position = Some(Vector2::from(position).cast());
             }
 
-            WindowEvent::MouseInput { state, button, .. }
-                if button == MouseButton::Left && state == ElementState::Pressed =>
-            {
-                let state = self.sim_state.as_mut().unwrap();
-                let kick_center = mouse_to_world_coords(
-                    self.cursor_position.unwrap(),
-                    self.world_aabb,
-                    state.window.inner_size(),
-                    self.render_parameters.offset,
-                    self.render_parameters.zoom,
-                );
-                self.kick_center.write(&self.queue, &[kick_center.into()]);
-                self.kick_magnitude.write(&self.queue, &[1000.0]);
-            }
+            WindowEvent::MouseInput { state, button, .. } if button == MouseButton::Left => match state {
+                ElementState::Pressed => {
+                    self.lmb_down = true;
+                    self.kick_at_cursor();
+                }
+                ElementState::Released => self.lmb_down = false,
+            },
 
             _ => (),
         }
@@ -433,9 +428,29 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     state.window.request_redraw();
                 }
             }
-
             AppEvent::ExitEventLoop => event_loop.exit(),
         }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if self.lmb_down {
+            self.kick_at_cursor();
+        }
+    }
+}
+
+impl App<'_> {
+    fn kick_at_cursor(&self) {
+        let state = self.sim_state.as_ref().unwrap();
+        let kick_center = mouse_to_world_coords(
+            self.cursor_position.unwrap(),
+            self.world_aabb,
+            state.window.inner_size(),
+            self.render_parameters.offset,
+            self.render_parameters.zoom,
+        );
+        self.kick_center.write(&self.queue, &[kick_center.into()]);
+        self.kick_magnitude.write(&self.queue, &[100.0]);
     }
 }
 
