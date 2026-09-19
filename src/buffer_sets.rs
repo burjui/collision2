@@ -20,4 +20,7 @@ pub struct BroadPhaseBuffers {
     pub candidate_count: DeviceBuffer<u32>,
     pub masses: DeviceBuffer<Mass>,
     pub forces: DeviceBuffer<u32>,
+    pub kick_center: DeviceBuffer<[f32; 2]>,
+    pub kick_radius: DeviceBuffer<f32>,
+    pub kick_magnitude: DeviceBuffer<f32>,
 }

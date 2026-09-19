@@ -1,5 +1,5 @@
 #import common::{
-    Position, Flags, Mass, CollisionCandidate, CellPosition,
+    Position, Flags, Mass, Velocity, CollisionCandidate, CellPosition,
     FLAG_PHYSICAL, FLAG_COLLISION, MAX_CANDIDATES_PER_OBJECT, WORKGROUP_SIZE
 }
 
@@ -11,18 +11,23 @@ var<immediate> thread_offset: u32;
 @group(0) @binding(3) var<uniform> grid_min_y: f32;
 @group(0) @binding(5) var<uniform> grid_size_x: u32;
 @group(0) @binding(6) var<uniform> grid_size_y: u32;
-@group(0) @binding(7) var<storage, read> object_cells: array<CellPosition>;
-@group(0) @binding(8) var<storage, read> cell_object_count: array<u32>;
-@group(0) @binding(9) var<storage, read> cell_offsets: array<u32>;
-@group(0) @binding(10) var<storage, read> cells: array<u32>;
-@group(0) @binding(11) var<storage, read_write> candidates: array<CollisionCandidate>;
-@group(0) @binding(12) var<storage, read_write> candidate_count: atomic<u32>;
-@group(0) @binding(13) var<storage, read> masses: array<Mass>;
+@group(0) @binding(7) var<uniform> kick_center: vec2f;
+@group(0) @binding(8) var<uniform> kick_radius: f32;
 
-@group(1) @binding(1) var<storage, read> positions: array<Position>;
-@group(1) @binding(2) var<storage, read> flags: array<Flags>;
+@group(1) @binding(0) var<storage, read> object_cells: array<CellPosition>;
+@group(1) @binding(1) var<storage, read> cell_object_count: array<u32>;
+@group(1) @binding(2) var<storage, read> cell_offsets: array<u32>;
+@group(1) @binding(3) var<storage, read> cells: array<u32>;
+@group(1) @binding(4) var<storage, read> masses: array<Mass>;
 
-@group(2) @binding(0) var<storage, read_write> forces: array<atomic<u32>>;
+@group(2) @binding(0) var<storage, read> positions: array<Position>;
+@group(2) @binding(1) var<storage, read> flags: array<Flags>;
+@group(2) @binding(2) var<storage, read_write> velocities: array<Velocity>;
+
+@group(3) @binding(0) var<storage, read_write> candidates: array<CollisionCandidate>;
+@group(3) @binding(1) var<storage, read_write> candidate_count: atomic<u32>;
+@group(3) @binding(2) var<storage, read_write> forces: array<atomic<u32>>;
+@group(3) @binding(3) var<storage, read_write> kick_magnitude: atomic<u32>;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn broad_phase_grid(
@@ -40,7 +45,13 @@ fn broad_phase_grid(
     const FORCE_AREA_SIZE: i32 = 1;
 
     // let m1 = masses[object_index].inner;
-    let c1 = positions[object_index].inner;
+    var c1 = positions[object_index].inner;
+    let k_mag = bitcast<f32>(atomicLoad(&kick_magnitude));
+    let kick_vector = c1 - kick_center;
+    if length(kick_vector) < kick_radius && k_mag > 0 {
+        velocities[object_index].inner += normalize(kick_vector) * k_mag;
+    }
+
     let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
     let cell = vec2i(object_cells[object_index].cell);
     let min_cell = vec2u(max(vec2i(), cell - vec2i(FORCE_AREA_SIZE)));
@@ -78,6 +89,11 @@ fn broad_phase_grid(
                 candidates[candidates_index] = CollisionCandidate(object_index, other_object_index);
             }
         }
+    }
+
+    if object_index == object_count - 1 {
+        workgroupBarrier();
+        atomicStore(&kick_magnitude, bitcast<u32>(0.0));
     }
 }
 

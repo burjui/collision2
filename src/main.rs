@@ -22,7 +22,10 @@ pub mod recorder;
 pub mod renderer;
 pub mod reset_grid_aabb;
 pub mod scene;
+
+#[allow(clippy::missing_safety_doc)]
 pub mod shaders;
+
 pub mod shape_renderer;
 pub mod util;
 
@@ -50,7 +53,7 @@ use wgpu::{
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
-    event::{ElementState, KeyEvent, MouseScrollDelta, WindowEvent},
+    event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     keyboard::KeyCode,
     window::{Fullscreen, Window, WindowAttributes, WindowId},
@@ -145,6 +148,9 @@ fn main() {
         Some(EventLoop::with_user_event().build().expect("Failed to create event loop"))
     };
     let event_loop_proxy = event_loop.as_ref().map(|event_loop| event_loop.create_proxy());
+    let kick_center = DeviceBuffer::from_data(&device, &[[0.0, 0.0]], "kick center", UNIFORM | COPY_SRC | COPY_DST);
+    let kick_radius = DeviceBuffer::from_data(&device, &[1000.0], "kick radius", UNIFORM | COPY_SRC | COPY_DST);
+    let kick_magnitude = DeviceBuffer::from_data(&device, &[0.0], "kick magnitude", STORAGE | COPY_SRC | COPY_DST);
     let sim_join_handle = spawn_simulation_thread(
         device.clone(),
         queue.clone(),
@@ -158,6 +164,9 @@ fn main() {
         colors.clone(),
         shapes.clone(),
         masses.clone(),
+        kick_center.clone(),
+        kick_radius.clone(),
+        kick_magnitude.clone(),
         exit_requested.clone(),
         event_loop_proxy,
         render_parameters,
@@ -199,6 +208,8 @@ fn main() {
             colors,
             shapes,
             masses,
+            kick_center,
+            kick_magnitude,
             phase_state_ring_config,
             phase_state_ring,
             exit_requested,
@@ -225,6 +236,8 @@ struct App<'a> {
     colors: DeviceBuffer<Color>,
     shapes: DeviceBuffer<Shape>,
     masses: DeviceBuffer<Mass>,
+    kick_center: DeviceBuffer<[f32; 2]>,
+    kick_magnitude: DeviceBuffer<f32>,
     phase_state_ring_config: PhaseStateRingConfig,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     exit_requested: Arc<AtomicBool>,
@@ -361,37 +374,48 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 delta: MouseScrollDelta::LineDelta(_, dy),
                 ..
             } => {
-                if let Some(state) = &self.sim_state {
-                    if let Some(cursor_pos) = self.cursor_position {
-                        let zoom_old = self.render_parameters.zoom;
-                        let zoom_new = self.render_parameters.zoom * (1.0 + dy * 0.1);
-                        let view_size = state.window.inner_size();
-                        let view_center = Vector2::new(view_size.width as f32 / 2.0, view_size.height as f32 / 2.0);
-                        let cursor_relative_to_center = cursor_pos - view_center;
-                        let world_height = self.world_aabb.max().y - self.world_aabb.min().y;
-                        let aspect = view_size.width as f32 / view_size.height as f32;
-                        let world_width = world_height * aspect;
-                        let view_width = view_size.width as f32;
-                        let view_height = view_size.height as f32;
-                        let cursor_offset_world_x = cursor_relative_to_center.x * world_width / view_width;
-                        let cursor_offset_world_y = cursor_relative_to_center.y * world_height / view_height;
-                        let zoom_ratio = zoom_new / zoom_old - 1.0;
-                        self.render_parameters.zoom = zoom_new;
-                        self.render_parameters.offset.x +=
-                            (self.render_parameters.offset.x + cursor_offset_world_x) * zoom_ratio;
-                        self.render_parameters.offset.y +=
-                            (self.render_parameters.offset.y + cursor_offset_world_y) * zoom_ratio;
-                    } else {
-                        self.render_parameters.zoom *= 1.0 + dy * 0.1;
-                    }
-                } else {
-                    self.render_parameters.zoom *= 1.0 + dy * 0.1;
+                if let Some(state) = &self.sim_state
+                    && let Some(cursor_position) = self.cursor_position
+                {
+                    let zoom_old = self.render_parameters.zoom;
+                    let zoom_new = self.render_parameters.zoom * (1.0 + dy * 0.1);
+                    let view_size = state.window.inner_size();
+                    let view_center = Vector2::new(view_size.width as f32 / 2.0, view_size.height as f32 / 2.0);
+                    let cursor_relative_to_center = cursor_position - view_center;
+                    let world_height = self.world_aabb.max().y - self.world_aabb.min().y;
+                    let aspect = view_size.width as f32 / view_size.height as f32;
+                    let world_width = world_height * aspect;
+                    let view_width = view_size.width as f32;
+                    let view_height = view_size.height as f32;
+                    let cursor_offset_world_x = cursor_relative_to_center.x * world_width / view_width;
+                    let cursor_offset_world_y = cursor_relative_to_center.y * world_height / view_height;
+                    let zoom_ratio = zoom_new / zoom_old - 1.0;
+                    self.render_parameters.zoom = zoom_new;
+                    self.render_parameters.offset.x +=
+                        (self.render_parameters.offset.x + cursor_offset_world_x) * zoom_ratio;
+                    self.render_parameters.offset.y +=
+                        (self.render_parameters.offset.y + cursor_offset_world_y) * zoom_ratio;
                 }
             }
 
             WindowEvent::CursorMoved { position, .. } => {
                 let position: [f64; 2] = position.into();
                 self.cursor_position = Some(Vector2::from(position).cast());
+            }
+
+            WindowEvent::MouseInput { state, button, .. }
+                if button == MouseButton::Left && state == ElementState::Pressed =>
+            {
+                let state = self.sim_state.as_mut().unwrap();
+                let kick_center = mouse_to_world_coords(
+                    self.cursor_position.unwrap(),
+                    self.world_aabb,
+                    state.window.inner_size(),
+                    self.render_parameters.offset,
+                    self.render_parameters.zoom,
+                );
+                self.kick_center.write(&self.queue, &[kick_center.into()]);
+                self.kick_magnitude.write(&self.queue, &[1000.0]);
             }
 
             _ => (),
@@ -413,6 +437,22 @@ impl ApplicationHandler<AppEvent> for App<'_> {
             AppEvent::ExitEventLoop => event_loop.exit(),
         }
     }
+}
+
+fn mouse_to_world_coords(
+    cursor_position: Vector2<f32>,
+    world_aabb: AABB,
+    view_size: PhysicalSize<u32>,
+    offset: Vector2<f32>,
+    zoom: f32,
+) -> Vector2<f32> {
+    let view_width = view_size.width as f32;
+    let view_height = view_size.height as f32;
+    let world_height = world_aabb.max().y - world_aabb.min().y;
+    let world_width = world_height * view_width / view_height;
+    let x = (cursor_position.x / view_width - 0.5) * world_width;
+    let y = (0.5 - cursor_position.y / view_height) * world_height;
+    Vector2::new((x + offset.x) / zoom, (y - offset.y) / zoom)
 }
 
 fn key_pressed(event: &KeyEvent, key: KeyCode) -> bool {
@@ -489,6 +529,9 @@ fn spawn_simulation_thread(
     colors: DeviceBuffer<Color>,
     shapes: DeviceBuffer<Shape>,
     masses: DeviceBuffer<Mass>,
+    kick_center: DeviceBuffer<[f32; 2]>,
+    kick_radius: DeviceBuffer<f32>,
+    kick_magnitude: DeviceBuffer<f32>,
     exit_requested: Arc<AtomicBool>,
     event_loop_proxy: Option<EventLoopProxy<AppEvent>>,
     render_parameters: RenderParameters,
@@ -560,6 +603,9 @@ fn spawn_simulation_thread(
             candidate_count: candidate_count.clone(),
             masses: masses.clone(),
             forces: forces.clone(),
+            kick_center: kick_center.clone(),
+            kick_radius: kick_radius.clone(),
+            kick_magnitude: kick_magnitude.clone(),
         };
 
         let reset_grid_aabb = ResetGridAABB::new(&device, &broad_phase_buffers);

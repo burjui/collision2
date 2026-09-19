@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.23.3
 // Changes made to this file will not be saved.
-// SourceHash: ce1a58b313931c57db6b62e3df028f86fa53d377a9836b19770f9dfcb3e805a9
+// SourceHash: 0fdf9518a9d46b19c772b39e0b836f8ccf3ff922be55036011877ab0b0dcd45a
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
@@ -3104,13 +3104,8 @@ pub mod collision_broad_phase_grid {
         pub grid_min_y: wgpu::BufferBinding<'a>,
         pub grid_size_x: wgpu::BufferBinding<'a>,
         pub grid_size_y: wgpu::BufferBinding<'a>,
-        pub object_cells: wgpu::BufferBinding<'a>,
-        pub cell_object_count: wgpu::BufferBinding<'a>,
-        pub cell_offsets: wgpu::BufferBinding<'a>,
-        pub cells: wgpu::BufferBinding<'a>,
-        pub candidates: wgpu::BufferBinding<'a>,
-        pub candidate_count: wgpu::BufferBinding<'a>,
-        pub masses: wgpu::BufferBinding<'a>,
+        pub kick_center: wgpu::BufferBinding<'a>,
+        pub kick_radius: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
@@ -3120,13 +3115,8 @@ pub mod collision_broad_phase_grid {
         pub grid_min_y: wgpu::BindGroupEntry<'a>,
         pub grid_size_x: wgpu::BindGroupEntry<'a>,
         pub grid_size_y: wgpu::BindGroupEntry<'a>,
-        pub object_cells: wgpu::BindGroupEntry<'a>,
-        pub cell_object_count: wgpu::BindGroupEntry<'a>,
-        pub cell_offsets: wgpu::BindGroupEntry<'a>,
-        pub cells: wgpu::BindGroupEntry<'a>,
-        pub candidates: wgpu::BindGroupEntry<'a>,
-        pub candidate_count: wgpu::BindGroupEntry<'a>,
-        pub masses: wgpu::BindGroupEntry<'a>,
+        pub kick_center: wgpu::BindGroupEntry<'a>,
+        pub kick_radius: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -3155,37 +3145,17 @@ pub mod collision_broad_phase_grid {
                     binding: 6,
                     resource: wgpu::BindingResource::Buffer(params.grid_size_y),
                 },
-                object_cells: wgpu::BindGroupEntry {
+                kick_center: wgpu::BindGroupEntry {
                     binding: 7,
-                    resource: wgpu::BindingResource::Buffer(params.object_cells),
+                    resource: wgpu::BindingResource::Buffer(params.kick_center),
                 },
-                cell_object_count: wgpu::BindGroupEntry {
+                kick_radius: wgpu::BindGroupEntry {
                     binding: 8,
-                    resource: wgpu::BindingResource::Buffer(params.cell_object_count),
-                },
-                cell_offsets: wgpu::BindGroupEntry {
-                    binding: 9,
-                    resource: wgpu::BindingResource::Buffer(params.cell_offsets),
-                },
-                cells: wgpu::BindGroupEntry {
-                    binding: 10,
-                    resource: wgpu::BindingResource::Buffer(params.cells),
-                },
-                candidates: wgpu::BindGroupEntry {
-                    binding: 11,
-                    resource: wgpu::BindingResource::Buffer(params.candidates),
-                },
-                candidate_count: wgpu::BindGroupEntry {
-                    binding: 12,
-                    resource: wgpu::BindingResource::Buffer(params.candidate_count),
-                },
-                masses: wgpu::BindGroupEntry {
-                    binding: 13,
-                    resource: wgpu::BindingResource::Buffer(params.masses),
+                    resource: wgpu::BindingResource::Buffer(params.kick_radius),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 13] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 8] {
             [
                 self.object_count,
                 self.particle_radius,
@@ -3193,13 +3163,8 @@ pub mod collision_broad_phase_grid {
                 self.grid_min_y,
                 self.grid_size_x,
                 self.grid_size_y,
-                self.object_cells,
-                self.cell_object_count,
-                self.cell_offsets,
-                self.cells,
-                self.candidates,
-                self.candidate_count,
-                self.masses,
+                self.kick_center,
+                self.kick_radius,
             ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
@@ -3278,80 +3243,25 @@ pub mod collision_broad_phase_grid {
                     },
                     count: None,
                 },
-                #[doc = " @binding(7): \"object_cells\""]
+                #[doc = " @binding(7): \"kick_center\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 7,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<[f32; 2]>() as _),
                     },
                     count: None,
                 },
-                #[doc = " @binding(8): \"cell_object_count\""]
+                #[doc = " @binding(8): \"kick_radius\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 8,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(9): \"cell_offsets\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 9,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(10): \"cells\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 10,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(11): \"candidates\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 11,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(12): \"candidate_count\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 12,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(13): \"masses\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 13,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
@@ -3382,29 +3292,53 @@ pub mod collision_broad_phase_grid {
     }
     #[derive(Debug)]
     pub struct WgpuBindGroup1EntriesParams<'a> {
-        pub positions: wgpu::BufferBinding<'a>,
-        pub flags: wgpu::BufferBinding<'a>,
+        pub object_cells: wgpu::BufferBinding<'a>,
+        pub cell_object_count: wgpu::BufferBinding<'a>,
+        pub cell_offsets: wgpu::BufferBinding<'a>,
+        pub cells: wgpu::BufferBinding<'a>,
+        pub masses: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup1Entries<'a> {
-        pub positions: wgpu::BindGroupEntry<'a>,
-        pub flags: wgpu::BindGroupEntry<'a>,
+        pub object_cells: wgpu::BindGroupEntry<'a>,
+        pub cell_object_count: wgpu::BindGroupEntry<'a>,
+        pub cell_offsets: wgpu::BindGroupEntry<'a>,
+        pub cells: wgpu::BindGroupEntry<'a>,
+        pub masses: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup1Entries<'a> {
         pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
             Self {
-                positions: wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(params.positions),
+                object_cells: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.object_cells),
                 },
-                flags: wgpu::BindGroupEntry {
+                cell_object_count: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.cell_object_count),
+                },
+                cell_offsets: wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.flags),
+                    resource: wgpu::BindingResource::Buffer(params.cell_offsets),
+                },
+                cells: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.cells),
+                },
+                masses: wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(params.masses),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
-            [self.positions, self.flags]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
+            [
+                self.object_cells,
+                self.cell_object_count,
+                self.cell_offsets,
+                self.cells,
+                self.masses,
+            ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -3416,7 +3350,18 @@ pub mod collision_broad_phase_grid {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("CollisionBroadPhaseGrid::BindGroup1::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(1): \"positions\""]
+                #[doc = " @binding(0): \"object_cells\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"cell_object_count\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -3427,9 +3372,31 @@ pub mod collision_broad_phase_grid {
                     },
                     count: None,
                 },
-                #[doc = " @binding(2): \"flags\""]
+                #[doc = " @binding(2): \"cell_offsets\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"cells\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(4): \"masses\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -3465,23 +3432,35 @@ pub mod collision_broad_phase_grid {
     }
     #[derive(Debug)]
     pub struct WgpuBindGroup2EntriesParams<'a> {
-        pub forces: wgpu::BufferBinding<'a>,
+        pub positions: wgpu::BufferBinding<'a>,
+        pub flags: wgpu::BufferBinding<'a>,
+        pub velocities: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup2Entries<'a> {
-        pub forces: wgpu::BindGroupEntry<'a>,
+        pub positions: wgpu::BindGroupEntry<'a>,
+        pub flags: wgpu::BindGroupEntry<'a>,
+        pub velocities: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup2Entries<'a> {
         pub fn new(params: WgpuBindGroup2EntriesParams<'a>) -> Self {
             Self {
-                forces: wgpu::BindGroupEntry {
+                positions: wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer(params.forces),
+                    resource: wgpu::BindingResource::Buffer(params.positions),
+                },
+                flags: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.flags),
+                },
+                velocities: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.velocities),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 1] {
-            [self.forces]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
+            [self.positions, self.flags, self.velocities]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -3493,9 +3472,31 @@ pub mod collision_broad_phase_grid {
         pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
             label: Some("CollisionBroadPhaseGrid::BindGroup2::LayoutDescriptor"),
             entries: &[
-                #[doc = " @binding(0): \"forces\""]
+                #[doc = " @binding(0): \"positions\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"velocities\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -3529,6 +3530,123 @@ pub mod collision_broad_phase_grid {
             Self(bind_group)
         }
     }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup3EntriesParams<'a> {
+        pub candidates: wgpu::BufferBinding<'a>,
+        pub candidate_count: wgpu::BufferBinding<'a>,
+        pub forces: wgpu::BufferBinding<'a>,
+        pub kick_magnitude: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup3Entries<'a> {
+        pub candidates: wgpu::BindGroupEntry<'a>,
+        pub candidate_count: wgpu::BindGroupEntry<'a>,
+        pub forces: wgpu::BindGroupEntry<'a>,
+        pub kick_magnitude: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup3Entries<'a> {
+        pub fn new(params: WgpuBindGroup3EntriesParams<'a>) -> Self {
+            Self {
+                candidates: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.candidates),
+                },
+                candidate_count: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.candidate_count),
+                },
+                forces: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.forces),
+                },
+                kick_magnitude: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.kick_magnitude),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
+            [self.candidates, self.candidate_count, self.forces, self.kick_magnitude]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
+    pub struct WgpuBindGroup3(wgpu::BindGroup);
+    impl WgpuBindGroup3 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("CollisionBroadPhaseGrid::BindGroup3::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"candidates\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"candidate_count\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"forces\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"kick_magnitude\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup3Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("CollisionBroadPhaseGrid::BindGroup3"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(3, &self.0, &[]);
+        }
+        pub fn inner(&self) -> &wgpu::BindGroup {
+            &self.0
+        }
+        pub unsafe fn from_raw(bind_group: wgpu::BindGroup) -> Self {
+            Self(bind_group)
+        }
+    }
     #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
     #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
     #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
@@ -3540,18 +3658,20 @@ pub mod collision_broad_phase_grid {
         pub bind_group0: &'a WgpuBindGroup0,
         pub bind_group1: &'a WgpuBindGroup1,
         pub bind_group2: &'a WgpuBindGroup2,
+        pub bind_group3: &'a WgpuBindGroup3,
     }
     impl<'a> WgpuBindGroups<'a> {
         pub fn set(&self, pass: &mut impl SetBindGroup) {
             self.bind_group0.set(pass);
             self.bind_group1.set(pass);
             self.bind_group2.set(pass);
+            self.bind_group3.set(pass);
         }
     }
     #[derive(Debug)]
     pub struct WgpuPipelineLayout;
     impl WgpuPipelineLayout {
-        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 3]) -> [wgpu::BindGroupLayout; 3] {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 4]) -> [wgpu::BindGroupLayout; 4] {
             entries
         }
     }
@@ -3562,6 +3682,7 @@ pub mod collision_broad_phase_grid {
                 Some(&WgpuBindGroup0::get_bind_group_layout(device)),
                 Some(&WgpuBindGroup1::get_bind_group_layout(device)),
                 Some(&WgpuBindGroup2::get_bind_group_layout(device)),
+                Some(&WgpuBindGroup3::get_bind_group_layout(device)),
             ],
             immediate_size: 4u32,
         })
@@ -3576,6 +3697,10 @@ pub mod collision_broad_phase_grid {
     pub const SHADER_STRING: &str = r#"
 struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
     inner: u32,
+}
+
+struct VelocityX_naga_oil_mod_XMNXW23LPNYX {
+    inner: vec2<f32>,
 }
 
 struct MassX_naga_oil_mod_XMNXW23LPNYX {
@@ -3615,25 +3740,33 @@ var<uniform> grid_size_x: u32;
 @group(0) @binding(6) 
 var<uniform> grid_size_y: u32;
 @group(0) @binding(7) 
-var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
+var<uniform> kick_center: vec2<f32>;
 @group(0) @binding(8) 
-var<storage> cell_object_count: array<u32>;
-@group(0) @binding(9) 
-var<storage> cell_offsets: array<u32>;
-@group(0) @binding(10) 
-var<storage> cells: array<u32>;
-@group(0) @binding(11) 
-var<storage, read_write> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
-@group(0) @binding(12) 
-var<storage, read_write> candidate_count: atomic<u32>;
-@group(0) @binding(13) 
-var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
+var<uniform> kick_radius: f32;
+@group(1) @binding(0) 
+var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(1) 
-var<storage> positions: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> cell_object_count: array<u32>;
 @group(1) @binding(2) 
-var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> cell_offsets: array<u32>;
+@group(1) @binding(3) 
+var<storage> cells: array<u32>;
+@group(1) @binding(4) 
+var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
 @group(2) @binding(0) 
+var<storage> positions: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
+@group(2) @binding(1) 
+var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+@group(2) @binding(2) 
+var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
+@group(3) @binding(0) 
+var<storage, read_write> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
+@group(3) @binding(1) 
+var<storage, read_write> candidate_count: atomic<u32>;
+@group(3) @binding(2) 
 var<storage, read_write> forces: array<atomic<u32>>;
+@group(3) @binding(3) 
+var<storage, read_write> kick_magnitude: atomic<u32>;
 
 fn cas_add_force_component(i_1: u32, value: f32) {
     var old: u32;
@@ -3665,10 +3798,12 @@ fn cas_add_force(i_2: u32, value_1: vec2<f32>) {
 fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
     var local: bool;
     var local_1: bool;
+    var c1_: vec2<f32>;
+    var local_2: bool;
     var i: u32;
     var j: u32;
     var k: u32;
-    var local_2: bool;
+    var local_3: bool;
 
     let _e3 = thread_offset;
     let object_index = (gid.x + _e3);
@@ -3690,35 +3825,52 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(loca
     if _e33 {
         return;
     }
-    let c1_ = positions[object_index].inner;
-    let _e39 = object_count;
-    let max_candidates = (_e39 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
-    let _e45 = object_cells[object_index].cell;
-    let cell = vec2<i32>(_e45);
+    let _e37 = positions[object_index].inner;
+    c1_ = _e37;
+    let _e40 = atomicLoad((&kick_magnitude));
+    let k_mag = bitcast<f32>(_e40);
+    let _e42 = c1_;
+    let _e44 = kick_center;
+    let kick_vector = (_e42 - _e44);
+    let _e48 = kick_radius;
+    if (length(kick_vector) < _e48) {
+        local_2 = (k_mag > 0f);
+    } else {
+        local_2 = false;
+    }
+    let _e55 = local_2;
+    if _e55 {
+        let _e59 = velocities[object_index].inner;
+        velocities[object_index].inner = (_e59 + (normalize(kick_vector) * k_mag));
+    }
+    let _e64 = object_count;
+    let max_candidates = (_e64 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
+    let _e70 = object_cells[object_index].cell;
+    let cell = vec2<i32>(_e70);
     let min_cell = vec2<u32>(max(vec2<i32>(), (cell - vec2(1i))));
-    let _e56 = grid_size_x;
-    let _e60 = grid_size_y;
-    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e56 - 1u), (_e60 - 1u)))));
+    let _e81 = grid_size_x;
+    let _e85 = grid_size_y;
+    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e81 - 1u), (_e85 - 1u)))));
     i = min_cell.x;
     loop {
-        let _e69 = i;
-        if (_e69 <= max_cell.x) {
+        let _e94 = i;
+        if (_e94 <= max_cell.x) {
         } else {
             break;
         }
         {
             j = min_cell.y;
             loop {
-                let _e74 = j;
-                if (_e74 <= max_cell.y) {
+                let _e99 = j;
+                if (_e99 <= max_cell.y) {
                 } else {
                     break;
                 }
                 {
-                    let _e77 = i;
-                    let _e78 = j;
-                    let _e80 = grid_size_x;
-                    let cell_index = (_e77 + (_e78 * _e80));
+                    let _e102 = i;
+                    let _e103 = j;
+                    let _e105 = grid_size_x;
+                    let cell_index = (_e102 + (_e103 * _e105));
                     let object_count_1 = cell_object_count[cell_index];
                     if (object_count_1 == 0u) {
                         continue;
@@ -3726,60 +3878,68 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(loca
                     let cell_offset = cell_offsets[cell_index];
                     k = 0u;
                     loop {
-                        let _e93 = k;
-                        if (_e93 < object_count_1) {
+                        let _e118 = k;
+                        if (_e118 < object_count_1) {
                         } else {
                             break;
                         }
                         {
-                            let _e96 = k;
-                            let other_object_index = cells[(cell_offset + _e96)];
+                            let _e121 = k;
+                            let other_object_index = cells[(cell_offset + _e121)];
                             if (other_object_index >= object_index) {
                                 continue;
                             }
                             let c2_ = positions[other_object_index].inner;
-                            let _e108 = flags[other_object_index].inner;
-                            if ((_e108 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+                            let _e133 = flags[other_object_index].inner;
+                            if ((_e133 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
                                 continue;
                             }
-                            let delta = (c1_ - c2_);
+                            let _e138 = c1_;
+                            let delta = (_e138 - c2_);
                             let distance_squared = dot(delta, delta);
-                            let _e116 = particle_radius;
-                            let particle_size = (_e116 * 2f);
+                            let _e142 = particle_radius;
+                            let particle_size = (_e142 * 2f);
                             let particle_size_squared = (particle_size * particle_size);
                             if !((distance_squared > particle_size_squared)) {
-                                local_2 = (distance_squared < 0.0000000001f);
+                                local_3 = (distance_squared < 0.0000000001f);
                             } else {
-                                local_2 = true;
+                                local_3 = true;
                             }
-                            let _e127 = local_2;
-                            if _e127 {
+                            let _e153 = local_3;
+                            if _e153 {
                                 continue;
                             }
-                            let _e130 = atomicAdd((&candidate_count), 1u);
-                            if (_e130 >= max_candidates) {
+                            let _e156 = atomicAdd((&candidate_count), 1u);
+                            if (_e156 >= max_candidates) {
                                 return;
                             }
-                            candidates[_e130] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(object_index, other_object_index);
+                            candidates[_e156] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(object_index, other_object_index);
                         }
                         continuing {
-                            let _e136 = k;
-                            k = (_e136 + 1u);
+                            let _e162 = k;
+                            k = (_e162 + 1u);
                         }
                     }
                 }
                 continuing {
-                    let _e139 = j;
-                    j = (_e139 + 1u);
+                    let _e165 = j;
+                    j = (_e165 + 1u);
                 }
             }
         }
         continuing {
-            let _e142 = i;
-            i = (_e142 + 1u);
+            let _e168 = i;
+            i = (_e168 + 1u);
         }
     }
-    return;
+    let _e171 = object_count;
+    if (object_index == (_e171 - 1u)) {
+        workgroupBarrier();
+        atomicStore((&kick_magnitude), bitcast<u32>(0f));
+        return;
+    } else {
+        return;
+    }
 }
 "#;
 }
