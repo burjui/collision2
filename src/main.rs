@@ -178,11 +178,18 @@ fn main() {
         let device = device.clone();
         let exit_requested = exit_requested.clone();
         move || {
+            let pool = rayon::ThreadPoolBuilder::new().num_threads(num_cpus::get()).build().unwrap();
             loop {
-                device.poll(PollType::Poll).unwrap();
+                let device = device.clone();
+                pool.install({
+                    move || {
+                        let _ = device.poll(PollType::Poll).unwrap();
+                    }
+                });
                 if exit_requested.load(Ordering::Relaxed) {
                     break;
                 }
+                std::thread::yield_now();
             }
         }
     });

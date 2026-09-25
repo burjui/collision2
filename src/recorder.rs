@@ -22,7 +22,6 @@ use crate::{
 pub struct Recorder {
     config: RecorderConfig,
     frame_texture: Texture,
-    frame_staging_buffer: DeviceBuffer<u8>,
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
     padded_bytes_per_row: u32,
@@ -78,12 +77,6 @@ impl Recorder {
             config.phase_state_ring_config,
         );
         let padded_bytes_per_row = (Self::FRAME_SIZE.width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-        let frame_staging_buffer = DeviceBuffer::<u8>::new(
-            &config.device,
-            padded_bytes_per_row * Self::FRAME_SIZE.height,
-            "export frame staging buffer",
-            BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-        );
         if let Some(output_path) = &CONFIG.output_path {
             std::fs::create_dir_all(output_path).unwrap();
         }
@@ -91,7 +84,6 @@ impl Recorder {
         Self {
             config,
             frame_texture,
-            frame_staging_buffer,
             shape_renderer,
             aabb_renderer,
             padded_bytes_per_row,
@@ -101,6 +93,13 @@ impl Recorder {
     pub fn record_frame(&mut self, frame_index: usize) {
         // Render to the export texture
         let texture_view = self.frame_texture.create_view(&Default::default());
+        let padded_bytes_per_row = self.padded_bytes_per_row;
+        let frame_staging_buffer = DeviceBuffer::<u8>::new(
+            &self.config.device,
+            padded_bytes_per_row * Self::FRAME_SIZE.height,
+            "export frame staging buffer",
+            BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+        );
         render_scene(
             &self.config.device,
             &self.config.queue,
@@ -111,19 +110,18 @@ impl Recorder {
             &self.config.phase_state_ring,
             0..self.config.object_count,
             {
-                let export_frame_texture = self.frame_texture.clone();
-                let export_frame_staging_buffer = self.frame_staging_buffer.clone();
-                let padded_bytes_per_row = self.padded_bytes_per_row;
+                let frame_texture = self.frame_texture.clone();
+                let frame_staging_buffer = frame_staging_buffer.clone();
                 move |encoder| {
                     encoder.copy_texture_to_buffer(
                         TexelCopyTextureInfo {
-                            texture: &export_frame_texture,
+                            texture: &frame_texture,
                             mip_level: 0,
                             origin: Origin3d::ZERO,
                             aspect: TextureAspect::All,
                         },
                         TexelCopyBufferInfo {
-                            buffer: export_frame_staging_buffer.buffer(),
+                            buffer: frame_staging_buffer.buffer(),
                             layout: wgpu::TexelCopyBufferLayout {
                                 offset: 0,
                                 bytes_per_row: Some(padded_bytes_per_row),
@@ -142,7 +140,7 @@ impl Recorder {
         );
         let (tx, rx) = channel::bounded(1);
         self.config.queue.on_submitted_work_done({
-            let frame_staging_buffer = self.frame_staging_buffer.clone();
+            let frame_staging_buffer = frame_staging_buffer.clone();
             let padded_bytes_per_row = self.padded_bytes_per_row;
             move || {
                 assert!(padded_bytes_per_row == Self::FRAME_SIZE.width * 4);
@@ -153,10 +151,10 @@ impl Recorder {
                 });
             }
         });
-        let data = rx.recv().unwrap();
         rayon::spawn({
             let output_path = self.config.output_path.clone();
             move || {
+                let data = rx.recv().unwrap();
                 let image = ImageBuffer::<Rgba<u8>, _>::from_raw(
                     Self::FRAME_SIZE.width,
                     Self::FRAME_SIZE.height,
