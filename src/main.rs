@@ -182,9 +182,11 @@ fn main() {
             let pool = ThreadPool::new(num_cpus::get());
             loop {
                 let device = device.clone();
-                pool.execute(move || {
-                    let _ = device.poll(PollType::Poll).unwrap();
-                });
+                if pool.queued_count() < pool.max_count() {
+                    pool.execute(move || {
+                        let _ = device.poll(PollType::Poll).unwrap();
+                    });
+                }
                 if exit_requested.load(Ordering::Relaxed) {
                     break;
                 }
