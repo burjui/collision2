@@ -1,8 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crossbeam::channel;
 use image::{ImageBuffer, Rgba};
-use threadpool::ThreadPool;
 use wgpu::{
     BufferUsages, Device, Extent3d, Origin3d, Queue, TexelCopyBufferInfo, TexelCopyTextureInfo, Texture, TextureAspect,
     TextureDimension, TextureFormat, TextureUsages, wgt::TextureDescriptor,
@@ -26,7 +24,6 @@ pub struct Recorder {
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
     padded_bytes_per_row: u32,
-    thread_pool: ThreadPool,
 }
 
 impl Recorder {
@@ -89,7 +86,6 @@ impl Recorder {
             shape_renderer,
             aabb_renderer,
             padded_bytes_per_row,
-            thread_pool: ThreadPool::new(num_cpus::get()),
         }
     }
 
@@ -141,30 +137,23 @@ impl Recorder {
             },
             "Rendering to texture",
         );
-        let (tx, rx) = channel::bounded(1);
         self.config.queue.on_submitted_work_done({
             let frame_staging_buffer = frame_staging_buffer.clone();
             let padded_bytes_per_row = self.padded_bytes_per_row;
+            let output_path = self.config.output_path.clone();
             move || {
                 assert!(padded_bytes_per_row == Self::FRAME_SIZE.width * 4);
                 let frame_size_in_bytes = padded_bytes_per_row * Self::FRAME_SIZE.height;
                 frame_staging_buffer.read(frame_size_in_bytes.try_into().unwrap(), move |result| {
                     let data = result.unwrap();
-                    let _ = tx.send(data);
+                    let image = ImageBuffer::<Rgba<u8>, _>::from_raw(
+                        Self::FRAME_SIZE.width,
+                        Self::FRAME_SIZE.height,
+                        data.as_slice(),
+                    )
+                    .expect("invalid image size");
+                    image.save(format!("{}/{:06}.png", output_path, frame_index)).unwrap();
                 });
-            }
-        });
-        self.thread_pool.execute({
-            let output_path = self.config.output_path.clone();
-            move || {
-                let data = rx.recv().unwrap();
-                let image = ImageBuffer::<Rgba<u8>, _>::from_raw(
-                    Self::FRAME_SIZE.width,
-                    Self::FRAME_SIZE.height,
-                    data.as_slice(),
-                )
-                .expect("invalid image size");
-                image.save(format!("{}/{:06}.png", output_path, frame_index)).unwrap();
             }
         });
     }
