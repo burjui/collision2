@@ -69,7 +69,7 @@ pub fn render_scene(
     phase_state_ring_guard.advance_frame();
     drop(phase_state_ring_guard);
 
-    let mut timings = CommandTimings::new(device, 1);
+    let mut timings = CommandTimings::new(device, 2);
 
     if render_parameters.enabled {
         shape_renderer.prepare(current_frame_index, device, &current_frame);

@@ -11,7 +11,6 @@ pub struct CommandTimings {
     device: Device,
     capacity: u32,
     query_set: QuerySet,
-    query_buffer: DeviceBuffer<u64>,
     requests: Vec<&'static str>,
     requests_readback: Vec<&'static str>,
 }
@@ -23,17 +22,10 @@ impl CommandTimings {
             ty: QueryType::Timestamp,
             count: capacity * 2,
         });
-        let query_buffer = DeviceBuffer::new(
-            device,
-            capacity * 2,
-            "CommandTimings query buffer",
-            BufferUsages::QUERY_RESOLVE | BufferUsages::COPY_SRC,
-        );
         Self {
             device: device.clone(),
             capacity,
             query_set,
-            query_buffer,
             requests: Vec::new(),
             requests_readback: Vec::new(),
         }
@@ -71,7 +63,13 @@ impl CommandTimings {
     }
 
     pub fn resolve(&mut self, encoder: &mut CommandEncoder, timestamp_period: f32) -> CommandTimingsReader {
-        encoder.resolve_query_set(&self.query_set, 0..self.request_slot_count(), self.query_buffer.buffer(), 0);
+        let query_buffer = DeviceBuffer::<u64>::new(
+            &self.device,
+            self.capacity * 2,
+            "CommandTimings query buffer",
+            BufferUsages::QUERY_RESOLVE | BufferUsages::COPY_SRC,
+        );
+        encoder.resolve_query_set(&self.query_set, 0..self.request_slot_count(), query_buffer.buffer(), 0);
 
         let query_readback_buffer = DeviceBuffer::new(
             &self.device,
@@ -79,7 +77,7 @@ impl CommandTimings {
             "CommandTimings query readback buffer",
             BufferUsages::MAP_READ | BufferUsages::COPY_DST,
         );
-        encoder.copy_buffer_to_buffer(self.query_buffer.buffer(), 0, query_readback_buffer.buffer(), 0, None);
+        query_readback_buffer.copy(&query_buffer, encoder);
         self.requests_readback.clear();
         self.requests_readback.append(&mut self.requests);
         CommandTimingsReader {

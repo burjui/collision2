@@ -107,7 +107,11 @@ impl<T> DeviceBuffer<T> {
         });
     }
 
-    pub fn copy(
+    pub fn copy(&self, src: &DeviceBuffer<T>, encoder: &mut CommandEncoder) {
+        encoder.copy_buffer_to_buffer(&src.buffer, 0, &self.buffer, 0, None);
+    }
+
+    pub fn copy_block(
         &self,
         dst_bounds: impl RangeBounds<usize>,
         src: &DeviceBuffer<T>,
