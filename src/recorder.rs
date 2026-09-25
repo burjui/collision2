@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use crossbeam::channel;
 use image::{ImageBuffer, Rgba};
+use threadpool::ThreadPool;
 use wgpu::{
     BufferUsages, Device, Extent3d, Origin3d, Queue, TexelCopyBufferInfo, TexelCopyTextureInfo, Texture, TextureAspect,
     TextureDimension, TextureFormat, TextureUsages, wgt::TextureDescriptor,
@@ -25,6 +26,7 @@ pub struct Recorder {
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
     padded_bytes_per_row: u32,
+    thread_pool: ThreadPool,
 }
 
 impl Recorder {
@@ -87,6 +89,7 @@ impl Recorder {
             shape_renderer,
             aabb_renderer,
             padded_bytes_per_row,
+            thread_pool: ThreadPool::new(num_cpus::get()),
         }
     }
 
@@ -151,7 +154,7 @@ impl Recorder {
                 });
             }
         });
-        rayon::spawn({
+        self.thread_pool.execute({
             let output_path = self.config.output_path.clone();
             move || {
                 let data = rx.recv().unwrap();

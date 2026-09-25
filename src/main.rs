@@ -45,6 +45,7 @@ use nalgebra::Vector2;
 use pollster::block_on;
 use renderer::RenderParameters;
 use shaders::common::Mass;
+use threadpool::ThreadPool;
 use wgpu::{
     Adapter, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, CurrentSurfaceTexture, Device,
     DeviceDescriptor, InstanceDescriptor, PollType, PresentMode, Queue, Surface, SurfaceConfiguration, TextureFormat,
@@ -178,13 +179,11 @@ fn main() {
         let device = device.clone();
         let exit_requested = exit_requested.clone();
         move || {
-            let pool = rayon::ThreadPoolBuilder::new().num_threads(num_cpus::get()).build().unwrap();
+            let pool = ThreadPool::new(num_cpus::get());
             loop {
                 let device = device.clone();
-                pool.install({
-                    move || {
-                        let _ = device.poll(PollType::Poll).unwrap();
-                    }
+                pool.execute(move || {
+                    let _ = device.poll(PollType::Poll).unwrap();
                 });
                 if exit_requested.load(Ordering::Relaxed) {
                     break;
