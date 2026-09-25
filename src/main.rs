@@ -350,6 +350,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         &self.phase_state_ring,
                         0..self.object_count,
                         |_| {},
+                        "Rendering to screen",
                     );
                     state.window.pre_present_notify();
                     self.queue.present(surface_texture);
@@ -405,7 +406,11 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                 self.cursor_position = Some(Vector2::from(position).cast());
             }
 
-            WindowEvent::MouseInput { state, button, .. } if button == MouseButton::Left => match state {
+            WindowEvent::MouseInput {
+                state,
+                button: MouseButton::Left,
+                ..
+            } => match state {
                 ElementState::Pressed => {
                     self.lmb_down = true;
                     self.kick_at_cursor();

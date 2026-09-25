@@ -9,7 +9,10 @@ use wgpu::{
     TextureView,
 };
 
-use crate::{aabb_renderer::AabbRenderer, phase_state::PhaseStateRing, shape_renderer::ShapeRenderer};
+use crate::{
+    aabb_renderer::AabbRenderer, command_timings::CommandTimings, config::CONFIG, phase_state::PhaseStateRing,
+    shape_renderer::ShapeRenderer,
+};
 
 #[derive(Copy, Clone)]
 pub struct RenderParameters {
@@ -40,6 +43,7 @@ pub fn render_scene(
     phase_state_ring: &Arc<Mutex<PhaseStateRing>>,
     instances: Range<u32>,
     before_submit: impl FnOnce(&mut CommandEncoder),
+    label: &'static str,
 ) {
     let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -65,17 +69,31 @@ pub fn render_scene(
     phase_state_ring_guard.advance_frame();
     drop(phase_state_ring_guard);
 
+    let mut timings = CommandTimings::new(device, 1);
+
     if render_parameters.enabled {
         shape_renderer.prepare(current_frame_index, device, &current_frame);
-        shape_renderer.render(&mut render_pass, instances.clone());
+        timings.measure_render(&mut render_pass, "shapes", |render_pass| {
+            shape_renderer.render(render_pass, instances.clone())
+        });
     }
     if render_parameters.draw_aabbs {
         aabb_renderer.prepare(current_frame_index, device, &current_frame);
-        aabb_renderer.render(&mut render_pass, instances);
+        timings.measure_render(&mut render_pass, "aabbs", |render_pass| aabb_renderer.render(render_pass, instances));
     }
 
     drop(render_pass);
 
+    let timings_reader = timings.resolve(&mut encoder, queue.get_timestamp_period());
     before_submit(&mut encoder);
     queue.submit([encoder.finish()]);
+    if CONFIG.printouts {
+        queue.on_submitted_work_done(move || {
+            timings_reader.read(move |timings| {
+                for (stage, duration) in timings {
+                    println!("{label}[{stage}]: {duration:?}");
+                }
+            });
+        });
+    }
 }

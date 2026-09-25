@@ -138,6 +138,7 @@ impl Recorder {
                     );
                 }
             },
+            "Rendering to texture",
         );
         let (tx, rx) = channel::bounded(1);
         self.config.queue.on_submitted_work_done({
