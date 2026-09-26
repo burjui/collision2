@@ -343,8 +343,16 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                         self.render_parameters.offset,
                     );
                     state.camera.write(&self.queue, &[Camera::new(camera_matrix)]);
+                    self.device.poll(PollType::wait_indefinitely()).unwrap();
 
-                    let CurrentSurfaceTexture::Success(surface_texture) = state.surface.get_current_texture() else {
+                    let Some(surface_texture) = acquire_surface_texture(
+                        self.wgpu_instance.clone(),
+                        self.device.clone(),
+                        &mut state.surface,
+                        state.surface_config.clone(),
+                        state.window.clone(),
+                        self.pause_simulation.clone(),
+                    ) else {
                         panic!("Failed to get current surface texture");
                     };
                     let surface_texture_view = surface_texture.texture.create_view(&TextureViewDescriptor::default());
@@ -464,6 +472,61 @@ impl App<'_> {
         );
         self.kick_center.write(&self.queue, &[kick_center.into()]);
         self.kick_magnitude.write(&self.queue, &[100.0]);
+    }
+}
+
+fn acquire_surface_texture(
+    wgpu_instance: wgpu::Instance,
+    device: Device,
+    surface: &mut Surface,
+    surface_config: SurfaceConfiguration,
+    window: Arc<Window>,
+    pause_simulation: Arc<AtomicBool>,
+) -> Option<wgpu::SurfaceTexture> {
+    match surface.get_current_texture() {
+        CurrentSurfaceTexture::Success(frame) => Some(frame),
+        // If we timed out or the window is occluded, skip this frame:
+        CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded => None,
+        // If the surface is outdated or suboptimal, reconfigure and retry.
+        CurrentSurfaceTexture::Suboptimal(texture) => {
+            drop(texture);
+            let was_paused = pause_simulation.swap(true, Ordering::SeqCst);
+            device.poll(PollType::wait_indefinitely()).unwrap();
+            surface.configure(&device, &surface_config);
+            device.poll(PollType::wait_indefinitely()).unwrap();
+            pause_simulation.store(was_paused, Ordering::SeqCst);
+            match surface.get_current_texture() {
+                CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => Some(frame),
+                other => panic!("Failed to acquire next surface texture: {other:?}"),
+            }
+        }
+        CurrentSurfaceTexture::Outdated => {
+            let was_paused = pause_simulation.swap(true, Ordering::SeqCst);
+            device.poll(PollType::wait_indefinitely()).unwrap();
+            surface.configure(&device, &surface_config);
+            device.poll(PollType::wait_indefinitely()).unwrap();
+            pause_simulation.store(was_paused, Ordering::SeqCst);
+            match surface.get_current_texture() {
+                CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => Some(frame),
+                other => panic!("Failed to acquire next surface texture: {other:?}"),
+            }
+        }
+        CurrentSurfaceTexture::Validation => {
+            unreachable!("No error scope registered, so validation errors will panic")
+        }
+        // If the surface is lost, recreate and reconfigure it.
+        CurrentSurfaceTexture::Lost => {
+            *surface = wgpu_instance.create_surface(window).unwrap();
+            let was_paused = pause_simulation.swap(true, Ordering::SeqCst);
+            device.poll(PollType::wait_indefinitely()).unwrap();
+            surface.configure(&device, &surface_config);
+            device.poll(PollType::wait_indefinitely()).unwrap();
+            pause_simulation.store(was_paused, Ordering::SeqCst);
+            match surface.get_current_texture() {
+                CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => Some(frame),
+                other => panic!("Failed to acquire next surface texture: {other:?}"),
+            }
+        }
     }
 }
 
@@ -743,6 +806,10 @@ fn spawn_simulation_thread(
 
             if last_frame_instant.elapsed() >= Duration::from_secs_f32(1.0 / CONFIG.fps) {
                 last_frame_instant = Instant::now();
+                let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
+                phase_state_ring_guard.advance_frame();
+                drop(phase_state_ring_guard);
+
                 if let Some(event_loop_proxy) = &event_loop_proxy {
                     let _ = event_loop_proxy.send_event(AppEvent::RedrawRequested);
                 }

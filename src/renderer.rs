@@ -63,10 +63,9 @@ pub fn render_scene(
         multiview_mask: None,
     });
 
-    let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
-    let current_frame_index = phase_state_ring_guard.current_frame_index();
+    let phase_state_ring_guard = phase_state_ring.lock().unwrap();
     let current_frame = phase_state_ring_guard.current_frame().clone();
-    phase_state_ring_guard.advance_frame();
+    let current_frame_index = phase_state_ring_guard.current_frame_index();
     drop(phase_state_ring_guard);
 
     let mut timings = CommandTimings::new(device, 2);
