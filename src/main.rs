@@ -87,6 +87,7 @@ use crate::{
         common::{AABB, Camera, Color, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL, Shape},
     },
     shape_renderer::ShapeRenderer,
+    util::map_mutex,
 };
 
 const UNIFORM: BufferUsages = BufferUsages::UNIFORM;
@@ -806,9 +807,7 @@ fn spawn_simulation_thread(
 
             if last_frame_instant.elapsed() >= Duration::from_secs_f32(1.0 / CONFIG.fps) {
                 last_frame_instant = Instant::now();
-                let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
-                phase_state_ring_guard.advance_frame();
-                drop(phase_state_ring_guard);
+                map_mutex(&phase_state_ring, PhaseStateRing::advance_frame);
 
                 if let Some(event_loop_proxy) = &event_loop_proxy {
                     let _ = event_loop_proxy.send_event(AppEvent::RedrawRequested);
@@ -821,12 +820,15 @@ fn spawn_simulation_thread(
             }
 
             // Set integrator buffers, advance the 2-state sliding window that the integrator uses
-            let mut phase_state_ring_guard = phase_state_ring.lock().unwrap();
-            let phase_state_index = phase_state_ring_guard.current_compute_index();
-            let mut current_phase_state = phase_state_ring_guard.current_compute().clone();
-            let next_phase_state = phase_state_ring_guard.next_compute().clone();
-            phase_state_ring_guard.advance_compute();
-            drop(phase_state_ring_guard);
+            let (mut current_phase_state, phase_state_index, next_phase_state, _) =
+                map_mutex(&phase_state_ring, |phase_state_ring| {
+                    (
+                        phase_state_ring.current_compute().clone(),
+                        phase_state_ring.current_compute_index(),
+                        phase_state_ring.next_compute().clone(),
+                        phase_state_ring.advance_compute(),
+                    )
+                });
 
             // Prepare the compute pass
             calculate_grid_aabb.prepare(&device, phase_state_index, &current_phase_state);

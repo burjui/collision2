@@ -11,7 +11,7 @@ use wgpu::{
 
 use crate::{
     aabb_renderer::AabbRenderer, command_timings::CommandTimings, config::CONFIG, phase_state::PhaseStateRing,
-    shape_renderer::ShapeRenderer,
+    shape_renderer::ShapeRenderer, util::map_mutex,
 };
 
 #[derive(Copy, Clone)]
@@ -63,10 +63,9 @@ pub fn render_scene(
         multiview_mask: None,
     });
 
-    let phase_state_ring_guard = phase_state_ring.lock().unwrap();
-    let current_frame = phase_state_ring_guard.current_frame().clone();
-    let current_frame_index = phase_state_ring_guard.current_frame_index();
-    drop(phase_state_ring_guard);
+    let (current_frame, current_frame_index) = map_mutex(phase_state_ring, |phase_state_ring| {
+        (phase_state_ring.current_frame().clone(), phase_state_ring.current_frame_index())
+    });
 
     let mut timings = CommandTimings::new(device, 2);
 

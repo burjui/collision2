@@ -1,4 +1,4 @@
-use std::iter::from_fn;
+use std::{iter::from_fn, sync::Mutex};
 
 use nalgebra::Vector2;
 use wgpu::ComputePass;
@@ -61,4 +61,9 @@ impl<T> PhaseStateCache<T> {
     pub fn get_current(&self) -> &T {
         self.data[self.phase_state_index.expect("forgot to call update()?")].as_ref().expect("forgot to call update()?")
     }
+}
+
+pub fn map_mutex<T, U>(mutex: &Mutex<T>, f: impl FnOnce(&mut T) -> U) -> U {
+    let mut guard = mutex.lock().unwrap();
+    f(&mut guard)
 }
