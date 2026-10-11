@@ -1,7 +1,6 @@
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
-    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     shaders::{
         collision_narrow_phase_dispatch_dimensions::{
@@ -10,6 +9,7 @@ use crate::{
         },
         common::DispatchIndirectArgs,
     },
+    util::ComputeStage,
 };
 
 pub struct NarrowPhaseDispatchIndirectArgs {

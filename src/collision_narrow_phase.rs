@@ -2,7 +2,6 @@ use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
     buffer_sets::BroadPhaseBuffers,
-    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::{
@@ -14,7 +13,7 @@ use crate::{
         },
         common::{DispatchIndirectArgs, Mass},
     },
-    util::PhaseStateCache,
+    util::{ComputeStage, PhaseStateCache},
 };
 
 pub struct NarrowPhase {

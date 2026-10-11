@@ -3,13 +3,13 @@ use wgpu::{ComputePipeline, Device};
 // use crate::shaders::common::CellPosition;
 use crate::{
     buffer_sets::BroadPhaseBuffers,
-    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::assign_object_cells::{
         WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
         WgpuBindGroup1EntriesParams, compute::create_assign_object_cells_pipeline_embed_source,
     },
+    util::ComputeStage,
     util::{PhaseStateCache, dispatch_compute},
 };
 

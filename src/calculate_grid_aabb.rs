@@ -2,14 +2,13 @@ use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
     buffer_sets::BroadPhaseBuffers,
-    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::calculate_grid_aabb::{
         WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
         WgpuBindGroup1EntriesParams, compute::create_calculate_grid_aabb_pipeline_embed_source,
     },
-    util::{PhaseStateCache, dispatch_compute},
+    util::{ComputeStage, PhaseStateCache, dispatch_compute},
 };
 
 pub struct CalculateGridAABB {

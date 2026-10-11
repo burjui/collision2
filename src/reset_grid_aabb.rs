@@ -2,11 +2,11 @@ use wgpu::{ComputePipeline, Device};
 
 use crate::{
     buffer_sets::BroadPhaseBuffers,
-    compute_stage::ComputeStage,
     shaders::reset_grid_aabb::{
         WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
         compute::create_reset_grid_aabb_pipeline_embed_source,
     },
+    util::ComputeStage,
 };
 
 pub struct ResetGridAABB {

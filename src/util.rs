@@ -8,6 +8,12 @@ use crate::{
     shaders::common::{AABB, MAX_DISPATCH_DIMENSION, Velocity, WORKGROUP_SIZE},
 };
 
+pub trait ComputeStage {
+    const LABEL: &'static str;
+
+    fn compute_impl(&self, compute_pass: &mut ComputePass);
+}
+
 impl AABB {
     pub fn min(&self) -> Vector2<f32> {
         self.min.into()

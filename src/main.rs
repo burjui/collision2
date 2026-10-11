@@ -47,7 +47,7 @@ use renderer::RenderParameters;
 use shaders::common::Mass;
 use threadpool::ThreadPool;
 use wgpu::{
-    Adapter, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, CurrentSurfaceTexture, Device,
+    Adapter, BufferUsages, CommandEncoderDescriptor, ComputePass, ComputePassDescriptor, CurrentSurfaceTexture, Device,
     DeviceDescriptor, InstanceDescriptor, PollType, PresentMode, Queue, Surface, SurfaceConfiguration, TextureFormat,
     TextureViewDescriptor, util::initialize_adapter_from_env_or_default,
 };
@@ -71,7 +71,7 @@ use crate::{
     collision_broad_phase_grid::CollisionBroadPhaseGrid,
     collision_narrow_phase::NarrowPhase,
     collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgs,
-    compute_stage::ComputeStage,
+    command_timings::CommandTimings,
     config::CONFIG,
     device_buffer::DeviceBuffer,
     integrator::Integrator,
@@ -87,7 +87,7 @@ use crate::{
         common::{AABB, Camera, Color, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL, Shape},
     },
     shape_renderer::ShapeRenderer,
-    util::map_mutex,
+    util::{ComputeStage, map_mutex},
 };
 
 const UNIFORM: BufferUsages = BufferUsages::UNIFORM;
@@ -852,20 +852,20 @@ fn spawn_simulation_thread(
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
 
             // Broad phase
-            reset_grid_aabb.compute(&mut compute_pass, timings);
-            calculate_grid_aabb.compute(&mut compute_pass, timings);
-            cell_offsets_dispatch_dimensions.compute(&mut compute_pass, timings);
-            assign_object_cells.compute(&mut compute_pass, timings);
-            calculate_cell_offsets.compute(&mut compute_pass, timings);
-            populate_grid_cells.compute(&mut compute_pass, timings);
-            broad_phase_grid.compute(&mut compute_pass, timings);
+            compute(&reset_grid_aabb, &mut compute_pass, timings);
+            compute(&calculate_grid_aabb, &mut compute_pass, timings);
+            compute(&cell_offsets_dispatch_dimensions, &mut compute_pass, timings);
+            compute(&assign_object_cells, &mut compute_pass, timings);
+            compute(&calculate_cell_offsets, &mut compute_pass, timings);
+            compute(&populate_grid_cells, &mut compute_pass, timings);
+            compute(&broad_phase_grid, &mut compute_pass, timings);
 
             // Narrow phase
-            narrow_phase_dispatch_dimensions.compute(&mut compute_pass, timings);
-            narrow_phase.compute(&mut compute_pass, timings);
+            compute(&narrow_phase_dispatch_dimensions, &mut compute_pass, timings);
+            compute(&narrow_phase, &mut compute_pass, timings);
 
             // Integrate
-            integrator.compute(&mut compute_pass, timings);
+            compute(&integrator, &mut compute_pass, timings);
 
             drop(compute_pass);
 
@@ -904,4 +904,8 @@ fn spawn_simulation_thread(
             }
         }
     })
+}
+
+fn compute<T: ComputeStage>(stage: &T, compute_pass: &mut ComputePass, timings: &mut CommandTimings) {
+    timings.measure_compute(compute_pass, T::LABEL, |compute_pass| stage.compute_impl(compute_pass));
 }

@@ -4,7 +4,6 @@ use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
     buffer_sets::BroadPhaseBuffers,
-    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     shaders::{
         calculate_cell_offsets::{
@@ -14,6 +13,7 @@ use crate::{
         calculate_cell_offsets_dispatch_dimensions::N_CELL_INDIRECT_DISPATCHES,
         common::{DispatchIndirectArgs, MAX_DISPATCH_DIMENSION, WORKGROUP_SIZE},
     },
+    util::ComputeStage,
 };
 
 pub struct CalculateCellOffsets {

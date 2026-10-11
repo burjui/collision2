@@ -2,7 +2,6 @@ use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
     buffer_sets::BroadPhaseBuffers,
-    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::collision_broad_phase_grid::{
@@ -11,7 +10,7 @@ use crate::{
         WgpuBindGroup3, WgpuBindGroup3Entries, WgpuBindGroup3EntriesParams,
         compute::create_broad_phase_grid_pipeline_embed_source,
     },
-    util::{PhaseStateCache, dispatch_compute},
+    util::{ComputeStage, PhaseStateCache, dispatch_compute},
 };
 
 pub struct CollisionBroadPhaseGrid {

@@ -2,7 +2,6 @@ use nalgebra::Vector2;
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 use crate::{
-    compute_stage::ComputeStage,
     config::CONFIG,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
@@ -14,7 +13,7 @@ use crate::{
             WgpuBindGroup2EntriesParams, compute::create_integrate_pipeline_embed_source,
         },
     },
-    util::{PhaseStateCache, dispatch_compute},
+    util::{ComputeStage, PhaseStateCache, dispatch_compute},
 };
 
 pub struct Integrator {

@@ -2,13 +2,12 @@ use wgpu::{ComputePipeline, Device};
 
 use crate::{
     buffer_sets::BroadPhaseBuffers,
-    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     shaders::populate_grid_cells::{
         WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
         compute::create_populate_object_cells_pipeline_embed_source,
     },
-    util::dispatch_compute,
+    util::{ComputeStage, dispatch_compute},
 };
 
 pub struct PopulateGridCells {

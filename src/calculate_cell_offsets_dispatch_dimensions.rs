@@ -2,7 +2,6 @@ use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
     buffer_sets::BroadPhaseBuffers,
-    compute_stage::ComputeStage,
     device_buffer::DeviceBuffer,
     shaders::{
         calculate_cell_offsets_dispatch_dimensions::{
@@ -11,6 +10,7 @@ use crate::{
         },
         common::DispatchIndirectArgs,
     },
+    util::ComputeStage,
 };
 
 pub struct CellIterationDispatchDimensions {
