@@ -91,8 +91,8 @@ fn broad_phase_grid(
         }
     }
 
+    workgroupBarrier();
     if object_index == object_count - 1 {
-        workgroupBarrier();
         atomicStore(&kick_magnitude, bitcast<u32>(0.0));
     }
 }

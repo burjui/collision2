@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.23.3
 // Changes made to this file will not be saved.
-// SourceHash: 0fdf9518a9d46b19c772b39e0b836f8ccf3ff922be55036011877ab0b0dcd45a
+// SourceHash: 7b43ee6e870fb871b02e3ad5e28b6cd458802b3ca19741e95a0a1638db214b0c
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
@@ -3932,9 +3932,9 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(loca
             i = (_e168 + 1u);
         }
     }
+    workgroupBarrier();
     let _e171 = object_count;
     if (object_index == (_e171 - 1u)) {
-        workgroupBarrier();
         atomicStore((&kick_magnitude), bitcast<u32>(0f));
         return;
     } else {
