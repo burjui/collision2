@@ -152,7 +152,7 @@ fn main() {
     let event_loop_proxy = event_loop.as_ref().map(|event_loop| event_loop.create_proxy());
     let kick_center = DeviceBuffer::from_data(&device, &[[0.0, 0.0]], "kick center", UNIFORM | COPY_SRC | COPY_DST);
     let kick_radius = DeviceBuffer::from_data(&device, &[1000.0], "kick radius", UNIFORM | COPY_SRC | COPY_DST);
-    let kick_magnitude = DeviceBuffer::from_data(&device, &[0.0], "kick magnitude", STORAGE | COPY_SRC | COPY_DST);
+    let kick_magnitude = DeviceBuffer::from_data(&device, &[0.0], "kick magnitude", UNIFORM | COPY_SRC | COPY_DST);
     let sim_join_handle = spawn_simulation_thread(
         device.clone(),
         queue.clone(),
@@ -850,8 +850,6 @@ fn spawn_simulation_thread(
             });
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
-
-            // Broad phase
             compute(&reset_grid_aabb, &mut compute_pass, timings);
             compute(&calculate_grid_aabb, &mut compute_pass, timings);
             compute(&cell_offsets_dispatch_dimensions, &mut compute_pass, timings);
@@ -859,15 +857,12 @@ fn spawn_simulation_thread(
             compute(&calculate_cell_offsets, &mut compute_pass, timings);
             compute(&populate_grid_cells, &mut compute_pass, timings);
             compute(&broad_phase_grid, &mut compute_pass, timings);
-
-            // Narrow phase
             compute(&narrow_phase_dispatch_dimensions, &mut compute_pass, timings);
             compute(&narrow_phase, &mut compute_pass, timings);
-
-            // Integrate
             compute(&integrator, &mut compute_pass, timings);
-
             drop(compute_pass);
+
+            encoder.clear_buffer(kick_magnitude.buffer(), 0, None);
 
             let timings_reader = timings.resolve(&mut encoder, timestamp_period);
 

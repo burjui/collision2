@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.23.3
 // Changes made to this file will not be saved.
-// SourceHash: 7b43ee6e870fb871b02e3ad5e28b6cd458802b3ca19741e95a0a1638db214b0c
+// SourceHash: 2e7b695c4c842826056aa252240da180141d124054b213f1b9fd932e89c36eb8
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
@@ -3106,6 +3106,7 @@ pub mod collision_broad_phase_grid {
         pub grid_size_y: wgpu::BufferBinding<'a>,
         pub kick_center: wgpu::BufferBinding<'a>,
         pub kick_radius: wgpu::BufferBinding<'a>,
+        pub kick_magnitude: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
@@ -3117,6 +3118,7 @@ pub mod collision_broad_phase_grid {
         pub grid_size_y: wgpu::BindGroupEntry<'a>,
         pub kick_center: wgpu::BindGroupEntry<'a>,
         pub kick_radius: wgpu::BindGroupEntry<'a>,
+        pub kick_magnitude: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -3153,9 +3155,13 @@ pub mod collision_broad_phase_grid {
                     binding: 8,
                     resource: wgpu::BindingResource::Buffer(params.kick_radius),
                 },
+                kick_magnitude: wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: wgpu::BindingResource::Buffer(params.kick_magnitude),
+                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 8] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 9] {
             [
                 self.object_count,
                 self.particle_radius,
@@ -3165,6 +3171,7 @@ pub mod collision_broad_phase_grid {
                 self.grid_size_y,
                 self.kick_center,
                 self.kick_radius,
+                self.kick_magnitude,
             ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
@@ -3265,6 +3272,17 @@ pub mod collision_broad_phase_grid {
                     },
                     count: None,
                 },
+                #[doc = " @binding(9): \"kick_magnitude\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 9,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
             ],
         };
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -3296,7 +3314,6 @@ pub mod collision_broad_phase_grid {
         pub cell_object_count: wgpu::BufferBinding<'a>,
         pub cell_offsets: wgpu::BufferBinding<'a>,
         pub cells: wgpu::BufferBinding<'a>,
-        pub masses: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup1Entries<'a> {
@@ -3304,7 +3321,6 @@ pub mod collision_broad_phase_grid {
         pub cell_object_count: wgpu::BindGroupEntry<'a>,
         pub cell_offsets: wgpu::BindGroupEntry<'a>,
         pub cells: wgpu::BindGroupEntry<'a>,
-        pub masses: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup1Entries<'a> {
         pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
@@ -3325,20 +3341,10 @@ pub mod collision_broad_phase_grid {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.cells),
                 },
-                masses: wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.masses),
-                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
-            [
-                self.object_cells,
-                self.cell_object_count,
-                self.cell_offsets,
-                self.cells,
-                self.masses,
-            ]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
+            [self.object_cells, self.cell_object_count, self.cell_offsets, self.cells]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -3386,17 +3392,6 @@ pub mod collision_broad_phase_grid {
                 #[doc = " @binding(3): \"cells\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(4): \"masses\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -3534,15 +3529,11 @@ pub mod collision_broad_phase_grid {
     pub struct WgpuBindGroup3EntriesParams<'a> {
         pub candidates: wgpu::BufferBinding<'a>,
         pub candidate_count: wgpu::BufferBinding<'a>,
-        pub forces: wgpu::BufferBinding<'a>,
-        pub kick_magnitude: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup3Entries<'a> {
         pub candidates: wgpu::BindGroupEntry<'a>,
         pub candidate_count: wgpu::BindGroupEntry<'a>,
-        pub forces: wgpu::BindGroupEntry<'a>,
-        pub kick_magnitude: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup3Entries<'a> {
         pub fn new(params: WgpuBindGroup3EntriesParams<'a>) -> Self {
@@ -3555,18 +3546,10 @@ pub mod collision_broad_phase_grid {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(params.candidate_count),
                 },
-                forces: wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(params.forces),
-                },
-                kick_magnitude: wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(params.kick_magnitude),
-                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
-            [self.candidates, self.candidate_count, self.forces, self.kick_magnitude]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 2] {
+            [self.candidates, self.candidate_count]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -3592,28 +3575,6 @@ pub mod collision_broad_phase_grid {
                 #[doc = " @binding(1): \"candidate_count\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(2): \"forces\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(3): \"kick_magnitude\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -3703,10 +3664,6 @@ struct VelocityX_naga_oil_mod_XMNXW23LPNYX {
     inner: vec2<f32>,
 }
 
-struct MassX_naga_oil_mod_XMNXW23LPNYX {
-    inner: f32,
-}
-
 struct PositionX_naga_oil_mod_XMNXW23LPNYX {
     inner: vec2<f32>,
 }
@@ -3743,6 +3700,8 @@ var<uniform> grid_size_y: u32;
 var<uniform> kick_center: vec2<f32>;
 @group(0) @binding(8) 
 var<uniform> kick_radius: f32;
+@group(0) @binding(9) 
+var<uniform> kick_magnitude: f32;
 @group(1) @binding(0) 
 var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(1) 
@@ -3751,8 +3710,6 @@ var<storage> cell_object_count: array<u32>;
 var<storage> cell_offsets: array<u32>;
 @group(1) @binding(3) 
 var<storage> cells: array<u32>;
-@group(1) @binding(4) 
-var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
 @group(2) @binding(0) 
 var<storage> positions: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
 @group(2) @binding(1) 
@@ -3763,39 +3720,9 @@ var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 var<storage, read_write> candidates: array<CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX>;
 @group(3) @binding(1) 
 var<storage, read_write> candidate_count: atomic<u32>;
-@group(3) @binding(2) 
-var<storage, read_write> forces: array<atomic<u32>>;
-@group(3) @binding(3) 
-var<storage, read_write> kick_magnitude: atomic<u32>;
-
-fn cas_add_force_component(i_1: u32, value: f32) {
-    var old: u32;
-
-    let _e3 = atomicLoad((&forces[i_1]));
-    old = _e3;
-    loop {
-        let _e5 = old;
-        let old_f = bitcast<f32>(_e5);
-        let new_f = (old_f + value);
-        let new_value = bitcast<u32>(new_f);
-        let _e12 = old;
-        let _e13 = atomicCompareExchangeWeak((&forces[i_1]), _e12, new_value);
-        if _e13.exchanged {
-            break;
-        }
-        old = _e13.old_value;
-    }
-    return;
-}
-
-fn cas_add_force(i_2: u32, value_1: vec2<f32>) {
-    cas_add_force_component((i_2 * 2u), value_1.x);
-    cas_add_force_component(((i_2 * 2u) + 1u), value_1.y);
-    return;
-}
 
 @compute @workgroup_size(64, 1, 1) 
-fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_index) local_invocation_index: u32) {
+fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>) {
     var local: bool;
     var local_1: bool;
     var c1_: vec2<f32>;
@@ -3827,50 +3754,55 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(loca
     }
     let _e37 = positions[object_index].inner;
     c1_ = _e37;
-    let _e40 = atomicLoad((&kick_magnitude));
-    let k_mag = bitcast<f32>(_e40);
-    let _e42 = c1_;
-    let _e44 = kick_center;
-    let kick_vector = (_e42 - _e44);
-    let _e48 = kick_radius;
-    if (length(kick_vector) < _e48) {
-        local_2 = (k_mag > 0f);
+    let _e39 = c1_;
+    let _e41 = kick_center;
+    let kick_vector = (_e39 - _e41);
+    let kick_vector_length_squared = dot(kick_vector, kick_vector);
+    let _e45 = kick_radius;
+    let _e47 = kick_radius;
+    if (kick_vector_length_squared < (_e45 * _e47)) {
+        let _e51 = kick_magnitude;
+        local_2 = (_e51 > 0f);
     } else {
         local_2 = false;
     }
-    let _e55 = local_2;
-    if _e55 {
-        let _e59 = velocities[object_index].inner;
-        velocities[object_index].inner = (_e59 + (normalize(kick_vector) * k_mag));
+    let _e57 = local_2;
+    if _e57 {
+        let _e61 = velocities[object_index].inner;
+        let _e64 = kick_magnitude;
+        velocities[object_index].inner = (_e61 + (normalize(kick_vector) * _e64));
     }
-    let _e64 = object_count;
-    let max_candidates = (_e64 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
-    let _e70 = object_cells[object_index].cell;
-    let cell = vec2<i32>(_e70);
+    let _e68 = object_count;
+    let max_candidates = (_e68 * MAX_CANDIDATES_PER_OBJECTX_naga_oil_mod_XMNXW23LPNYX);
+    let _e74 = object_cells[object_index].cell;
+    let cell = vec2<i32>(_e74);
     let min_cell = vec2<u32>(max(vec2<i32>(), (cell - vec2(1i))));
-    let _e81 = grid_size_x;
-    let _e85 = grid_size_y;
-    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e81 - 1u), (_e85 - 1u)))));
+    let _e86 = grid_size_x;
+    let _e90 = grid_size_y;
+    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e86 - 1u), (_e90 - 1u)))));
+    let _e98 = particle_radius;
+    let particle_size = (_e98 * 2f);
+    let particle_size_squared = (particle_size * particle_size);
     i = min_cell.x;
     loop {
-        let _e94 = i;
-        if (_e94 <= max_cell.x) {
+        let _e104 = i;
+        if (_e104 <= max_cell.x) {
         } else {
             break;
         }
         {
             j = min_cell.y;
             loop {
-                let _e99 = j;
-                if (_e99 <= max_cell.y) {
+                let _e109 = j;
+                if (_e109 <= max_cell.y) {
                 } else {
                     break;
                 }
                 {
-                    let _e102 = i;
-                    let _e103 = j;
-                    let _e105 = grid_size_x;
-                    let cell_index = (_e102 + (_e103 * _e105));
+                    let _e112 = i;
+                    let _e113 = j;
+                    let _e115 = grid_size_x;
+                    let cell_index = (_e112 + (_e113 * _e115));
                     let object_count_1 = cell_object_count[cell_index];
                     if (object_count_1 == 0u) {
                         continue;
@@ -3878,68 +3810,58 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(loca
                     let cell_offset = cell_offsets[cell_index];
                     k = 0u;
                     loop {
-                        let _e118 = k;
-                        if (_e118 < object_count_1) {
+                        let _e128 = k;
+                        if (_e128 < object_count_1) {
                         } else {
                             break;
                         }
                         {
-                            let _e121 = k;
-                            let other_object_index = cells[(cell_offset + _e121)];
+                            let _e131 = k;
+                            let other_object_index = cells[(cell_offset + _e131)];
                             if (other_object_index >= object_index) {
                                 continue;
                             }
                             let c2_ = positions[other_object_index].inner;
-                            let _e133 = flags[other_object_index].inner;
-                            if ((_e133 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+                            let _e143 = flags[other_object_index].inner;
+                            if ((_e143 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
                                 continue;
                             }
-                            let _e138 = c1_;
-                            let delta = (_e138 - c2_);
+                            let _e148 = c1_;
+                            let delta = (_e148 - c2_);
                             let distance_squared = dot(delta, delta);
-                            let _e142 = particle_radius;
-                            let particle_size = (_e142 * 2f);
-                            let particle_size_squared = (particle_size * particle_size);
                             if !((distance_squared > particle_size_squared)) {
                                 local_3 = (distance_squared < 0.0000000001f);
                             } else {
                                 local_3 = true;
                             }
-                            let _e153 = local_3;
-                            if _e153 {
+                            let _e158 = local_3;
+                            if _e158 {
                                 continue;
                             }
-                            let _e156 = atomicAdd((&candidate_count), 1u);
-                            if (_e156 >= max_candidates) {
+                            let _e161 = atomicAdd((&candidate_count), 1u);
+                            if (_e161 >= max_candidates) {
                                 return;
                             }
-                            candidates[_e156] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(object_index, other_object_index);
+                            candidates[_e161] = CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX(object_index, other_object_index);
                         }
                         continuing {
-                            let _e162 = k;
-                            k = (_e162 + 1u);
+                            let _e167 = k;
+                            k = (_e167 + 1u);
                         }
                     }
                 }
                 continuing {
-                    let _e165 = j;
-                    j = (_e165 + 1u);
+                    let _e170 = j;
+                    j = (_e170 + 1u);
                 }
             }
         }
         continuing {
-            let _e168 = i;
-            i = (_e168 + 1u);
+            let _e173 = i;
+            i = (_e173 + 1u);
         }
     }
-    workgroupBarrier();
-    let _e171 = object_count;
-    if (object_index == (_e171 - 1u)) {
-        atomicStore((&kick_magnitude), bitcast<u32>(0f));
-        return;
-    } else {
-        return;
-    }
+    return;
 }
 "#;
 }

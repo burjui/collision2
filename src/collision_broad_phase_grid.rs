@@ -42,9 +42,9 @@ impl CollisionBroadPhaseGrid {
                 grid_size_y: broad_phase_buffers.grid_size_y.as_entire_buffer_binding(),
                 kick_center: broad_phase_buffers.kick_center.as_entire_buffer_binding(),
                 kick_radius: broad_phase_buffers.kick_radius.as_entire_buffer_binding(),
+                kick_magnitude: broad_phase_buffers.kick_magnitude.as_entire_buffer_binding(),
             }),
         );
-
         let main_bind_group = WgpuBindGroup1::from_bindings(
             device,
             WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
@@ -52,17 +52,13 @@ impl CollisionBroadPhaseGrid {
                 cell_object_count: broad_phase_buffers.cell_object_count.as_entire_buffer_binding(),
                 cell_offsets: broad_phase_buffers.cell_offsets.as_entire_buffer_binding(),
                 cells: broad_phase_buffers.cells.as_entire_buffer_binding(),
-                masses: broad_phase_buffers.masses.as_entire_buffer_binding(),
             }),
         );
-
         let mutable_bind_group = WgpuBindGroup3::from_bindings(
             device,
             WgpuBindGroup3Entries::new(WgpuBindGroup3EntriesParams {
-                forces: broad_phase_buffers.forces.as_entire_buffer_binding(),
                 candidates: broad_phase_buffers.candidates.as_entire_buffer_binding(),
                 candidate_count: broad_phase_buffers.candidate_count.as_entire_buffer_binding(),
-                kick_magnitude: broad_phase_buffers.kick_magnitude.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_broad_phase_grid_pipeline_embed_source(device);

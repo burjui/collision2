@@ -13,12 +13,12 @@ var<immediate> thread_offset: u32;
 @group(0) @binding(6) var<uniform> grid_size_y: u32;
 @group(0) @binding(7) var<uniform> kick_center: vec2f;
 @group(0) @binding(8) var<uniform> kick_radius: f32;
+@group(0) @binding(9) var<uniform> kick_magnitude: f32;
 
 @group(1) @binding(0) var<storage, read> object_cells: array<CellPosition>;
 @group(1) @binding(1) var<storage, read> cell_object_count: array<u32>;
 @group(1) @binding(2) var<storage, read> cell_offsets: array<u32>;
 @group(1) @binding(3) var<storage, read> cells: array<u32>;
-@group(1) @binding(4) var<storage, read> masses: array<Mass>;
 
 @group(2) @binding(0) var<storage, read> positions: array<Position>;
 @group(2) @binding(1) var<storage, read> flags: array<Flags>;
@@ -26,14 +26,9 @@ var<immediate> thread_offset: u32;
 
 @group(3) @binding(0) var<storage, read_write> candidates: array<CollisionCandidate>;
 @group(3) @binding(1) var<storage, read_write> candidate_count: atomic<u32>;
-@group(3) @binding(2) var<storage, read_write> forces: array<atomic<u32>>;
-@group(3) @binding(3) var<storage, read_write> kick_magnitude: atomic<u32>;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
-fn broad_phase_grid(
-    @builtin(global_invocation_id) gid: vec3u,
-    @builtin(local_invocation_index) local_invocation_index: u32
-) {
+fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3u) {
     let object_index = gid.x + thread_offset;
     if object_index >= object_count ||
        (flags[object_index].inner & FLAG_PHYSICAL) == 0 ||
@@ -42,20 +37,19 @@ fn broad_phase_grid(
         return;
     }
 
-    const FORCE_AREA_SIZE: i32 = 1;
-
-    // let m1 = masses[object_index].inner;
     var c1 = positions[object_index].inner;
-    let k_mag = bitcast<f32>(atomicLoad(&kick_magnitude));
     let kick_vector = c1 - kick_center;
-    if length(kick_vector) < kick_radius && k_mag > 0 {
-        velocities[object_index].inner += normalize(kick_vector) * k_mag;
+    let kick_vector_length_squared = dot(kick_vector, kick_vector);
+    if kick_vector_length_squared < kick_radius * kick_radius && kick_magnitude > 0 {
+        velocities[object_index].inner += normalize(kick_vector) * kick_magnitude;
     }
 
     let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
     let cell = vec2i(object_cells[object_index].cell);
-    let min_cell = vec2u(max(vec2i(), cell - vec2i(FORCE_AREA_SIZE)));
-    let max_cell = vec2u(min(cell + vec2i(FORCE_AREA_SIZE), vec2i(vec2u(grid_size_x - 1, grid_size_y - 1))));
+    let min_cell = vec2u(max(vec2i(), cell - vec2i(1)));
+    let max_cell = vec2u(min(cell + vec2i(1), vec2i(vec2u(grid_size_x - 1, grid_size_y - 1))));
+    let particle_size = particle_radius * 2;
+    let particle_size_squared = particle_size * particle_size;
     for (var i = min_cell.x; i <= max_cell.x; i++) {
         for (var j = min_cell.y; j <= max_cell.y; j++) {
             let cell_index = i + j * grid_size_x;
@@ -77,11 +71,10 @@ fn broad_phase_grid(
 
                 let delta = c1 - c2;
                 let distance_squared = dot(delta, delta);
-                let particle_size = particle_radius * 2;
-                let particle_size_squared = particle_size * particle_size;
                 if distance_squared > particle_size_squared || distance_squared < 1e-10 {
                     continue;
                 }
+
                 let candidates_index = atomicAdd(&candidate_count, 1);
                 if candidates_index >= max_candidates {
                     return;
@@ -89,29 +82,5 @@ fn broad_phase_grid(
                 candidates[candidates_index] = CollisionCandidate(object_index, other_object_index);
             }
         }
-    }
-
-    workgroupBarrier();
-    if object_index == object_count - 1 {
-        atomicStore(&kick_magnitude, bitcast<u32>(0.0));
-    }
-}
-
-fn cas_add_force(i: u32, value: vec2f) {
-    cas_add_force_component(i * 2, value.x);
-    cas_add_force_component(i * 2 + 1, value.y);
-}
-
-fn cas_add_force_component(i: u32, value: f32) {
-    var old = atomicLoad(&forces[i]);
-    loop {
-        let old_f = bitcast<f32>(old);
-        let new_f = old_f + value;
-        let new_value = bitcast<u32>(new_f);
-        let res = atomicCompareExchangeWeak(&forces[i], old, new_value);
-        if res.exchanged {
-            break;
-        }
-        old = res.old_value;
     }
 }
