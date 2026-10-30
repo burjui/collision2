@@ -1,7 +1,6 @@
 use std::{fmt::Debug, str::FromStr, sync::LazyLock};
 
 use anyhow::Context;
-use itertools::Itertools as _;
 use serde::Deserialize;
 
 use crate::shaders::render_shape::{SHAPE_CIRCLE, SHAPE_RECT};
@@ -102,7 +101,8 @@ fn parse_pair<T: FromStr>(s: &str, delimiter: &str) -> [T; 2]
 where
     <T as FromStr>::Err: Debug,
 {
-    s.split(delimiter).map(|d| d.parse().unwrap()).collect_array().unwrap()
+    let mut iter = s.split(delimiter).map(|d| d.parse().unwrap());
+    [iter.next().unwrap(), iter.next().unwrap()]
 }
 
 #[repr(u32)]

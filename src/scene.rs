@@ -1,6 +1,5 @@
 use color::{AlphaColor, Srgb, palette::css};
 use image::{Rgba, imageops::FilterType};
-use itertools::Itertools as _;
 use nalgebra::Vector2;
 use rand::random_range;
 
@@ -19,17 +18,18 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
         min: (world_center - (world_aabb.size() * CONFIG.scene_scale) / 2.0).into(),
         max: (world_center + (world_aabb.size() * CONFIG.scene_scale) / 2.0).into(),
     };
-    let particles = {
-        let effective_radius: f32 = CONFIG.particle_radius + CONFIG.particle_padding;
-        let shape_count_f32 = scene_aabb.size() / (effective_radius * 2.0);
-        let shape_count: Vector2<u32> = shape_count_f32.try_cast().unwrap();
-        let image = CONFIG.image.clone().map(|path| {
-            let image = image::open(path).unwrap();
-            println!("Image size: {}x{}", image.width(), image.height());
-            image.resize_exact(shape_count.x, shape_count.y, FilterType::Gaussian).into_rgba8()
-        });
+    let effective_radius: f32 = CONFIG.particle_radius + CONFIG.particle_padding;
+    let shape_count_f32 = scene_aabb.size() / (effective_radius * 2.0);
+    let shape_count: Vector2<u32> = shape_count_f32.try_cast().unwrap();
+    let image = CONFIG.image.clone().map(|path| {
+        let image = image::open(path).unwrap();
+        println!("Image size: {}x{}", image.width(), image.height());
+        image.resize_exact(shape_count.x, shape_count.y, FilterType::Gaussian).into_rgba8()
+    });
+    objects.reserve((shape_count.x * shape_count.y).try_into().unwrap());
 
-        (0..shape_count.x).cartesian_product(0..shape_count.y).map(move |(x, y)| {
+    for y in 0..shape_count.y {
+        for x in 0..shape_count.x {
             let (i, j) = (x as f32, y as f32);
             let postition_randomization_range = -CONFIG.particle_radius * CONFIG.particle_position_rand
                 ..=CONFIG.particle_radius * CONFIG.particle_position_rand;
@@ -52,7 +52,7 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
             };
             let velocity_color = if CONFIG.image.is_some() { 0 } else { FLAG_VELOCITY_COLOR };
             let offset = Vector2::from(CONFIG.scene_offset());
-            ObjectPrototype {
+            objects.push(ObjectPrototype {
                 flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_PHYSICAL | FLAG_COLLISION | velocity_color,
                 position: (position + offset).into(),
                 velocity: CONFIG.kick(),
@@ -60,10 +60,9 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
                 size: [CONFIG.particle_radius * 2.0, CONFIG.particle_radius * 2.0],
                 color,
                 shape: CONFIG.particle_shape as u32,
-            }
-        })
-    };
-    objects.extend(particles);
+            });
+        }
+    }
 
     let _borders = world_borders(world_aabb);
     // for border in _borders {
