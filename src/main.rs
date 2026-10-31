@@ -31,6 +31,7 @@ pub mod util;
 
 use core::panic;
 use std::{
+    env::args,
     io::{Write as _, stdout},
     sync::{
         Arc, Mutex,
@@ -72,13 +73,13 @@ use crate::{
     collision_narrow_phase::NarrowPhase,
     collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgs,
     command_timings::CommandTimings,
-    config::CONFIG,
+    config::AppConfig,
     device_buffer::DeviceBuffer,
     integrator::Integrator,
     objects::Objects,
     phase_state::{PhaseStateRing, PhaseStateRingConfig},
     populate_grid_cells::PopulateGridCells,
-    recorder::{Recorder, RecorderConfig},
+    recorder::{Recorder, RecorderParams},
     renderer::render_scene,
     reset_grid_aabb::ResetGridAABB,
     scene::create_scene,
@@ -97,7 +98,9 @@ const COPY_SRC: BufferUsages = BufferUsages::COPY_SRC;
 const INDIRECT: BufferUsages = BufferUsages::INDIRECT;
 
 fn main() {
-    println!("{:#?}", *CONFIG);
+    let path = args().skip(1).next();
+    let app_config = Arc::new(AppConfig::new(path.as_ref().map(String::as_str)).unwrap());
+    println!("{:#?}", *app_config);
 
     let wgpu_instance = wgpu::Instance::new(InstanceDescriptor::new_without_display_handle());
     let (adapter, device, queue) = init_wgpu(&wgpu_instance);
@@ -107,11 +110,11 @@ fn main() {
     // Dimensions have to be positive, refer to calculate_grid_aabb.wgsl
     let world_aabb = AABB {
         min: [0.0, 0.0],
-        max: CONFIG.world_size(),
+        max: app_config.world_size(),
     };
     let world_size = world_aabb.size();
     println!("World size: {}x{}", world_size.x, world_size.y);
-    create_scene(&mut objects, world_aabb);
+    create_scene(&app_config, &mut objects, world_aabb);
 
     let object_count: u32 = objects.flags.len().try_into().unwrap();
     println!("Object count: {}", object_count);
@@ -119,16 +122,18 @@ fn main() {
     stdout().flush().unwrap();
 
     let object_count_buffer = DeviceBuffer::from_data(&device, &[object_count], "object_count", UNIFORM);
-    let spectrum_width = DeviceBuffer::from_data(&device, &[CONFIG.spectrum_width], "energy spectrum width", UNIFORM);
+    let spectrum_width =
+        DeviceBuffer::from_data(&device, &[app_config.spectrum_width], "energy spectrum width", UNIFORM);
     let masses = DeviceBuffer::from_data(&device, &objects.masses, "masses", STORAGE | COPY_DST);
     let colors = DeviceBuffer::from_data(&device, &objects.colors, "colors", STORAGE | COPY_DST);
     let shapes = DeviceBuffer::from_data(&device, &objects.shapes, "shapes", STORAGE | COPY_DST);
     let phase_state_ring_config = PhaseStateRingConfig {
-        n_frames: CONFIG.n_frames,
-        n_compute: CONFIG.n_compute,
+        n_frames: app_config.n_frames,
+        n_compute: app_config.n_compute,
     };
     let phase_state_ring = Arc::new(Mutex::new(PhaseStateRing::new(
         phase_state_ring_config,
+        &app_config,
         &device,
         object_count,
         &objects.flags,
@@ -142,18 +147,20 @@ fn main() {
         ..Default::default()
     };
     let pause_simulation = Arc::new(AtomicBool::new(false));
-    let particle_radius = DeviceBuffer::from_data(&device, &[CONFIG.particle_radius], "particle radius", UNIFORM);
-    let surface_initialized = Arc::new(AtomicBool::new(CONFIG.headless));
-    let event_loop = if CONFIG.headless {
+    let particle_radius = DeviceBuffer::from_data(&device, &[app_config.particle_radius], "particle radius", UNIFORM);
+    let surface_initialized = Arc::new(AtomicBool::new(app_config.headless));
+    let event_loop = if app_config.headless {
         None
     } else {
         Some(EventLoop::with_user_event().build().expect("Failed to create event loop"))
     };
     let event_loop_proxy = event_loop.as_ref().map(|event_loop| event_loop.create_proxy());
     let kick_center = DeviceBuffer::from_data(&device, &[[0.0, 0.0]], "kick center", UNIFORM | COPY_SRC | COPY_DST);
-    let kick_radius = DeviceBuffer::from_data(&device, &[1000.0], "kick radius", UNIFORM | COPY_SRC | COPY_DST);
+    let kick_radius =
+        DeviceBuffer::from_data(&device, &[app_config.kick_radius], "kick radius", UNIFORM | COPY_SRC | COPY_DST);
     let kick_magnitude = DeviceBuffer::from_data(&device, &[0.0], "kick magnitude", UNIFORM | COPY_SRC | COPY_DST);
     let sim_join_handle = spawn_simulation_thread(
+        app_config.clone(),
         device.clone(),
         queue.clone(),
         object_count,
@@ -196,13 +203,14 @@ fn main() {
         }
     });
 
-    if CONFIG.headless {
+    if app_config.headless {
         println!("Running in headless mode");
         sim_join_handle.join().unwrap();
         poll_join_handle.join().unwrap();
     } else {
         println!("Running in windowed mode");
         let mut app = App {
+            app_config: app_config.clone(),
             wgpu_instance,
             adapter,
             device,
@@ -232,6 +240,7 @@ fn main() {
 }
 
 struct App<'a> {
+    app_config: Arc<AppConfig>,
     wgpu_instance: wgpu::Instance,
     adapter: Adapter,
     device: Device,
@@ -277,7 +286,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
         println!("Initializing window");
         let window = create_window(event_loop);
         let window_size = window.inner_size();
-        if CONFIG.printouts {
+        if self.app_config.printouts {
             println!("Window size: {}x{}", window_size.width, window_size.height);
         }
 
@@ -358,6 +367,7 @@ impl ApplicationHandler<AppEvent> for App<'_> {
                     };
                     let surface_texture_view = surface_texture.texture.create_view(&TextureViewDescriptor::default());
                     render_scene(
+                        &self.app_config,
                         &self.device,
                         &self.queue,
                         surface_texture_view,
@@ -609,6 +619,7 @@ fn init_surface(
 }
 
 fn spawn_simulation_thread(
+    app_config: Arc<AppConfig>,
     device: Device,
     queue: Queue,
     object_count: u32,
@@ -640,7 +651,7 @@ fn spawn_simulation_thread(
 
         println!("Starting simulation thread");
 
-        let dt: f32 = CONFIG.dt;
+        let dt: f32 = app_config.dt;
         let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", UNIFORM);
         let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
         let candidates = DeviceBuffer::new(&device, max_candidates, "candidates", STORAGE | COPY_SRC);
@@ -652,7 +663,7 @@ fn spawn_simulation_thread(
         let grid_size_x = DeviceBuffer::new(&device, 1, "grid size x", STORAGE | UNIFORM | COPY_SRC);
         let grid_size_y = DeviceBuffer::new(&device, 1, "grid size y", STORAGE | UNIFORM | COPY_SRC);
         let object_cells = DeviceBuffer::new(&device, object_count, "object cells", STORAGE | COPY_SRC);
-        let cell_size = CONFIG.particle_radius * 2.0;
+        let cell_size = app_config.particle_radius * 2.0;
         let grid_size = world_aabb.size() / cell_size;
         let grid_cells_x = grid_size.x.ceil() as u32;
         let grid_cells_y = grid_size.y.ceil() as u32;
@@ -670,9 +681,10 @@ fn spawn_simulation_thread(
         let cell_offsets = DeviceBuffer::new(&device, max_cells, "cell offsets", STORAGE);
         let cells = DeviceBuffer::new(&device, object_count * MAX_OBJECTS_PER_CELL, "cells", STORAGE);
         let forces = DeviceBuffer::new(&device, object_count * 2, "collision forces", STORAGE | COPY_SRC | COPY_DST);
-        let stiffness = DeviceBuffer::from_data(&device, &[CONFIG.stiffness], "stiffness", UNIFORM | COPY_SRC);
-        let restitution = DeviceBuffer::from_data(&device, &[CONFIG.restitution], "restitution", UNIFORM | COPY_SRC);
-        let safety_margin = CONFIG.particle_radius * 2.0;
+        let stiffness = DeviceBuffer::from_data(&device, &[app_config.stiffness], "stiffness", UNIFORM | COPY_SRC);
+        let restitution =
+            DeviceBuffer::from_data(&device, &[app_config.restitution], "restitution", UNIFORM | COPY_SRC);
+        let safety_margin = app_config.particle_radius * 2.0;
         let constraints = AABB {
             min: [world_aabb.min[0] + safety_margin, world_aabb.min[1] + safety_margin],
             max: [world_aabb.max[0] - safety_margin, world_aabb.max[1] - safety_margin],
@@ -748,6 +760,7 @@ fn spawn_simulation_thread(
             phase_state_ring_config,
         );
         let mut integrator = Integrator::new(
+            &app_config,
             &device,
             object_count,
             object_count_buffer.clone(),
@@ -764,8 +777,9 @@ fn spawn_simulation_thread(
         let mut compute_submitted: usize = 0;
         let mut last_frame_instant = Instant::now();
         let start_instant = Instant::now();
-        let mut recorder = CONFIG.output_path.as_ref().map(|output_path| {
-            Recorder::new(RecorderConfig {
+        let mut recorder = app_config.output_path.as_ref().map(|output_path| {
+            Recorder::new(RecorderParams {
+                app_config: app_config.clone(),
                 device: device.clone(),
                 queue: queue.clone(),
                 output_path: output_path.clone(),
@@ -792,20 +806,20 @@ fn spawn_simulation_thread(
             let print_sim_rate =
                 move || println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
 
-            if CONFIG.sim_time_limit.is_some_and(|max_sim_time| sim_time >= max_sim_time) {
+            if app_config.sim_time_limit.is_some_and(|max_sim_time| sim_time >= max_sim_time) {
                 println!("Simulation time limit reached");
                 print_sim_rate();
                 stdout().flush().unwrap();
                 exit_requested.store(true, Ordering::SeqCst);
                 if let Some(event_loop_proxy) = &event_loop_proxy
-                    && CONFIG.exit_at_limit
+                    && app_config.exit_at_limit
                 {
                     let _ = event_loop_proxy.send_event(AppEvent::ExitEventLoop);
                 }
                 break;
             }
 
-            if last_frame_instant.elapsed() >= Duration::from_secs_f32(1.0 / CONFIG.fps) {
+            if last_frame_instant.elapsed() >= Duration::from_secs_f32(1.0 / app_config.fps) {
                 last_frame_instant = Instant::now();
                 map_mutex(&phase_state_ring, PhaseStateRing::advance_frame);
 
@@ -871,8 +885,9 @@ fn spawn_simulation_thread(
             queue.submit([encoder.finish()]);
             queue.on_submitted_work_done({
                 let tx = tx.clone();
+                let enable_printouts = app_config.printouts;
                 move || {
-                    if CONFIG.printouts {
+                    if enable_printouts {
                         timings_reader.read(|timings| {
                             for (label, duration) in timings {
                                 println!("{}: {:?}", label, duration);

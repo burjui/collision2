@@ -2,7 +2,7 @@ use nalgebra::Vector2;
 use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 use crate::{
-    config::CONFIG,
+    config::AppConfig,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::{
@@ -31,6 +31,7 @@ impl Integrator {
     const GRAVITATIONAL_CONSTANT: f32 = 1.0 * 100000.0;
 
     pub fn new(
+        app_config: &AppConfig,
         device: &Device,
         object_count: u32,
         object_count_buffer: DeviceBuffer<u32>,
@@ -42,13 +43,13 @@ impl Integrator {
         phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let mut blackholes = Vec::new();
-        if CONFIG.blackhole {
-            let position = Vector2::from(CONFIG.world_size()) * 0.5;
+        if app_config.blackhole {
+            let position = Vector2::from(app_config.world_size()) * 0.5;
             blackholes.push(BlackHole::new(
                 position.into(),
-                CONFIG.blackhole_radius,
-                CONFIG.blackhole_mass,
-                CONFIG.blackhole_spin,
+                app_config.blackhole_radius,
+                app_config.blackhole_mass,
+                app_config.blackhole_spin,
             ));
         }
         blackholes.push(Self::BLACKHOLE_DUMMY); // because empty buffers are not allowed
@@ -76,7 +77,7 @@ impl Integrator {
             "gravitational constant",
             BufferUsages::UNIFORM,
         );
-        let global_acceleration: [f32; 2] = CONFIG.accel();
+        let global_acceleration: [f32; 2] = app_config.accel();
         let global_acceleration_buffer =
             DeviceBuffer::from_data(device, &[global_acceleration], "global force", BufferUsages::UNIFORM);
 

@@ -10,7 +10,7 @@ use winit::dpi::PhysicalSize;
 use crate::{
     aabb_renderer::AabbRenderer,
     camera::orthographic_camera,
-    config::CONFIG,
+    config::AppConfig,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseStateRing, PhaseStateRingConfig},
     renderer::{RenderParameters, render_scene},
@@ -19,7 +19,7 @@ use crate::{
 };
 
 pub struct Recorder {
-    config: RecorderConfig,
+    config: RecorderParams,
     frame_texture: Texture,
     shape_renderer: ShapeRenderer,
     aabb_renderer: AabbRenderer,
@@ -29,8 +29,8 @@ pub struct Recorder {
 impl Recorder {
     const FRAME_SIZE: PhysicalSize<u32> = PhysicalSize::new(1920, 1080);
 
-    pub fn new(config: RecorderConfig) -> Self {
-        let frame_texture = config.device.create_texture(&TextureDescriptor {
+    pub fn new(params: RecorderParams) -> Self {
+        let frame_texture = params.device.create_texture(&TextureDescriptor {
             label: Some("Frame export"),
             size: Extent3d {
                 width: Self::FRAME_SIZE.width,
@@ -44,44 +44,44 @@ impl Recorder {
             usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
-        let world_height = config.world_aabb.max().y - config.world_aabb.min().y;
+        let world_height = params.world_aabb.max().y - params.world_aabb.min().y;
         let camera_matrix = orthographic_camera(
             Self::FRAME_SIZE.cast(),
             world_height,
-            config.render_parameters.zoom,
-            config.render_parameters.offset,
+            params.render_parameters.zoom,
+            params.render_parameters.offset,
         );
         let camera_buffer = DeviceBuffer::<Camera>::from_data(
-            &config.device,
+            &params.device,
             &[Camera::new(camera_matrix)],
             "camera",
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
         let shape_renderer = ShapeRenderer::new(
-            &config.device,
+            &params.device,
             frame_texture.format(),
             camera_buffer.clone(),
-            config.particle_radius.clone(),
-            config.spectrum_width.clone(),
-            config.colors.clone(),
-            config.shapes.clone(),
-            config.masses.clone(),
-            config.phase_state_ring_config,
+            params.particle_radius.clone(),
+            params.spectrum_width.clone(),
+            params.colors.clone(),
+            params.shapes.clone(),
+            params.masses.clone(),
+            params.phase_state_ring_config,
         );
         let aabb_renderer = AabbRenderer::new(
-            &config.device,
+            &params.device,
             frame_texture.format(),
             camera_buffer.clone(),
-            config.particle_radius.clone(),
-            config.phase_state_ring_config,
+            params.particle_radius.clone(),
+            params.phase_state_ring_config,
         );
         let padded_bytes_per_row = (Self::FRAME_SIZE.width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-        if let Some(output_path) = &CONFIG.output_path {
+        if let Some(output_path) = &params.app_config.output_path {
             std::fs::create_dir_all(output_path).unwrap();
         }
 
         Self {
-            config,
+            config: params,
             frame_texture,
             shape_renderer,
             aabb_renderer,
@@ -100,6 +100,7 @@ impl Recorder {
             BufferUsages::COPY_DST | BufferUsages::MAP_READ,
         );
         render_scene(
+            &self.config.app_config,
             &self.config.device,
             &self.config.queue,
             texture_view,
@@ -159,7 +160,8 @@ impl Recorder {
     }
 }
 
-pub struct RecorderConfig {
+pub struct RecorderParams {
+    pub app_config: Arc<AppConfig>,
     pub device: Device,
     pub queue: Queue,
     pub output_path: String,

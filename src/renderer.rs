@@ -10,7 +10,7 @@ use wgpu::{
 };
 
 use crate::{
-    aabb_renderer::AabbRenderer, command_timings::CommandTimings, config::CONFIG, phase_state::PhaseStateRing,
+    aabb_renderer::AabbRenderer, command_timings::CommandTimings, config::AppConfig, phase_state::PhaseStateRing,
     shape_renderer::ShapeRenderer, util::map_mutex,
 };
 
@@ -34,6 +34,7 @@ impl Default for RenderParameters {
 }
 
 pub fn render_scene(
+    app_config: &AppConfig,
     device: &Device,
     queue: &Queue,
     surface_texture_view: TextureView,
@@ -85,7 +86,7 @@ pub fn render_scene(
     let timings_reader = timings.resolve(&mut encoder, queue.get_timestamp_period());
     before_submit(&mut encoder);
     queue.submit([encoder.finish()]);
-    if CONFIG.printouts {
+    if app_config.printouts {
         queue.on_submitted_work_done(move || {
             timings_reader.read(move |timings| {
                 for (stage, duration) in timings {

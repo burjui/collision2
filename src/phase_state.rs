@@ -2,7 +2,7 @@ use wgpu::{BufferUsages, Device};
 
 use crate::{
     command_timings::CommandTimings,
-    config::CONFIG,
+    config::AppConfig,
     device_buffer::DeviceBuffer,
     shaders::common::{Flags, Position, Velocity},
 };
@@ -108,13 +108,14 @@ pub struct PhaseStateRing {
 impl PhaseStateRing {
     pub fn new(
         config: PhaseStateRingConfig,
+        app_config: &AppConfig,
         device: &Device,
         object_count: u32,
         initial_flags: &[Flags],
         initial_positions: &[Position],
         initial_velocities: &[Velocity],
     ) -> Self {
-        assert!(config.n_frames >= if CONFIG.headless { 0 } else { 1 });
+        assert!(config.n_frames >= if app_config.headless { 0 } else { 1 });
         assert!(config.n_compute >= 2);
         let capacity = config.capacity();
         Self {

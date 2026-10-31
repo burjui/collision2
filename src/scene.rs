@@ -4,7 +4,7 @@ use nalgebra::Vector2;
 use rand::random_range;
 
 use crate::{
-    config::CONFIG,
+    config::AppConfig,
     objects::{ObjectPrototype, Objects},
     shaders::{
         common::{AABB, FLAG_COLLISION, FLAG_DRAW_AABB, FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_VELOCITY_COLOR},
@@ -12,16 +12,16 @@ use crate::{
     },
 };
 
-pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
+pub fn create_scene(app_config: &AppConfig, objects: &mut Objects, world_aabb: AABB) {
     let world_center = world_aabb.min() + world_aabb.size() / 2.0;
     let scene_aabb = AABB {
-        min: (world_center - (world_aabb.size() * CONFIG.scene_scale) / 2.0).into(),
-        max: (world_center + (world_aabb.size() * CONFIG.scene_scale) / 2.0).into(),
+        min: (world_center - (world_aabb.size() * app_config.scene_scale) / 2.0).into(),
+        max: (world_center + (world_aabb.size() * app_config.scene_scale) / 2.0).into(),
     };
-    let effective_radius: f32 = CONFIG.particle_radius + CONFIG.particle_padding;
+    let effective_radius: f32 = app_config.particle_radius + app_config.particle_padding;
     let shape_count_f32 = scene_aabb.size() / (effective_radius * 2.0);
     let shape_count: Vector2<u32> = shape_count_f32.try_cast().unwrap();
-    let image = CONFIG.image.clone().map(|path| {
+    let image = app_config.image.clone().map(|path| {
         let image = image::open(path).unwrap();
         println!("Image size: {}x{}", image.width(), image.height());
         image.resize_exact(shape_count.x, shape_count.y, FilterType::Gaussian).into_rgba8()
@@ -31,8 +31,8 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
     for y in 0..shape_count.y {
         for x in 0..shape_count.x {
             let (i, j) = (x as f32, y as f32);
-            let postition_randomization_range = -CONFIG.particle_radius * CONFIG.particle_position_rand
-                ..=CONFIG.particle_radius * CONFIG.particle_position_rand;
+            let postition_randomization_range = -app_config.particle_radius * app_config.particle_position_rand
+                ..=app_config.particle_radius * app_config.particle_position_rand;
             let position = scene_aabb.min()
                 + Vector2::new(effective_radius * (i * 2.0 + 1.0), effective_radius * (j * 2.0 + 1.0))
                 + Vector2::new(
@@ -50,16 +50,20 @@ pub fn create_scene(objects: &mut Objects, world_aabb: AABB) {
                     1.0,
                 ])
             };
-            let velocity_color = if CONFIG.image.is_some() { 0 } else { FLAG_VELOCITY_COLOR };
-            let offset = Vector2::from(CONFIG.scene_offset());
+            let velocity_color = if app_config.image.is_some() {
+                0
+            } else {
+                FLAG_VELOCITY_COLOR
+            };
+            let offset = Vector2::from(app_config.scene_offset());
             objects.push(ObjectPrototype {
                 flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_PHYSICAL | FLAG_COLLISION | velocity_color,
                 position: (position + offset).into(),
-                velocity: CONFIG.kick(),
-                mass: CONFIG.particle_mass,
-                size: [CONFIG.particle_radius * 2.0, CONFIG.particle_radius * 2.0],
+                velocity: app_config.kick(),
+                mass: app_config.particle_mass,
+                size: [app_config.particle_radius * 2.0, app_config.particle_radius * 2.0],
                 color,
-                shape: CONFIG.particle_shape as u32,
+                shape: app_config.particle_shape as u32,
             });
         }
     }

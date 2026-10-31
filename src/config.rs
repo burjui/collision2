@@ -1,14 +1,13 @@
-use std::{fmt::Debug, str::FromStr, sync::LazyLock};
+use std::{fmt::Debug, str::FromStr};
 
 use anyhow::Context;
+use config::FileFormat;
 use serde::Deserialize;
 
 use crate::shaders::render_shape::{SHAPE_CIRCLE, SHAPE_RECT};
 
-pub static CONFIG: LazyLock<Config> = LazyLock::new(|| Config::new().unwrap());
-
 #[derive(Debug, Deserialize)]
-pub struct Config {
+pub struct AppConfig {
     #[serde(default = "default_dt")]
     pub dt: f32,
     #[serde(default = "default_headless")]
@@ -31,6 +30,8 @@ pub struct Config {
     pub accel: String,
     #[serde(default = "default_kick")]
     pub kick: String,
+    #[serde(default = "default_kick_radius")]
+    pub kick_radius: f32,
 
     #[serde(default = "default_blackhole")]
     pub blackhole: bool,
@@ -71,13 +72,13 @@ pub struct Config {
     pub spectrum_width: f32,
 }
 
-impl Config {
-    pub fn new() -> anyhow::Result<Config> {
-        config::Config::builder()
-            .add_source(config::Environment::default())
-            .build()?
-            .try_deserialize()
-            .context("load config")
+impl AppConfig {
+    pub fn new(path: Option<&str>) -> anyhow::Result<AppConfig> {
+        let mut builder = config::Config::builder();
+        if let Some(path) = path {
+            builder = builder.add_source(config::File::new(path, FileFormat::Toml));
+        }
+        builder.add_source(config::Environment::default()).build()?.try_deserialize().context("load config")
     }
 
     pub fn world_size(&self) -> [f32; 2] {
@@ -135,7 +136,7 @@ fn default_n_compute() -> usize {
 }
 
 fn default_printouts() -> bool {
-    true
+    false
 }
 
 fn default_fps() -> f32 {
@@ -147,11 +148,15 @@ fn default_world_size() -> String {
 }
 
 fn default_accel() -> String {
-    "0.0,-100.0".to_string()
+    "0,-100".to_string()
 }
 
 fn default_kick() -> String {
-    "0.0,0.0".to_string()
+    "0,0".to_string()
+}
+
+fn default_kick_radius() -> f32 {
+    500.0
 }
 
 fn default_blackhole() -> bool {
