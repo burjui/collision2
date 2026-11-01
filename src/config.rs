@@ -8,6 +8,11 @@ use crate::shaders::render_shape::{SHAPE_CIRCLE, SHAPE_RECT};
 
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
+    #[serde(default = "default_print_config")]
+    pub print_config: bool,
+    #[serde(default = "default_print_adapter")]
+    pub print_adapter: bool,
+
     #[serde(default = "default_dt")]
     pub dt: f32,
     #[serde(default = "default_headless")]
@@ -113,6 +118,14 @@ pub enum Shape {
     Circle = SHAPE_CIRCLE,
     #[serde(rename = "rect")]
     Rect = SHAPE_RECT,
+}
+
+fn default_print_config() -> bool {
+    false
+}
+
+fn default_print_adapter() -> bool {
+    false
 }
 
 fn default_dt() -> f32 {

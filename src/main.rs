@@ -78,11 +78,15 @@ use crate::{
 fn main() {
     let path = args().nth(1);
     let app_config = Arc::new(AppConfig::new(path.as_deref()).unwrap());
-    println!("{:#?}", *app_config);
+    if app_config.print_config {
+        println!("{:#?}", *app_config);
+    }
 
     let wgpu_instance = wgpu::Instance::new(InstanceDescriptor::new_without_display_handle());
     let (adapter, device, queue) = init_wgpu(&wgpu_instance);
-    println!("{:#?}", adapter.get_info());
+    if app_config.print_adapter {
+        println!("{:#?}", adapter.get_info());
+    }
 
     let mut objects = Objects::default();
     // Dimensions have to be positive, refer to calculate_grid_aabb.wgsl
@@ -90,8 +94,6 @@ fn main() {
         min: [0.0, 0.0],
         max: app_config.world_size(),
     };
-    let world_size = world_aabb.size();
-    println!("World size: {}x{}", world_size.x, world_size.y);
     create_scene(&app_config, &mut objects, world_aabb);
 
     let object_count: u32 = objects.flags.len().try_into().unwrap();
