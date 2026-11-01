@@ -14,18 +14,20 @@ var<immediate> thread_offset: u32;
 @group(0) @binding(7) var<uniform> kick_center: vec2f;
 @group(0) @binding(8) var<uniform> kick_radius: f32;
 @group(0) @binding(9) var<uniform> kick_magnitude: f32;
+@group(0) @binding(10) var<uniform> stiffness: f32;
+@group(0) @binding(11) var<uniform> restitution: f32;
 
 @group(1) @binding(0) var<storage, read> object_cells: array<CellPosition>;
 @group(1) @binding(1) var<storage, read> cell_object_count: array<u32>;
 @group(1) @binding(2) var<storage, read> cell_offsets: array<u32>;
 @group(1) @binding(3) var<storage, read> cells: array<u32>;
+@group(1) @binding(4) var<storage, read> masses: array<Mass>;
 
 @group(2) @binding(0) var<storage, read> positions: array<Position>;
 @group(2) @binding(1) var<storage, read> flags: array<Flags>;
 @group(2) @binding(2) var<storage, read_write> velocities: array<Velocity>;
 
-@group(3) @binding(0) var<storage, read_write> candidates: array<CollisionCandidate>;
-@group(3) @binding(1) var<storage, read_write> candidate_count: atomic<u32>;
+@group(3) @binding(0) var<storage, read_write> forces: array<vec2f>;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3u) {
@@ -44,12 +46,12 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3u) {
         velocities[object_index].inner += normalize(kick_vector) * kick_magnitude;
     }
 
-    let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
     let cell = vec2i(object_cells[object_index].cell);
     let min_cell = vec2u(max(vec2i(), cell - vec2i(1)));
     let max_cell = vec2u(min(cell + vec2i(1), vec2i(vec2u(grid_size_x - 1, grid_size_y - 1))));
     let particle_size = particle_radius * 2;
     let particle_size_squared = particle_size * particle_size;
+    var force = vec2f();
     for (var i = min_cell.x; i <= max_cell.x; i++) {
         for (var j = min_cell.y; j <= max_cell.y; j++) {
             let cell_index = i + j * grid_size_x;
@@ -60,27 +62,61 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3u) {
             let cell_offset = cell_offsets[cell_index];
             for (var k = 0u; k < object_count; k++) {
                 let other_object_index = cells[cell_offset + k];
-                if other_object_index >= object_index {
-                    continue;
-                }
-
                 let c2 = positions[other_object_index].inner;
                 if (flags[other_object_index].inner & FLAG_COLLISION) == 0 {
                     continue;
                 }
 
-                let delta = c1 - c2;
-                let distance_squared = dot(delta, delta);
+                let separation_vector = c1 - c2;
+                let distance_squared = dot(separation_vector, separation_vector);
                 if distance_squared > particle_size_squared || distance_squared < 1e-10 {
                     continue;
                 }
 
-                let candidates_index = atomicAdd(&candidate_count, 1);
-                if candidates_index >= max_candidates {
-                    return;
-                }
-                candidates[candidates_index] = CollisionCandidate(object_index, other_object_index);
+                let a = object_index;
+                let b = other_object_index;
+                force += collision_force(
+                    positions[a].inner, velocities[a].inner, masses[a].inner,
+                    positions[b].inner, velocities[b].inner, masses[b].inner,
+                    separation_vector, sqrt(distance_squared)
+                );
             }
         }
     }
+
+    forces[object_index] += force;
+}
+
+fn collision_force(
+    x1: vec2f,
+    v1: vec2f,
+    m1: f32,
+    x2: vec2f,
+    v2: vec2f,
+    m2: f32,
+    separation_vector: vec2f,
+    distance: f32
+) -> vec2f {
+    let n = separation_vector / distance;
+    let interaction_distance = particle_radius * 2;
+    let penetration = interaction_distance - distance;
+    let f_elastic = stiffness * max(0.0, penetration) * n;
+
+    let v_rel = v1 - v2;
+    let v_n = dot(v_rel, n);
+    let m_eff = effective_mass(m1, m2);
+
+    // TODD pre-calculate
+
+    let gamma_coeff: f32 = (3.0 / 2.0) * (1.0 - restitution * restitution) / sqrt(5.0) * sqrt(stiffness);
+    let f_damping = -gamma_coeff * sqrt(m_eff) * min(0.0, v_n) * n;
+
+    return f_elastic + f_damping;
+}
+
+// TODD pre-calculate
+fn effective_mass(m1: f32, m2: f32) -> f32 {
+    if (m1 == 0.0) { return m2; }
+    if (m2 == 0.0) { return m1; }
+    return m1 * m2 / (m1 + m2);
 }

@@ -18,9 +18,7 @@ use crate::{
     calculate_cell_offsets::CalculateCellOffsets,
     calculate_cell_offsets_dispatch_dimensions::CellIterationDispatchDimensions,
     calculate_grid_aabb::CalculateGridAABB,
-    collision_broad_phase_grid::CollisionBroadPhaseGrid,
-    collision_narrow_phase::NarrowPhase,
-    collision_narrow_phase_dispatch_dimensions::NarrowPhaseDispatchIndirectArgs,
+    collisions::CollisionBroadPhaseGrid,
     command_timings::CommandTimings,
     config::AppConfig,
     device_buffer::DeviceBuffer,
@@ -31,7 +29,7 @@ use crate::{
     reset_grid_aabb::ResetGridAABB,
     shaders::{
         calculate_cell_offsets_dispatch_dimensions::N_CELL_INDIRECT_DISPATCHES,
-        common::{AABB, MAX_CANDIDATES_PER_OBJECT, MAX_OBJECTS_PER_CELL, Mass},
+        common::{AABB, MAX_OBJECTS_PER_CELL, Mass},
     },
     util::{COPY_DST, COPY_SRC, ComputeStage, INDIRECT, STORAGE, UNIFORM, map_mutex},
 };
@@ -74,9 +72,6 @@ pub fn spawn_simulation_thread(
         let object_count_buffer = DeviceBuffer::from_data(&device, &[object_count], "object_count", UNIFORM);
         let dt: f32 = app_config.dt;
         let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", UNIFORM);
-        let max_candidates = object_count * MAX_CANDIDATES_PER_OBJECT;
-        let candidates = DeviceBuffer::new(&device, max_candidates, "candidates", STORAGE | COPY_SRC);
-        let candidate_count = DeviceBuffer::new(&device, 1, "candidate_count", STORAGE | UNIFORM | COPY_DST | COPY_SRC);
         let grid_min_x = DeviceBuffer::new(&device, 1, "grid min x", STORAGE | UNIFORM | COPY_SRC);
         let grid_min_y = DeviceBuffer::new(&device, 1, "grid min y", STORAGE | UNIFORM | COPY_SRC);
         let grid_max_x = DeviceBuffer::new(&device, 1, "grid max x", STORAGE | UNIFORM | COPY_SRC);
@@ -123,8 +118,6 @@ pub fn spawn_simulation_thread(
             cell_object_count: cell_object_count.clone(),
             cell_offsets,
             cells,
-            candidates,
-            candidate_count: candidate_count.clone(),
             masses: masses.clone(),
             forces: forces.clone(),
             kick_center: kick_center.clone(),
@@ -161,22 +154,8 @@ pub fn spawn_simulation_thread(
             object_count_buffer.clone(),
             particle_radius.clone(),
             &broad_phase_buffers,
-            phase_state_ring_config,
-        );
-        let narrow_phase_dispatch_dimensions = NarrowPhaseDispatchIndirectArgs::new(
-            &device,
-            broad_phase_buffers.candidate_count.clone(),
-            dispatch_dimensions.clone(),
-        );
-        let mut narrow_phase = NarrowPhase::new(
-            &device,
-            dispatch_dimensions.clone(),
-            stiffness.clone(),
             restitution.clone(),
-            particle_radius.clone(),
-            &broad_phase_buffers,
-            masses.clone(),
-            forces.clone(),
+            stiffness.clone(),
             phase_state_ring_config,
         );
         let mut integrator = Integrator::new(
@@ -250,7 +229,7 @@ pub fn spawn_simulation_thread(
             calculate_grid_aabb.prepare(&device, phase_state_index, &current_phase_state);
             assign_object_cells.prepare(&device, phase_state_index, &current_phase_state);
             broad_phase_grid.prepare(&device, phase_state_index, &current_phase_state);
-            narrow_phase.prepare(&device, phase_state_index, &current_phase_state);
+            // narrow_phase.prepare(&device, phase_state_index, &current_phase_state);
             integrator.prepare(&device, phase_state_index, &current_phase_state, &next_phase_state);
 
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
@@ -261,7 +240,6 @@ pub fn spawn_simulation_thread(
                 encoder.clear_buffer(cell_object_count.buffer(), 0, None);
                 encoder.clear_buffer(dispatch_dimensions.buffer(), 0, None);
                 encoder.clear_buffer(current_cell_offset.buffer(), 0, None);
-                encoder.clear_buffer(candidate_count.buffer(), 0, None);
                 encoder.clear_buffer(forces.buffer(), 0, None);
             });
 
@@ -273,8 +251,8 @@ pub fn spawn_simulation_thread(
             compute(&calculate_cell_offsets, &mut compute_pass, timings);
             compute(&populate_grid_cells, &mut compute_pass, timings);
             compute(&broad_phase_grid, &mut compute_pass, timings);
-            compute(&narrow_phase_dispatch_dimensions, &mut compute_pass, timings);
-            compute(&narrow_phase, &mut compute_pass, timings);
+            // compute(&narrow_phase_dispatch_dimensions, &mut compute_pass, timings);
+            // compute(&narrow_phase, &mut compute_pass, timings);
             compute(&integrator, &mut compute_pass, timings);
             drop(compute_pass);
 

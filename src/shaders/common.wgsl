@@ -43,11 +43,6 @@ struct DispatchIndirectArgs {
     z: u32,
 }
 
-struct CollisionCandidate {
-    a: u32,
-    b: u32,
-}
-
 struct CellPosition {
     cell: vec2u,
     offset: u32
@@ -70,7 +65,6 @@ const FLAG_PHYSICAL: u32 = 1 << 2;
 const FLAG_VELOCITY_COLOR: u32 = 1 << 3;
 const FLAG_COLLISION: u32 = 1 << 4;
 
-const MAX_CANDIDATES_PER_OBJECT: u32 = 16;
 const MAX_OBJECTS_PER_CELL: u32 = 2;
 
 const MAX_DISPATCH_DIMENSION: u32 = 65535;

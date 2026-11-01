@@ -4,7 +4,7 @@ use crate::{
     buffer_sets::BroadPhaseBuffers,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
-    shaders::collision_broad_phase_grid::{
+    shaders::collisions::{
         WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
         WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries, WgpuBindGroup2EntriesParams,
         WgpuBindGroup3, WgpuBindGroup3Entries, WgpuBindGroup3EntriesParams,
@@ -29,6 +29,8 @@ impl CollisionBroadPhaseGrid {
         object_count_buffer: DeviceBuffer<u32>,
         particle_radius: DeviceBuffer<f32>,
         broad_phase_buffers: &BroadPhaseBuffers,
+        restitution: DeviceBuffer<f32>,
+        stiffness: DeviceBuffer<f32>,
         phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let uniform_bind_group = WgpuBindGroup0::from_bindings(
@@ -43,6 +45,8 @@ impl CollisionBroadPhaseGrid {
                 kick_center: broad_phase_buffers.kick_center.as_entire_buffer_binding(),
                 kick_radius: broad_phase_buffers.kick_radius.as_entire_buffer_binding(),
                 kick_magnitude: broad_phase_buffers.kick_magnitude.as_entire_buffer_binding(),
+                stiffness: stiffness.as_entire_buffer_binding(),
+                restitution: restitution.as_entire_buffer_binding(),
             }),
         );
         let main_bind_group = WgpuBindGroup1::from_bindings(
@@ -52,13 +56,13 @@ impl CollisionBroadPhaseGrid {
                 cell_object_count: broad_phase_buffers.cell_object_count.as_entire_buffer_binding(),
                 cell_offsets: broad_phase_buffers.cell_offsets.as_entire_buffer_binding(),
                 cells: broad_phase_buffers.cells.as_entire_buffer_binding(),
+                masses: broad_phase_buffers.masses.as_entire_buffer_binding(),
             }),
         );
         let mutable_bind_group = WgpuBindGroup3::from_bindings(
             device,
             WgpuBindGroup3Entries::new(WgpuBindGroup3EntriesParams {
-                candidates: broad_phase_buffers.candidates.as_entire_buffer_binding(),
-                candidate_count: broad_phase_buffers.candidate_count.as_entire_buffer_binding(),
+                forces: broad_phase_buffers.forces.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_broad_phase_grid_pipeline_embed_source(device);
