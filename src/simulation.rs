@@ -208,7 +208,7 @@ pub fn spawn_simulation_thread(
             let print_sim_rate =
                 move || println!("Simulation rate: {} (sim {sim_time} / real {real_time})", sim_time / real_time);
 
-            if app_config.sim_time_limit.is_some_and(|max_sim_time| sim_time >= max_sim_time) {
+            if app_config.sim_time_limit > 0.0 && sim_time >= app_config.sim_time_limit {
                 println!("Simulation time limit reached");
                 print_sim_rate();
                 stdout().flush().unwrap();

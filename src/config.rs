@@ -17,7 +17,7 @@ pub struct AppConfig {
     pub dt: f32,
     #[serde(default = "default_headless")]
     pub headless: bool,
-    pub sim_time_limit: Option<f32>,
+    pub sim_time_limit: f32,
     #[serde(default = "default_exit_at_limit")]
     pub exit_at_limit: bool,
     #[serde(default = "default_n_frames")]
