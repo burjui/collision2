@@ -15,9 +15,7 @@
 
 @group(3) @binding(0) var<storage, read_write> forces: array<atomic<u32>>;
 
-const STIFFNESS: f32 = 100000;
-const RESTITUTION: f32 = 0.0;
-const GAMMA_COEFF: f32 = (3.0 / 2.0) * (1.0 - RESTITUTION * RESTITUTION) / sqrt(5.0) * sqrt(STIFFNESS);
+
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn narrow_phase(
@@ -54,14 +52,14 @@ fn collision_repulsion_pair(
     let n = separation_vector / distance;
     let interaction_distance = particle_radius * 2;
     let penetration = interaction_distance - distance;
-    var f_elastic = vec2f();
-    f_elastic = STIFFNESS * max(0.0, penetration) * n;
+    let f_elastic = stiffness * max(0.0, penetration) * n;
 
     let v_rel = v1 - v2;
     let v_n = dot(v_rel, n);
     var f_damping = vec2f();
     let m_eff = effective_mass(m1, m2);
-    f_damping = -GAMMA_COEFF * sqrt(m_eff) * min(0.0, v_n) * n;
+    let gamma_coeff: f32 = (3.0 / 2.0) * (1.0 - restitution * restitution) / sqrt(5.0) * sqrt(stiffness);
+    f_damping = -gamma_coeff * sqrt(m_eff) * min(0.0, v_n) * n;
 
     return f_elastic + f_damping;
 }

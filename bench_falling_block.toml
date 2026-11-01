@@ -2,7 +2,6 @@ headless = 1
 world_size = "12000x12000"
 scene_offset = "0,0"
 scene_scale = 0.5
-stiffness = 10000
 spectrum_width = 1000
 particle_padding = 0.1
 sim_time_limit = 15

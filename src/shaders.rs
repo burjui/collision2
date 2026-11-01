@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.23.3
 // Changes made to this file will not be saved.
-// SourceHash: 2e7b695c4c842826056aa252240da180141d124054b213f1b9fd932e89c36eb8
+// SourceHash: 75424bcad5b17baee4fa70019de0a13c80877829d7736d6a6f7fac99cbe6b8db
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
@@ -4042,9 +4042,6 @@ fn calculate_narrow_phase_dispatch_dimensions() {
 #[allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 pub mod collision_narrow_phase {
     use super::{_root, _root::*};
-    pub const STIFFNESS: f32 = 100000f32;
-    pub const RESTITUTION: f32 = 0f32;
-    pub const GAMMA_COEFF: f32 = 212.13202f32;
     pub mod compute {
         use super::{_root, _root::*};
         pub const NARROW_PHASE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
@@ -4477,9 +4474,6 @@ struct CollisionCandidateX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
-const STIFFNESS: f32 = 100000f;
-const RESTITUTION: f32 = 0f;
-const GAMMA_COEFF: f32 = 212.13202f;
 
 @group(0) @binding(0) 
 var<uniform> stiffness: f32;
@@ -4515,7 +4509,6 @@ fn effective_mass(m1_: f32, m2_: f32) -> f32 {
 }
 
 fn collision_repulsion_pair(x1_: PositionX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<f32>, m1_1: f32, x2_: PositionX_naga_oil_mod_XMNXW23LPNYX, v2_: vec2<f32>, m2_1: f32) -> vec2<f32> {
-    var f_elastic: vec2<f32> = vec2<f32>();
     var f_damping: vec2<f32> = vec2<f32>();
 
     let separation_vector = (x1_.inner - x2_.inner);
@@ -4524,14 +4517,18 @@ fn collision_repulsion_pair(x1_: PositionX_naga_oil_mod_XMNXW23LPNYX, v1_: vec2<
     let _e10 = particle_radius;
     let interaction_distance = (_e10 * 2f);
     let penetration = (interaction_distance - distance_);
-    f_elastic = ((STIFFNESS * max(0f, penetration)) * n);
+    let _e15 = stiffness;
+    let f_elastic = ((_e15 * max(0f, penetration)) * n);
     let v_rel = (v1_ - v2_);
     let v_n = dot(v_rel, n);
     let _e26 = effective_mass(m1_1, m2_1);
-    f_damping = (((-212.13202f * sqrt(_e26)) * min(0f, v_n)) * n);
-    let _e35 = f_elastic;
-    let _e36 = f_damping;
-    return (_e35 + _e36);
+    let _e28 = restitution;
+    let _e30 = restitution;
+    let _e39 = stiffness;
+    let gamma_coeff = (((1.5f * (1f - (_e28 * _e30))) / 2.236068f) * sqrt(_e39));
+    f_damping = (((-(gamma_coeff) * sqrt(_e26)) * min(0f, v_n)) * n);
+    let _e50 = f_damping;
+    return (f_elastic + _e50);
 }
 
 fn cas_add_force_component(i: u32, value: f32) {

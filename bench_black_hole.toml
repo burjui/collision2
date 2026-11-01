@@ -8,7 +8,6 @@ blackhole = 1
 blackhole_spin = 20
 blackhole_mass = 50
 blackhole_radius = 50
-stiffness = 100
 spectrum_width = 1000
 particle_position_rand = 0.1
 sim_time_limit = 4
