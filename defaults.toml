@@ -1,0 +1,39 @@
+print_config = false
+print_adapter = false
+
+dt = 0.002
+headless = false
+sim_time_limit = 0
+exit_at_limit = true
+n_frames = 2
+n_compute = 3
+printouts = false
+fps = 60
+world_size = "6400x4000"
+
+accel = "0,-100"
+kick = "0,0"
+kick_radius = 500
+
+blackhole = 0
+blackhole_radius = 20
+blackhole_mass = 2
+blackhole_spin = 150
+
+particle_radius = 3
+particle_mass = 3
+particle_padding = 1
+particle_shape = "circle"
+particle_position_rand = 0.1
+
+scene_scale = 0.6
+scene_offset = "0,0"
+
+image = ""
+
+stiffness = 100000
+restitution = 0
+
+output_path = ""
+
+spectrum_width = 320

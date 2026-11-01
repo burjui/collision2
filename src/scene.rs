@@ -21,11 +21,14 @@ pub fn create_scene(app_config: &AppConfig, objects: &mut Objects, world_aabb: A
     let effective_radius: f32 = app_config.particle_radius + app_config.particle_padding;
     let shape_count_f32 = scene_aabb.size() / (effective_radius * 2.0);
     let shape_count: Vector2<u32> = shape_count_f32.try_cast().unwrap();
-    let image = app_config.image.clone().map(|path| {
-        let image = image::open(path).unwrap();
-        println!("Image size: {}x{}", image.width(), image.height());
-        image.resize_exact(shape_count.x, shape_count.y, FilterType::Gaussian).into_rgba8()
-    });
+    let mut image = None;
+    if !app_config.image.is_empty() {
+        image = Some({
+            let image = image::open(&app_config.image).unwrap();
+            println!("Image size: {}x{}", image.width(), image.height());
+            image.resize_exact(shape_count.x, shape_count.y, FilterType::Gaussian).into_rgba8()
+        })
+    }
     objects.reserve((shape_count.x * shape_count.y).try_into().unwrap());
 
     for y in 0..shape_count.y {
@@ -50,11 +53,10 @@ pub fn create_scene(app_config: &AppConfig, objects: &mut Objects, world_aabb: A
                     1.0,
                 ])
             };
-            let velocity_color = if app_config.image.is_some() {
-                0
-            } else {
-                FLAG_VELOCITY_COLOR
-            };
+            let mut velocity_color = FLAG_VELOCITY_COLOR;
+            if !app_config.image.is_empty() {
+                velocity_color = 0;
+            }
             let offset = Vector2::from(app_config.scene_offset());
             objects.push(ObjectPrototype {
                 flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_PHYSICAL | FLAG_COLLISION | velocity_color,

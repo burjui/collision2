@@ -138,12 +138,13 @@ fn main() {
     let kick_radius =
         DeviceBuffer::from_data(&device, &[app_config.kick_radius], "kick radius", UNIFORM | COPY_SRC | COPY_DST);
     let kick_magnitude = DeviceBuffer::from_data(&device, &[0.0], "kick magnitude", UNIFORM | COPY_SRC | COPY_DST);
-    let recorder = app_config.output_path.as_ref().map(|output_path| {
-        Recorder::new(RecorderParams {
+    let mut recorder = None;
+    if !app_config.output_path.is_empty() {
+        recorder = Some(Recorder::new(RecorderParams {
             app_config: app_config.clone(),
             device: device.clone(),
             queue: queue.clone(),
-            output_path: output_path.clone(),
+            output_path: app_config.output_path.clone(),
             world_aabb,
             render_parameters,
             particle_radius: particle_radius.clone(),
@@ -154,8 +155,8 @@ fn main() {
             phase_state_ring: phase_state_ring.clone(),
             phase_state_ring_config,
             object_count,
-        })
-    });
+        }));
+    }
     let sim_join_handle = spawn_simulation_thread(
         app_config.clone(),
         device.clone(),

@@ -76,8 +76,8 @@ impl Recorder {
             params.phase_state_ring_config,
         );
         let padded_bytes_per_row = (Self::FRAME_SIZE.width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-        if let Some(output_path) = &params.app_config.output_path {
-            std::fs::create_dir_all(output_path).unwrap();
+        if !params.app_config.output_path.is_empty() {
+            std::fs::create_dir_all(&params.app_config.output_path).unwrap();
         }
 
         Self {
