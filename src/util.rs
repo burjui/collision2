@@ -1,12 +1,18 @@
 use std::{iter::from_fn, sync::Mutex};
 
 use nalgebra::Vector2;
-use wgpu::ComputePass;
+use wgpu::{BufferUsages, ComputePass};
 
 use crate::{
     phase_state::PhaseStateRingConfig,
     shaders::common::{AABB, MAX_DISPATCH_DIMENSION, Velocity, WORKGROUP_SIZE},
 };
+
+pub const UNIFORM: BufferUsages = BufferUsages::UNIFORM;
+pub const STORAGE: BufferUsages = BufferUsages::STORAGE;
+pub const COPY_DST: BufferUsages = BufferUsages::COPY_DST;
+pub const COPY_SRC: BufferUsages = BufferUsages::COPY_SRC;
+pub const INDIRECT: BufferUsages = BufferUsages::INDIRECT;
 
 pub trait ComputeStage {
     const LABEL: &'static str;
