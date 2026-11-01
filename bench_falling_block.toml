@@ -1,3 +1,4 @@
+headless = 1
 world_size = "12000x12000"
 scene_offset = "0,0"
 scene_scale = 0.5
