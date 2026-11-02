@@ -41,6 +41,8 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
     }
 
     var c1 = positions[object_index].inner;
+    let v1 = velocities[object_index].inner;
+    let m1 = masses[object_index].inner;
     let kick_vector = c1 - kick_center;
     let kick_vector_length_squared = dot(kick_vector, kick_vector);
     if kick_vector_length_squared < kick_radius * kick_radius && kick_magnitude > 0 {
@@ -76,11 +78,9 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
 
                 let a = object_index;
                 let b = other_object_index;
-                force += collision_force(
-                    positions[a].inner, velocities[a].inner, masses[a].inner,
-                    positions[b].inner, velocities[b].inner, masses[b].inner,
-                    separation_vector, sqrt(distance_squared)
-                );
+                let v2 = velocities[b].inner;
+                let m2 = masses[b].inner;
+                force += collision_force(v1, m1, v2, m2, separation_vector, sqrt(distance_squared));
             }
         }
     }
@@ -89,10 +89,8 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
 }
 
 fn collision_force(
-    x1: vec2f,
     v1: vec2f,
     m1: f32,
-    x2: vec2f,
     v2: vec2f,
     m2: f32,
     separation_vector: vec2f,

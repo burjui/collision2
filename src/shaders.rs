@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.23.3
 // Changes made to this file will not be saved.
-// SourceHash: f6a2a97aa76a546945e305384c5e8d85d1bbb57e470891513678da5c7745bdbd
+// SourceHash: babea1c1321c612da1910bfb7ead141ec6a718ac729bc7e01a4f47fd777fde91
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
@@ -3747,7 +3747,7 @@ var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 @group(3) @binding(0) 
 var<storage, read_write> forces: array<vec2<f32>>;
 
-fn collision_force(x1_: vec2<f32>, v1_: vec2<f32>, m1_: f32, x2_: vec2<f32>, v2_: vec2<f32>, m2_: f32, separation_vector: vec2<f32>, distance_: f32) -> vec2<f32> {
+fn collision_force(v1_: vec2<f32>, m1_: f32, v2_: vec2<f32>, m2_: f32, separation_vector: vec2<f32>, distance_: f32) -> vec2<f32> {
     let n = (separation_vector / vec2(distance_));
     let _e5 = particle_radius;
     let interaction_distance = (_e5 * 2f);
@@ -3796,53 +3796,55 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
     let _e38 = positions[a].inner;
     c1_ = _e38;
-    let _e40 = c1_;
-    let _e42 = kick_center;
-    let kick_vector = (_e40 - _e42);
+    let v1_1 = velocities[a].inner;
+    let m1_1 = masses[a].inner;
+    let _e48 = c1_;
+    let _e50 = kick_center;
+    let kick_vector = (_e48 - _e50);
     let kick_vector_length_squared = dot(kick_vector, kick_vector);
-    let _e46 = kick_radius;
-    let _e48 = kick_radius;
-    if (kick_vector_length_squared < (_e46 * _e48)) {
-        let _e52 = kick_magnitude;
-        local_2 = (_e52 > 0f);
+    let _e54 = kick_radius;
+    let _e56 = kick_radius;
+    if (kick_vector_length_squared < (_e54 * _e56)) {
+        let _e60 = kick_magnitude;
+        local_2 = (_e60 > 0f);
     } else {
         local_2 = false;
     }
-    let _e58 = local_2;
-    if _e58 {
-        let _e62 = velocities[a].inner;
-        let _e65 = kick_magnitude;
-        velocities[a].inner = (_e62 + (normalize(kick_vector) * _e65));
+    let _e66 = local_2;
+    if _e66 {
+        let _e70 = velocities[a].inner;
+        let _e73 = kick_magnitude;
+        velocities[a].inner = (_e70 + (normalize(kick_vector) * _e73));
     }
-    let _e71 = object_cells[a].cell;
-    let cell = vec2<i32>(_e71);
+    let _e79 = object_cells[a].cell;
+    let cell = vec2<i32>(_e79);
     let min_cell = vec2<u32>(max(vec2<i32>(), (cell - vec2(1i))));
-    let _e83 = grid_size_x;
-    let _e87 = grid_size_y;
-    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e83 - 1u), (_e87 - 1u)))));
-    let _e95 = particle_radius;
-    let particle_size = (_e95 * 2f);
+    let _e91 = grid_size_x;
+    let _e95 = grid_size_y;
+    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e91 - 1u), (_e95 - 1u)))));
+    let _e103 = particle_radius;
+    let particle_size = (_e103 * 2f);
     let particle_size_squared = (particle_size * particle_size);
     i = min_cell.x;
     loop {
-        let _e101 = i;
-        if (_e101 <= max_cell.x) {
+        let _e109 = i;
+        if (_e109 <= max_cell.x) {
         } else {
             break;
         }
         {
             j = min_cell.y;
             loop {
-                let _e106 = j;
-                if (_e106 <= max_cell.y) {
+                let _e114 = j;
+                if (_e114 <= max_cell.y) {
                 } else {
                     break;
                 }
                 {
-                    let _e109 = i;
-                    let _e110 = j;
-                    let _e112 = grid_size_x;
-                    let cell_index = (_e109 + (_e110 * _e112));
+                    let _e117 = i;
+                    let _e118 = j;
+                    let _e120 = grid_size_x;
+                    let cell_index = (_e117 + (_e118 * _e120));
                     let object_count_1 = cell_object_count[cell_index];
                     if (object_count_1 == 0u) {
                         continue;
@@ -3850,61 +3852,57 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3<u32>) {
                     let cell_offset = cell_offsets[cell_index];
                     k = 0u;
                     loop {
-                        let _e125 = k;
-                        if (_e125 < object_count_1) {
+                        let _e133 = k;
+                        if (_e133 < object_count_1) {
                         } else {
                             break;
                         }
                         {
-                            let _e128 = k;
-                            let b = cells[(cell_offset + _e128)];
+                            let _e136 = k;
+                            let b = cells[(cell_offset + _e136)];
                             let c2_ = positions[b].inner;
-                            let _e139 = flags[b].inner;
-                            if ((_e139 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
+                            let _e147 = flags[b].inner;
+                            if ((_e147 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
                                 continue;
                             }
-                            let _e144 = c1_;
-                            let separation_vector_1 = (_e144 - c2_);
+                            let _e152 = c1_;
+                            let separation_vector_1 = (_e152 - c2_);
                             let distance_squared = dot(separation_vector_1, separation_vector_1);
                             if !((distance_squared > particle_size_squared)) {
                                 local_3 = (distance_squared < 0.0000000001f);
                             } else {
                                 local_3 = true;
                             }
-                            let _e154 = local_3;
-                            if _e154 {
+                            let _e162 = local_3;
+                            if _e162 {
                                 continue;
                             }
-                            let _e156 = force;
-                            let _e160 = positions[a].inner;
-                            let _e164 = velocities[a].inner;
-                            let _e168 = masses[a].inner;
-                            let _e172 = positions[b].inner;
-                            let _e176 = velocities[b].inner;
-                            let _e180 = masses[b].inner;
-                            let _e182 = collision_force(_e160, _e164, _e168, _e172, _e176, _e180, separation_vector_1, sqrt(distance_squared));
-                            force = (_e156 + _e182);
+                            let v2_1 = velocities[b].inner;
+                            let m2_1 = masses[b].inner;
+                            let _e172 = force;
+                            let _e174 = collision_force(v1_1, m1_1, v2_1, m2_1, separation_vector_1, sqrt(distance_squared));
+                            force = (_e172 + _e174);
                         }
                         continuing {
-                            let _e185 = k;
-                            k = (_e185 + 1u);
+                            let _e177 = k;
+                            k = (_e177 + 1u);
                         }
                     }
                 }
                 continuing {
-                    let _e188 = j;
-                    j = (_e188 + 1u);
+                    let _e180 = j;
+                    j = (_e180 + 1u);
                 }
             }
         }
         continuing {
-            let _e191 = i;
-            i = (_e191 + 1u);
+            let _e183 = i;
+            i = (_e183 + 1u);
         }
     }
-    let _e195 = forces[a];
-    let _e196 = force;
-    forces[a] = (_e195 + _e196);
+    let _e187 = forces[a];
+    let _e188 = force;
+    forces[a] = (_e187 + _e188);
     return;
 }
 "#;
