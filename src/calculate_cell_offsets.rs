@@ -3,7 +3,7 @@ use std::mem::size_of;
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
-    buffer_sets::BroadPhaseBuffers,
+    buffer_sets::CollisionBuffers,
     device_buffer::DeviceBuffer,
     shaders::{
         calculate_cell_offsets::{
@@ -26,18 +26,18 @@ impl CalculateCellOffsets {
     pub fn new(
         device: &Device,
         dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
-        broad_phase_buffers: &BroadPhaseBuffers,
+        collision_buffers: &CollisionBuffers,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                grid_min_x: broad_phase_buffers.grid_min_x.as_entire_buffer_binding(),
-                grid_min_y: broad_phase_buffers.grid_min_y.as_entire_buffer_binding(),
-                grid_size_x: broad_phase_buffers.grid_size_x.as_entire_buffer_binding(),
-                grid_size_y: broad_phase_buffers.grid_size_y.as_entire_buffer_binding(),
-                cell_object_count: broad_phase_buffers.cell_object_count.as_entire_buffer_binding(),
-                current_cell_offset: broad_phase_buffers.current_cell_offset.as_entire_buffer_binding(),
-                cell_offsets: broad_phase_buffers.cell_offsets.as_entire_buffer_binding(),
+                grid_min_x: collision_buffers.grid_min_x.as_entire_buffer_binding(),
+                grid_min_y: collision_buffers.grid_min_y.as_entire_buffer_binding(),
+                grid_size_x: collision_buffers.grid_size_x.as_entire_buffer_binding(),
+                grid_size_y: collision_buffers.grid_size_y.as_entire_buffer_binding(),
+                cell_object_count: collision_buffers.cell_object_count.as_entire_buffer_binding(),
+                current_cell_offset: collision_buffers.current_cell_offset.as_entire_buffer_binding(),
+                cell_offsets: collision_buffers.cell_offsets.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_calculate_cell_offsets_pipeline_embed_source(device);

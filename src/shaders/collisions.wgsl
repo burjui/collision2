@@ -15,7 +15,8 @@ var<immediate> thread_offset: u32;
 @group(0) @binding(8) var<uniform> kick_radius: f32;
 @group(0) @binding(9) var<uniform> kick_magnitude: f32;
 @group(0) @binding(10) var<uniform> stiffness: f32;
-@group(0) @binding(11) var<uniform> restitution: f32;
+@group(0) @binding(11) var<uniform> gamma_coeff: f32;
+@group(0) @binding(12) var<uniform> sqrt_m_eff: f32;
 
 @group(1) @binding(0) var<storage, read> object_cells: array<CellPosition>;
 @group(1) @binding(1) var<storage, read> cell_object_count: array<u32>;
@@ -30,7 +31,7 @@ var<immediate> thread_offset: u32;
 @group(3) @binding(0) var<storage, read_write> forces: array<vec2f>;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
-fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3u) {
+fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
     let object_index = gid.x + thread_offset;
     if object_index >= object_count ||
        (flags[object_index].inner & FLAG_PHYSICAL) == 0 ||
@@ -104,19 +105,6 @@ fn collision_force(
 
     let v_rel = v1 - v2;
     let v_n = dot(v_rel, n);
-    let m_eff = effective_mass(m1, m2);
-
-    // TODD pre-calculate
-
-    let gamma_coeff: f32 = (3.0 / 2.0) * (1.0 - restitution * restitution) / sqrt(5.0) * sqrt(stiffness);
-    let f_damping = -gamma_coeff * sqrt(m_eff) * min(0.0, v_n) * n;
-
+    let f_damping = -gamma_coeff * sqrt_m_eff * min(0.0, v_n) * n;
     return f_elastic + f_damping;
-}
-
-// TODD pre-calculate
-fn effective_mass(m1: f32, m2: f32) -> f32 {
-    if (m1 == 0.0) { return m2; }
-    if (m2 == 0.0) { return m1; }
-    return m1 * m2 / (m1 + m2);
 }

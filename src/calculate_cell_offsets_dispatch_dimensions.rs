@@ -1,7 +1,7 @@
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
-    buffer_sets::BroadPhaseBuffers,
+    buffer_sets::CollisionBuffers,
     device_buffer::DeviceBuffer,
     shaders::{
         calculate_cell_offsets_dispatch_dimensions::{
@@ -21,19 +21,19 @@ pub struct CellIterationDispatchDimensions {
 impl CellIterationDispatchDimensions {
     pub fn new(
         device: &Device,
-        broad_phase_buffers: &BroadPhaseBuffers,
+        collision_buffers: &CollisionBuffers,
         cell_offsets_dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                particle_radius: broad_phase_buffers.particle_radius.as_entire_buffer_binding(),
-                grid_min_x: broad_phase_buffers.grid_min_x.as_entire_buffer_binding(),
-                grid_max_x: broad_phase_buffers.grid_max_x.as_entire_buffer_binding(),
-                grid_min_y: broad_phase_buffers.grid_min_y.as_entire_buffer_binding(),
-                grid_max_y: broad_phase_buffers.grid_max_y.as_entire_buffer_binding(),
-                grid_size_x: broad_phase_buffers.grid_size_x.as_entire_buffer_binding(),
-                grid_size_y: broad_phase_buffers.grid_size_y.as_entire_buffer_binding(),
+                particle_radius: collision_buffers.particle_radius.as_entire_buffer_binding(),
+                grid_min_x: collision_buffers.grid_min_x.as_entire_buffer_binding(),
+                grid_max_x: collision_buffers.grid_max_x.as_entire_buffer_binding(),
+                grid_min_y: collision_buffers.grid_min_y.as_entire_buffer_binding(),
+                grid_max_y: collision_buffers.grid_max_y.as_entire_buffer_binding(),
+                grid_size_x: collision_buffers.grid_size_x.as_entire_buffer_binding(),
+                grid_size_y: collision_buffers.grid_size_y.as_entire_buffer_binding(),
                 cell_offsets_dispatch_dimensions: cell_offsets_dispatch_dimensions.as_entire_buffer_binding(),
             }),
         );

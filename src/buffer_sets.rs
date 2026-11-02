@@ -3,7 +3,8 @@ use crate::{
     shaders::common::{CellPosition, Mass},
 };
 
-pub struct BroadPhaseBuffers {
+pub struct CollisionBuffers {
+    pub object_count: DeviceBuffer<u32>,
     pub particle_radius: DeviceBuffer<f32>,
     pub grid_min_x: DeviceBuffer<f32>,
     pub grid_max_x: DeviceBuffer<f32>,
@@ -21,4 +22,7 @@ pub struct BroadPhaseBuffers {
     pub kick_center: DeviceBuffer<[f32; 2]>,
     pub kick_radius: DeviceBuffer<f32>,
     pub kick_magnitude: DeviceBuffer<f32>,
+    pub stiffness: DeviceBuffer<f32>,
+    pub gamma_coeff: DeviceBuffer<f32>,
+    pub sqrt_m_eff: DeviceBuffer<f32>,
 }

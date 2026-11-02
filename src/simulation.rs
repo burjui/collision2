@@ -14,11 +14,11 @@ use winit::event_loop::EventLoopProxy;
 
 use crate::{
     assign_object_cells::AssignObjectCells,
-    buffer_sets::BroadPhaseBuffers,
+    buffer_sets::CollisionBuffers,
     calculate_cell_offsets::CalculateCellOffsets,
     calculate_cell_offsets_dispatch_dimensions::CellIterationDispatchDimensions,
     calculate_grid_aabb::CalculateGridAABB,
-    collisions::CollisionBroadPhaseGrid,
+    collisions::{Collisions, CollisionsParams},
     command_timings::CommandTimings,
     config::AppConfig,
     device_buffer::DeviceBuffer,
@@ -97,15 +97,19 @@ pub fn spawn_simulation_thread(
         let cells = DeviceBuffer::new(&device, object_count * MAX_OBJECTS_PER_CELL, "cells", STORAGE);
         let forces = DeviceBuffer::new(&device, object_count * 2, "collision forces", STORAGE | COPY_SRC | COPY_DST);
         let stiffness = DeviceBuffer::from_data(&device, &[app_config.stiffness], "stiffness", UNIFORM | COPY_SRC);
-        let restitution =
-            DeviceBuffer::from_data(&device, &[app_config.restitution], "restitution", UNIFORM | COPY_SRC);
+        let gamma_coeff: f32 =
+            (3.0 / 2.0) * (1.0 - app_config.restitution.powi(2)) / 5.0_f32.sqrt() * app_config.stiffness.sqrt();
+        let gamma_coeff_buffer = DeviceBuffer::from_data(&device, &[gamma_coeff], "gamma_coeff", UNIFORM);
+        let effective_mass = app_config.particle_mass.powi(2) / (app_config.particle_mass * 2.0);
+        let sqrt_m_eff = DeviceBuffer::from_data(&device, &[effective_mass.sqrt()], "sqrt_m_eff", UNIFORM);
         let safety_margin = app_config.particle_radius * 2.0;
         let constraints = AABB {
             min: [world_aabb.min[0] + safety_margin, world_aabb.min[1] + safety_margin],
             max: [world_aabb.max[0] - safety_margin, world_aabb.max[1] - safety_margin],
         };
         let constraints_buffer = DeviceBuffer::from_data(&device, &[constraints], "constraints", UNIFORM | COPY_SRC);
-        let broad_phase_buffers = BroadPhaseBuffers {
+        let collision_buffers = CollisionBuffers {
+            object_count: object_count_buffer.clone(),
             particle_radius: particle_radius.clone(),
             grid_min_x: grid_min_x.clone(),
             grid_max_x: grid_max_x.clone(),
@@ -123,40 +127,40 @@ pub fn spawn_simulation_thread(
             kick_center: kick_center.clone(),
             kick_radius: kick_radius.clone(),
             kick_magnitude: kick_magnitude.clone(),
+            stiffness,
+            gamma_coeff: gamma_coeff_buffer.clone(),
+            sqrt_m_eff,
         };
-
-        let reset_grid_aabb = ResetGridAABB::new(&device, &broad_phase_buffers);
+        let reset_grid_aabb = ResetGridAABB::new(&device, &collision_buffers);
         let mut calculate_grid_aabb = CalculateGridAABB::new(
             &device,
             object_count,
             object_count_buffer.clone(),
             particle_radius.clone(),
-            &broad_phase_buffers,
+            &collision_buffers,
             phase_state_ring_config,
         );
         let cell_offsets_dispatch_dimensions =
-            CellIterationDispatchDimensions::new(&device, &broad_phase_buffers, dispatch_dimensions.clone());
+            CellIterationDispatchDimensions::new(&device, &collision_buffers, dispatch_dimensions.clone());
         let mut assign_object_cells = AssignObjectCells::new(
             &device,
             object_count,
             object_count_buffer.clone(),
             particle_radius.clone(),
-            &broad_phase_buffers,
+            &collision_buffers,
             phase_state_ring_config,
         );
         let calculate_cell_offsets =
-            CalculateCellOffsets::new(&device, dispatch_dimensions.clone(), &broad_phase_buffers);
+            CalculateCellOffsets::new(&device, dispatch_dimensions.clone(), &collision_buffers);
         let populate_grid_cells =
-            PopulateGridCells::new(&device, object_count, object_count_buffer.clone(), &broad_phase_buffers);
-        let mut broad_phase_grid = CollisionBroadPhaseGrid::new(
+            PopulateGridCells::new(&device, object_count, object_count_buffer.clone(), &collision_buffers);
+        let mut collisions = Collisions::new(
             &device,
-            object_count,
-            object_count_buffer.clone(),
-            particle_radius.clone(),
-            &broad_phase_buffers,
-            restitution.clone(),
-            stiffness.clone(),
-            phase_state_ring_config,
+            CollisionsParams {
+                phase_state_ring_config,
+                object_count,
+                collision_buffers: &collision_buffers,
+            },
         );
         let mut integrator = Integrator::new(
             &app_config,
@@ -228,7 +232,7 @@ pub fn spawn_simulation_thread(
             // Prepare the compute pass
             calculate_grid_aabb.prepare(&device, phase_state_index, &current_phase_state);
             assign_object_cells.prepare(&device, phase_state_index, &current_phase_state);
-            broad_phase_grid.prepare(&device, phase_state_index, &current_phase_state);
+            collisions.prepare(&device, phase_state_index, &current_phase_state);
             // narrow_phase.prepare(&device, phase_state_index, &current_phase_state);
             integrator.prepare(&device, phase_state_index, &current_phase_state, &next_phase_state);
 
@@ -250,7 +254,7 @@ pub fn spawn_simulation_thread(
             compute(&assign_object_cells, &mut compute_pass, timings);
             compute(&calculate_cell_offsets, &mut compute_pass, timings);
             compute(&populate_grid_cells, &mut compute_pass, timings);
-            compute(&broad_phase_grid, &mut compute_pass, timings);
+            compute(&collisions, &mut compute_pass, timings);
             // compute(&narrow_phase_dispatch_dimensions, &mut compute_pass, timings);
             // compute(&narrow_phase, &mut compute_pass, timings);
             compute(&integrator, &mut compute_pass, timings);

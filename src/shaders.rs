@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.23.3
 // Changes made to this file will not be saved.
-// SourceHash: 2dbe949f0ea3583cbada54cd0c9c16d93dbffd9b7e81defbcd27fb00aa102580
+// SourceHash: f6a2a97aa76a546945e305384c5e8d85d1bbb57e470891513678da5c7745bdbd
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
@@ -3043,21 +3043,21 @@ pub mod collisions {
     use super::{_root, _root::*};
     pub mod compute {
         use super::{_root, _root::*};
-        pub const BROAD_PHASE_GRID_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
-        pub fn create_broad_phase_grid_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
+        pub const PROCESS_COLLISIONS_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
+        pub fn create_process_collisions_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
             let module = super::create_shader_module_embed_source(device);
             let layout = super::create_pipeline_layout(device);
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Compute Pipeline broad_phase_grid"),
+                label: Some("Compute Pipeline process_collisions"),
                 layout: Some(&layout),
                 module: &module,
-                entry_point: Some("broad_phase_grid"),
+                entry_point: Some("process_collisions"),
                 compilation_options: Default::default(),
                 cache: None,
             })
         }
     }
-    pub const ENTRY_BROAD_PHASE_GRID: &str = "broad_phase_grid";
+    pub const ENTRY_PROCESS_COLLISIONS: &str = "process_collisions";
     #[derive(Debug)]
     pub struct WgpuBindGroup0EntriesParams<'a> {
         pub object_count: wgpu::BufferBinding<'a>,
@@ -3070,7 +3070,8 @@ pub mod collisions {
         pub kick_radius: wgpu::BufferBinding<'a>,
         pub kick_magnitude: wgpu::BufferBinding<'a>,
         pub stiffness: wgpu::BufferBinding<'a>,
-        pub restitution: wgpu::BufferBinding<'a>,
+        pub gamma_coeff: wgpu::BufferBinding<'a>,
+        pub sqrt_m_eff: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup0Entries<'a> {
@@ -3084,7 +3085,8 @@ pub mod collisions {
         pub kick_radius: wgpu::BindGroupEntry<'a>,
         pub kick_magnitude: wgpu::BindGroupEntry<'a>,
         pub stiffness: wgpu::BindGroupEntry<'a>,
-        pub restitution: wgpu::BindGroupEntry<'a>,
+        pub gamma_coeff: wgpu::BindGroupEntry<'a>,
+        pub sqrt_m_eff: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup0Entries<'a> {
         pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
@@ -3129,13 +3131,17 @@ pub mod collisions {
                     binding: 10,
                     resource: wgpu::BindingResource::Buffer(params.stiffness),
                 },
-                restitution: wgpu::BindGroupEntry {
+                gamma_coeff: wgpu::BindGroupEntry {
                     binding: 11,
-                    resource: wgpu::BindingResource::Buffer(params.restitution),
+                    resource: wgpu::BindingResource::Buffer(params.gamma_coeff),
+                },
+                sqrt_m_eff: wgpu::BindGroupEntry {
+                    binding: 12,
+                    resource: wgpu::BindingResource::Buffer(params.sqrt_m_eff),
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 11] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 12] {
             [
                 self.object_count,
                 self.particle_radius,
@@ -3147,7 +3153,8 @@ pub mod collisions {
                 self.kick_radius,
                 self.kick_magnitude,
                 self.stiffness,
-                self.restitution,
+                self.gamma_coeff,
+                self.sqrt_m_eff,
             ]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
@@ -3270,9 +3277,20 @@ pub mod collisions {
                     },
                     count: None,
                 },
-                #[doc = " @binding(11): \"restitution\""]
+                #[doc = " @binding(11): \"gamma_coeff\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 11,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(12): \"sqrt_m_eff\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 12,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
@@ -3707,7 +3725,9 @@ var<uniform> kick_magnitude: f32;
 @group(0) @binding(10) 
 var<uniform> stiffness: f32;
 @group(0) @binding(11) 
-var<uniform> restitution: f32;
+var<uniform> gamma_coeff: f32;
+@group(0) @binding(12) 
+var<uniform> sqrt_m_eff: f32;
 @group(1) @binding(0) 
 var<storage> object_cells: array<CellPositionX_naga_oil_mod_XMNXW23LPNYX>;
 @group(1) @binding(1) 
@@ -3727,17 +3747,7 @@ var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 @group(3) @binding(0) 
 var<storage, read_write> forces: array<vec2<f32>>;
 
-fn effective_mass(m1_: f32, m2_: f32) -> f32 {
-    if (m1_ == 0f) {
-        return m2_;
-    }
-    if (m2_ == 0f) {
-        return m1_;
-    }
-    return ((m1_ * m2_) / (m1_ + m2_));
-}
-
-fn collision_repulsion_pair(x1_: vec2<f32>, v1_: vec2<f32>, m1_1: f32, x2_: vec2<f32>, v2_: vec2<f32>, m2_1: f32, separation_vector: vec2<f32>, distance_: f32) -> vec2<f32> {
+fn collision_force(x1_: vec2<f32>, v1_: vec2<f32>, m1_: f32, x2_: vec2<f32>, v2_: vec2<f32>, m2_: f32, separation_vector: vec2<f32>, distance_: f32) -> vec2<f32> {
     let n = (separation_vector / vec2(distance_));
     let _e5 = particle_radius;
     let interaction_distance = (_e5 * 2f);
@@ -3746,17 +3756,14 @@ fn collision_repulsion_pair(x1_: vec2<f32>, v1_: vec2<f32>, m1_1: f32, x2_: vec2
     let f_elastic = ((_e10 * max(0f, penetration)) * n);
     let v_rel = (v1_ - v2_);
     let v_n = dot(v_rel, n);
-    let _e21 = effective_mass(m1_1, m2_1);
-    let _e23 = restitution;
-    let _e25 = restitution;
-    let _e34 = stiffness;
-    let gamma_coeff = (((1.5f * (1f - (_e23 * _e25))) / 2.236068f) * sqrt(_e34));
-    let f_damping = (((-(gamma_coeff) * sqrt(_e21)) * min(0f, v_n)) * n);
+    let _e20 = gamma_coeff;
+    let _e23 = sqrt_m_eff;
+    let f_damping = (((-(_e20) * _e23) * min(0f, v_n)) * n);
     return (f_elastic + f_damping);
 }
 
 @compute @workgroup_size(64, 1, 1) 
-fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>) {
+fn process_collisions(@builtin(global_invocation_id) gid: vec3<u32>) {
     var local: bool;
     var local_1: bool;
     var c1_: vec2<f32>;
@@ -3875,7 +3882,7 @@ fn broad_phase_grid(@builtin(global_invocation_id) gid: vec3<u32>) {
                             let _e172 = positions[b].inner;
                             let _e176 = velocities[b].inner;
                             let _e180 = masses[b].inner;
-                            let _e182 = collision_repulsion_pair(_e160, _e164, _e168, _e172, _e176, _e180, separation_vector_1, sqrt(distance_squared));
+                            let _e182 = collision_force(_e160, _e164, _e168, _e172, _e176, _e180, separation_vector_1, sqrt(distance_squared));
                             force = (_e156 + _e182);
                         }
                         continuing {

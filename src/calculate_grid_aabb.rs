@@ -1,7 +1,7 @@
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
-    buffer_sets::BroadPhaseBuffers,
+    buffer_sets::CollisionBuffers,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
     shaders::calculate_grid_aabb::{
@@ -24,7 +24,7 @@ impl CalculateGridAABB {
         object_count: u32,
         object_count_buffer: DeviceBuffer<u32>,
         particle_radius: DeviceBuffer<f32>,
-        broad_phase_buffers: &BroadPhaseBuffers,
+        collision_buffers: &CollisionBuffers,
         phase_state_ring_config: PhaseStateRingConfig,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
@@ -32,10 +32,10 @@ impl CalculateGridAABB {
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.as_entire_buffer_binding(),
                 particle_radius: particle_radius.as_entire_buffer_binding(),
-                grid_min_x: broad_phase_buffers.grid_min_x.as_entire_buffer_binding(),
-                grid_max_x: broad_phase_buffers.grid_max_x.as_entire_buffer_binding(),
-                grid_min_y: broad_phase_buffers.grid_min_y.as_entire_buffer_binding(),
-                grid_max_y: broad_phase_buffers.grid_max_y.as_entire_buffer_binding(),
+                grid_min_x: collision_buffers.grid_min_x.as_entire_buffer_binding(),
+                grid_max_x: collision_buffers.grid_max_x.as_entire_buffer_binding(),
+                grid_min_y: collision_buffers.grid_min_y.as_entire_buffer_binding(),
+                grid_max_y: collision_buffers.grid_max_y.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_calculate_grid_aabb_pipeline_embed_source(device);
