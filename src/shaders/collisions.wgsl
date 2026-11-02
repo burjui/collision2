@@ -1,5 +1,5 @@
 #import common::{
-    Position, Flags, Mass, Velocity, CollisionCandidate, CellPosition,
+    Position, Flags, Velocity, CellPosition,
     FLAG_PHYSICAL, FLAG_COLLISION, MAX_CANDIDATES_PER_OBJECT, WORKGROUP_SIZE
 }
 
@@ -22,7 +22,6 @@ var<immediate> thread_offset: u32;
 @group(1) @binding(1) var<storage, read> cell_object_count: array<u32>;
 @group(1) @binding(2) var<storage, read> cell_offsets: array<u32>;
 @group(1) @binding(3) var<storage, read> cells: array<u32>;
-@group(1) @binding(4) var<storage, read> masses: array<Mass>;
 
 @group(2) @binding(0) var<storage, read> positions: array<Position>;
 @group(2) @binding(1) var<storage, read> flags: array<Flags>;
@@ -42,7 +41,6 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
 
     var c1 = positions[object_index].inner;
     let v1 = velocities[object_index].inner;
-    let m1 = masses[object_index].inner;
     let kick_vector = c1 - kick_center;
     let kick_vector_length_squared = dot(kick_vector, kick_vector);
     if kick_vector_length_squared < kick_radius * kick_radius && kick_magnitude > 0 {
@@ -65,11 +63,11 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
             let cell_offset = cell_offsets[cell_index];
             for (var k = 0u; k < object_count; k++) {
                 let other_object_index = cells[cell_offset + k];
-                let c2 = positions[other_object_index].inner;
-                if (flags[other_object_index].inner & FLAG_COLLISION) == 0 {
+                if other_object_index == object_index || (flags[other_object_index].inner & FLAG_COLLISION) == 0 {
                     continue;
                 }
 
+                let c2 = positions[other_object_index].inner;
                 let separation_vector = c1 - c2;
                 let distance_squared = dot(separation_vector, separation_vector);
                 if distance_squared > particle_size_squared || distance_squared < 1e-10 {
@@ -79,8 +77,7 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
                 let a = object_index;
                 let b = other_object_index;
                 let v2 = velocities[b].inner;
-                let m2 = masses[b].inner;
-                force += collision_force(v1, m1, v2, m2, separation_vector, sqrt(distance_squared));
+                force += collision_force(v1, v2, separation_vector, sqrt(distance_squared));
             }
         }
     }
@@ -90,9 +87,7 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
 
 fn collision_force(
     v1: vec2f,
-    m1: f32,
     v2: vec2f,
-    m2: f32,
     separation_vector: vec2f,
     distance: f32
 ) -> vec2f {

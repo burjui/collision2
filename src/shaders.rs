@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.23.3
 // Changes made to this file will not be saved.
-// SourceHash: babea1c1321c612da1910bfb7ead141ec6a718ac729bc7e01a4f47fd777fde91
+// SourceHash: 9721fc89e4d89763888eb3b80be0580364d4dfadb77a36b9616d0a5bea64fa4f
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
@@ -3330,7 +3330,6 @@ pub mod collisions {
         pub cell_object_count: wgpu::BufferBinding<'a>,
         pub cell_offsets: wgpu::BufferBinding<'a>,
         pub cells: wgpu::BufferBinding<'a>,
-        pub masses: wgpu::BufferBinding<'a>,
     }
     #[derive(Clone, Debug)]
     pub struct WgpuBindGroup1Entries<'a> {
@@ -3338,7 +3337,6 @@ pub mod collisions {
         pub cell_object_count: wgpu::BindGroupEntry<'a>,
         pub cell_offsets: wgpu::BindGroupEntry<'a>,
         pub cells: wgpu::BindGroupEntry<'a>,
-        pub masses: wgpu::BindGroupEntry<'a>,
     }
     impl<'a> WgpuBindGroup1Entries<'a> {
         pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
@@ -3359,20 +3357,10 @@ pub mod collisions {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(params.cells),
                 },
-                masses: wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(params.masses),
-                },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 5] {
-            [
-                self.object_cells,
-                self.cell_object_count,
-                self.cell_offsets,
-                self.cells,
-                self.masses,
-            ]
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
+            [self.object_cells, self.cell_object_count, self.cell_offsets, self.cells]
         }
         pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
             self.into_array().into_iter().collect()
@@ -3420,17 +3408,6 @@ pub mod collisions {
                 #[doc = " @binding(3): \"cells\""]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(4): \"masses\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -3686,10 +3663,6 @@ struct VelocityX_naga_oil_mod_XMNXW23LPNYX {
     inner: vec2<f32>,
 }
 
-struct MassX_naga_oil_mod_XMNXW23LPNYX {
-    inner: f32,
-}
-
 struct PositionX_naga_oil_mod_XMNXW23LPNYX {
     inner: vec2<f32>,
 }
@@ -3736,8 +3709,6 @@ var<storage> cell_object_count: array<u32>;
 var<storage> cell_offsets: array<u32>;
 @group(1) @binding(3) 
 var<storage> cells: array<u32>;
-@group(1) @binding(4) 
-var<storage> masses: array<MassX_naga_oil_mod_XMNXW23LPNYX>;
 @group(2) @binding(0) 
 var<storage> positions: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
 @group(2) @binding(1) 
@@ -3747,7 +3718,7 @@ var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 @group(3) @binding(0) 
 var<storage, read_write> forces: array<vec2<f32>>;
 
-fn collision_force(v1_: vec2<f32>, m1_: f32, v2_: vec2<f32>, m2_: f32, separation_vector: vec2<f32>, distance_: f32) -> vec2<f32> {
+fn collision_force(v1_: vec2<f32>, v2_: vec2<f32>, separation_vector: vec2<f32>, distance_: f32) -> vec2<f32> {
     let n = (separation_vector / vec2(distance_));
     let _e5 = particle_radius;
     let interaction_distance = (_e5 * 2f);
@@ -3773,6 +3744,7 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3<u32>) {
     var j: u32;
     var k: u32;
     var local_3: bool;
+    var local_4: bool;
 
     let _e4 = thread_offset;
     let a = (gid.x + _e4);
@@ -3797,54 +3769,53 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3<u32>) {
     let _e38 = positions[a].inner;
     c1_ = _e38;
     let v1_1 = velocities[a].inner;
-    let m1_1 = masses[a].inner;
-    let _e48 = c1_;
-    let _e50 = kick_center;
-    let kick_vector = (_e48 - _e50);
+    let _e44 = c1_;
+    let _e46 = kick_center;
+    let kick_vector = (_e44 - _e46);
     let kick_vector_length_squared = dot(kick_vector, kick_vector);
-    let _e54 = kick_radius;
-    let _e56 = kick_radius;
-    if (kick_vector_length_squared < (_e54 * _e56)) {
-        let _e60 = kick_magnitude;
-        local_2 = (_e60 > 0f);
+    let _e50 = kick_radius;
+    let _e52 = kick_radius;
+    if (kick_vector_length_squared < (_e50 * _e52)) {
+        let _e56 = kick_magnitude;
+        local_2 = (_e56 > 0f);
     } else {
         local_2 = false;
     }
-    let _e66 = local_2;
-    if _e66 {
-        let _e70 = velocities[a].inner;
-        let _e73 = kick_magnitude;
-        velocities[a].inner = (_e70 + (normalize(kick_vector) * _e73));
+    let _e62 = local_2;
+    if _e62 {
+        let _e66 = velocities[a].inner;
+        let _e69 = kick_magnitude;
+        velocities[a].inner = (_e66 + (normalize(kick_vector) * _e69));
     }
-    let _e79 = object_cells[a].cell;
-    let cell = vec2<i32>(_e79);
+    let _e75 = object_cells[a].cell;
+    let cell = vec2<i32>(_e75);
     let min_cell = vec2<u32>(max(vec2<i32>(), (cell - vec2(1i))));
-    let _e91 = grid_size_x;
-    let _e95 = grid_size_y;
-    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e91 - 1u), (_e95 - 1u)))));
-    let _e103 = particle_radius;
-    let particle_size = (_e103 * 2f);
+    let _e87 = grid_size_x;
+    let _e91 = grid_size_y;
+    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e87 - 1u), (_e91 - 1u)))));
+    let _e99 = particle_radius;
+    let particle_size = (_e99 * 2f);
     let particle_size_squared = (particle_size * particle_size);
     i = min_cell.x;
     loop {
-        let _e109 = i;
-        if (_e109 <= max_cell.x) {
+        let _e105 = i;
+        if (_e105 <= max_cell.x) {
         } else {
             break;
         }
         {
             j = min_cell.y;
             loop {
-                let _e114 = j;
-                if (_e114 <= max_cell.y) {
+                let _e110 = j;
+                if (_e110 <= max_cell.y) {
                 } else {
                     break;
                 }
                 {
-                    let _e117 = i;
-                    let _e118 = j;
-                    let _e120 = grid_size_x;
-                    let cell_index = (_e117 + (_e118 * _e120));
+                    let _e113 = i;
+                    let _e114 = j;
+                    let _e116 = grid_size_x;
+                    let cell_index = (_e113 + (_e114 * _e116));
                     let object_count_1 = cell_object_count[cell_index];
                     if (object_count_1 == 0u) {
                         continue;
@@ -3852,57 +3823,62 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3<u32>) {
                     let cell_offset = cell_offsets[cell_index];
                     k = 0u;
                     loop {
-                        let _e133 = k;
-                        if (_e133 < object_count_1) {
+                        let _e129 = k;
+                        if (_e129 < object_count_1) {
                         } else {
                             break;
                         }
                         {
-                            let _e136 = k;
-                            let b = cells[(cell_offset + _e136)];
-                            let c2_ = positions[b].inner;
-                            let _e147 = flags[b].inner;
-                            if ((_e147 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u) {
-                                continue;
-                            }
-                            let _e152 = c1_;
-                            let separation_vector_1 = (_e152 - c2_);
-                            let distance_squared = dot(separation_vector_1, separation_vector_1);
-                            if !((distance_squared > particle_size_squared)) {
-                                local_3 = (distance_squared < 0.0000000001f);
+                            let _e132 = k;
+                            let b = cells[(cell_offset + _e132)];
+                            if !((b == a)) {
+                                let _e141 = flags[b].inner;
+                                local_3 = ((_e141 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u);
                             } else {
                                 local_3 = true;
                             }
-                            let _e162 = local_3;
-                            if _e162 {
+                            let _e149 = local_3;
+                            if _e149 {
+                                continue;
+                            }
+                            let c2_ = positions[b].inner;
+                            let _e154 = c1_;
+                            let separation_vector_1 = (_e154 - c2_);
+                            let distance_squared = dot(separation_vector_1, separation_vector_1);
+                            if !((distance_squared > particle_size_squared)) {
+                                local_4 = (distance_squared < 0.0000000001f);
+                            } else {
+                                local_4 = true;
+                            }
+                            let _e164 = local_4;
+                            if _e164 {
                                 continue;
                             }
                             let v2_1 = velocities[b].inner;
-                            let m2_1 = masses[b].inner;
-                            let _e172 = force;
-                            let _e174 = collision_force(v1_1, m1_1, v2_1, m2_1, separation_vector_1, sqrt(distance_squared));
-                            force = (_e172 + _e174);
+                            let _e170 = force;
+                            let _e172 = collision_force(v1_1, v2_1, separation_vector_1, sqrt(distance_squared));
+                            force = (_e170 + _e172);
                         }
                         continuing {
-                            let _e177 = k;
-                            k = (_e177 + 1u);
+                            let _e175 = k;
+                            k = (_e175 + 1u);
                         }
                     }
                 }
                 continuing {
-                    let _e180 = j;
-                    j = (_e180 + 1u);
+                    let _e178 = j;
+                    j = (_e178 + 1u);
                 }
             }
         }
         continuing {
-            let _e183 = i;
-            i = (_e183 + 1u);
+            let _e181 = i;
+            i = (_e181 + 1u);
         }
     }
-    let _e187 = forces[a];
-    let _e188 = force;
-    forces[a] = (_e187 + _e188);
+    let _e185 = forces[a];
+    let _e186 = force;
+    forces[a] = (_e185 + _e186);
     return;
 }
 "#;

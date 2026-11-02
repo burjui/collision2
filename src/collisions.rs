@@ -60,7 +60,6 @@ impl Collisions {
                 cell_object_count: collision_buffers.cell_object_count.as_entire_buffer_binding(),
                 cell_offsets: collision_buffers.cell_offsets.as_entire_buffer_binding(),
                 cells: collision_buffers.cells.as_entire_buffer_binding(),
-                masses: collision_buffers.masses.as_entire_buffer_binding(),
             }),
         );
         let mutable_bind_group = WgpuBindGroup3::from_bindings(
