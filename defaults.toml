@@ -13,7 +13,7 @@ world_size = "6400x4000"
 
 accel = "0,-100"
 kick = "0,0"
-kick_radius = 500
+cursor_impulse_radius = 500
 
 blackhole = 0
 blackhole_radius = 20

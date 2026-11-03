@@ -7,7 +7,7 @@ use crate::{
     config::AppConfig,
     objects::{ObjectPrototype, Objects},
     shaders::{
-        common::{AABB, FLAG_COLLISION, FLAG_DRAW_AABB, FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_VELOCITY_COLOR},
+        common::{AABB, FLAG_COLLISION, FLAG_DRAW_AABB, FLAG_DRAW_OBJECT, FLAG_INTEGRATE, FLAG_VELOCITY_COLOR},
         render_shape::SHAPE_RECT,
     },
 };
@@ -59,7 +59,7 @@ pub fn create_scene(app_config: &AppConfig, objects: &mut Objects, world_aabb: A
             }
             let offset = Vector2::from(app_config.scene_offset());
             objects.push(ObjectPrototype {
-                flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_PHYSICAL | FLAG_COLLISION | velocity_color,
+                flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_INTEGRATE | FLAG_COLLISION | velocity_color,
                 position: (position + offset).into(),
                 velocity: app_config.kick(),
                 mass: app_config.particle_mass,

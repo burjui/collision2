@@ -18,6 +18,7 @@ fn generate_shader_bindings() -> Result<(), Box<dyn std::error::Error>> {
         .add_entry_point("src/shaders/common.wgsl")
         .add_entry_point("src/shaders/render_shape.wgsl")
         .add_entry_point("src/shaders/render_aabb.wgsl")
+        .add_entry_point("src/shaders/cursor_impulse.wgsl")
         .add_entry_point("src/shaders/reset_grid_aabb.wgsl")
         .add_entry_point("src/shaders/calculate_grid_aabb.wgsl")
         .add_entry_point("src/shaders/assign_object_cells.wgsl")

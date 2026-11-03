@@ -23,7 +23,7 @@ pub struct AppConfig {
 
     pub accel: String,
     pub kick: String,
-    pub kick_radius: f32,
+    pub cursor_impulse_radius: f32,
 
     pub blackhole: bool,
     pub blackhole_radius: f32,

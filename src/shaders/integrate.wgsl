@@ -1,6 +1,6 @@
 #import common::{
     AABB, Position, Mass, Velocity, Flags,
-    FLAG_DRAW_OBJECT, FLAG_PHYSICAL, FLAG_COLLISION, FLAG_DRAW_AABB, WORKGROUP_SIZE
+    FLAG_DRAW_OBJECT, FLAG_INTEGRATE, FLAG_COLLISION, FLAG_DRAW_AABB, WORKGROUP_SIZE
 }
 
 var <immediate> thread_offset: u32;
@@ -48,15 +48,15 @@ fn integrate(
     let mass = masses[object_index].inner;
     var f = flags[object_index].inner;
     var state = ObjectPhaseState(initial_position, velocities[object_index].inner);
-    if (f & FLAG_PHYSICAL) != 0 {
+    if (f & FLAG_INTEGRATE) != 0 {
         state = integrate_euler_symplectic(state, object_index, mass);
     }
 
-    for (var bh_index: u32 = 0; bh_index < blackhole_count && (f & FLAG_PHYSICAL) != 0; bh_index++) {
+    for (var bh_index: u32 = 0; bh_index < blackhole_count && (f & FLAG_INTEGRATE) != 0; bh_index++) {
         let blackhole = blackholes[bh_index];
         let distance = length(blackhole.position - state.position) - particle_radius * 2.0;
         if distance < blackhole.radius * blackhole_size_scale {
-            f &= ~(FLAG_PHYSICAL | FLAG_COLLISION | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
+            f &= ~(FLAG_INTEGRATE | FLAG_COLLISION | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
             state.velocity = vec2f();
         }
     }

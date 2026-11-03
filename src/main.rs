@@ -24,6 +24,7 @@ pub mod scene;
 #[allow(clippy::missing_safety_doc)]
 pub mod shaders;
 
+pub mod cursor_impulse;
 pub mod shape_renderer;
 pub mod simulation;
 pub mod util;
@@ -132,10 +133,16 @@ fn main() {
         Some(EventLoop::with_user_event().build().expect("Failed to create event loop"))
     };
     let event_loop_proxy = event_loop.as_ref().map(|event_loop| event_loop.create_proxy());
-    let kick_center = DeviceBuffer::from_data(&device, &[[0.0, 0.0]], "kick center", UNIFORM | COPY_SRC | COPY_DST);
-    let kick_radius =
-        DeviceBuffer::from_data(&device, &[app_config.kick_radius], "kick radius", UNIFORM | COPY_SRC | COPY_DST);
-    let kick_magnitude = DeviceBuffer::from_data(&device, &[0.0], "kick magnitude", UNIFORM | COPY_SRC | COPY_DST);
+    let cursor_position_buffer =
+        DeviceBuffer::from_data(&device, &[[0.0, 0.0]], "kick center", UNIFORM | COPY_SRC | COPY_DST);
+    let cursor_impulse_radius = DeviceBuffer::from_data(
+        &device,
+        &[app_config.cursor_impulse_radius],
+        "kick radius",
+        UNIFORM | COPY_SRC | COPY_DST,
+    );
+    let cursor_impulse_speed =
+        DeviceBuffer::from_data(&device, &[0.0], "kick magnitude", UNIFORM | COPY_SRC | COPY_DST);
     let mut recorder = None;
     if !app_config.output_path.is_empty() {
         recorder = Some(Recorder::new(RecorderParams {
@@ -165,9 +172,9 @@ fn main() {
         phase_state_ring_config,
         phase_state_ring.clone(),
         masses.clone(),
-        kick_center.clone(),
-        kick_radius.clone(),
-        kick_magnitude.clone(),
+        cursor_position_buffer.clone(),
+        cursor_impulse_radius.clone(),
+        cursor_impulse_speed.clone(),
         exit_requested.clone(),
         event_loop_proxy,
         pause_simulation.clone(),
@@ -217,8 +224,8 @@ fn main() {
             colors,
             shapes,
             masses,
-            kick_center,
-            kick_magnitude,
+            cursor_position_buffer,
+            cursor_impulse_speed,
             phase_state_ring_config,
             phase_state_ring,
             exit_requested,
@@ -247,8 +254,8 @@ struct App<'a> {
     colors: DeviceBuffer<Color>,
     shapes: DeviceBuffer<Shape>,
     masses: DeviceBuffer<Mass>,
-    kick_center: DeviceBuffer<[f32; 2]>,
-    kick_magnitude: DeviceBuffer<f32>,
+    cursor_position_buffer: DeviceBuffer<[f32; 2]>,
+    cursor_impulse_speed: DeviceBuffer<f32>,
     phase_state_ring_config: PhaseStateRingConfig,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     exit_requested: Arc<AtomicBool>,
@@ -460,15 +467,15 @@ impl ApplicationHandler<SimulationRequest> for App<'_> {
 impl App<'_> {
     fn kick_at_cursor(&self) {
         let state = self.sim_state.as_ref().unwrap();
-        let kick_center = mouse_to_world_coords(
+        let cursor_position = mouse_to_world_coords(
             self.cursor_position.unwrap(),
             self.world_aabb,
             state.window.inner_size(),
             self.render_parameters.offset,
             self.render_parameters.zoom,
         );
-        self.kick_center.write(&self.queue, &[kick_center.into()]);
-        self.kick_magnitude.write(&self.queue, &[100.0]);
+        self.cursor_position_buffer.write(&self.queue, &[cursor_position.into()]);
+        self.cursor_impulse_speed.write(&self.queue, &[100.0]);
     }
 }
 

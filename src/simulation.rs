@@ -21,6 +21,7 @@ use crate::{
     collisions::{Collisions, CollisionsParams},
     command_timings::CommandTimings,
     config::AppConfig,
+    cursor_impulse::{CursorImpulse, CursorImpulseParams},
     device_buffer::DeviceBuffer,
     integrator::Integrator,
     phase_state::{PhaseStateRing, PhaseStateRingConfig},
@@ -50,9 +51,9 @@ pub fn spawn_simulation_thread(
     phase_state_ring_config: PhaseStateRingConfig,
     phase_state_ring: Arc<Mutex<PhaseStateRing>>,
     masses: DeviceBuffer<Mass>,
-    kick_center: DeviceBuffer<[f32; 2]>,
-    kick_radius: DeviceBuffer<f32>,
-    kick_magnitude: DeviceBuffer<f32>,
+    cursor_position: DeviceBuffer<[f32; 2]>,
+    cursor_impulse_radius: DeviceBuffer<f32>,
+    cursor_impulse_speed: DeviceBuffer<f32>,
     exit_requested: Arc<AtomicBool>,
     event_loop_proxy: Option<EventLoopProxy<SimulationRequest>>,
     pause_simulation: Arc<AtomicBool>,
@@ -101,13 +102,19 @@ pub fn spawn_simulation_thread(
             (3.0 / 2.0) * (1.0 - app_config.restitution.powi(2)) / 5.0_f32.sqrt() * app_config.stiffness.sqrt();
         let gamma_coeff_buffer = DeviceBuffer::from_data(&device, &[gamma_coeff], "gamma_coeff", UNIFORM);
         let effective_mass = app_config.particle_mass.powi(2) / (app_config.particle_mass * 2.0);
+
+        // NOTE: This is only valid while all particles have the same mass, which is the case at the moment.
+        // As soon as they become different, this term has to be calculated in the shader,
+        // e.g. if I simulate fission.
         let sqrt_m_eff = DeviceBuffer::from_data(&device, &[effective_mass.sqrt()], "sqrt_m_eff", UNIFORM);
+
         let safety_margin = app_config.particle_radius * 2.0;
         let constraints = AABB {
             min: [world_aabb.min[0] + safety_margin, world_aabb.min[1] + safety_margin],
             max: [world_aabb.max[0] - safety_margin, world_aabb.max[1] - safety_margin],
         };
         let constraints_buffer = DeviceBuffer::from_data(&device, &[constraints], "constraints", UNIFORM | COPY_SRC);
+
         let collision_buffers = CollisionBuffers {
             object_count: object_count_buffer.clone(),
             particle_radius: particle_radius.clone(),
@@ -124,13 +131,25 @@ pub fn spawn_simulation_thread(
             cells,
             masses: masses.clone(),
             forces: forces.clone(),
-            kick_center: kick_center.clone(),
-            kick_radius: kick_radius.clone(),
-            kick_magnitude: kick_magnitude.clone(),
+            cursor_position: cursor_position.clone(),
+            cursor_impulse_radius: cursor_impulse_radius.clone(),
+            cursor_impulse_speed: cursor_impulse_speed.clone(),
             stiffness,
             gamma_coeff: gamma_coeff_buffer.clone(),
             sqrt_m_eff,
         };
+
+        let mut cursor_impulse = CursorImpulse::new(
+            &device,
+            CursorImpulseParams {
+                phase_state_ring_config,
+                object_count,
+                object_count_buffer: object_count_buffer.clone(),
+                cursor_position: cursor_position.clone(),
+                cursor_impulse_radius: cursor_impulse_radius.clone(),
+                cursor_impulse_speed: cursor_impulse_speed.clone(),
+            },
+        );
         let reset_grid_aabb = ResetGridAABB::new(&device, &collision_buffers);
         let mut calculate_grid_aabb = CalculateGridAABB::new(
             &device,
@@ -229,16 +248,14 @@ pub fn spawn_simulation_thread(
                     )
                 });
 
-            // Prepare the compute pass
+            cursor_impulse.prepare(&device, phase_state_index, &current_phase_state);
             calculate_grid_aabb.prepare(&device, phase_state_index, &current_phase_state);
             assign_object_cells.prepare(&device, phase_state_index, &current_phase_state);
             collisions.prepare(&device, phase_state_index, &current_phase_state);
-            // narrow_phase.prepare(&device, phase_state_index, &current_phase_state);
             integrator.prepare(&device, phase_state_index, &current_phase_state, &next_phase_state);
 
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor::default());
 
-            // Reset buffers
             let timings = current_phase_state.command_timings();
             timings.measure(&mut encoder, "Clear buffers", |encoder| {
                 encoder.clear_buffer(cell_object_count.buffer(), 0, None);
@@ -248,6 +265,7 @@ pub fn spawn_simulation_thread(
             });
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
+            compute(&cursor_impulse, &mut compute_pass, timings);
             compute(&reset_grid_aabb, &mut compute_pass, timings);
             compute(&calculate_grid_aabb, &mut compute_pass, timings);
             compute(&cell_offsets_dispatch_dimensions, &mut compute_pass, timings);
@@ -260,7 +278,7 @@ pub fn spawn_simulation_thread(
             compute(&integrator, &mut compute_pass, timings);
             drop(compute_pass);
 
-            encoder.clear_buffer(kick_magnitude.buffer(), 0, None);
+            encoder.clear_buffer(cursor_impulse_speed.buffer(), 0, None);
 
             let timings_reader = timings.resolve(&mut encoder, timestamp_period);
 

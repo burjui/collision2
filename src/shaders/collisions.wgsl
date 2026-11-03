@@ -1,6 +1,6 @@
 #import common::{
     Position, Flags, Velocity, CellPosition,
-    FLAG_PHYSICAL, FLAG_COLLISION, MAX_CANDIDATES_PER_OBJECT, WORKGROUP_SIZE
+    FLAG_INTEGRATE, FLAG_COLLISION, MAX_CANDIDATES_PER_OBJECT, WORKGROUP_SIZE
 }
 
 var<immediate> thread_offset: u32;
@@ -11,9 +11,6 @@ var<immediate> thread_offset: u32;
 @group(0) @binding(3) var<uniform> grid_min_y: f32;
 @group(0) @binding(5) var<uniform> grid_size_x: u32;
 @group(0) @binding(6) var<uniform> grid_size_y: u32;
-@group(0) @binding(7) var<uniform> kick_center: vec2f;
-@group(0) @binding(8) var<uniform> kick_radius: f32;
-@group(0) @binding(9) var<uniform> kick_magnitude: f32;
 @group(0) @binding(10) var<uniform> stiffness: f32;
 @group(0) @binding(11) var<uniform> gamma_coeff: f32;
 @group(0) @binding(12) var<uniform> sqrt_m_eff: f32;
@@ -33,26 +30,19 @@ var<immediate> thread_offset: u32;
 fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
     let object_index = gid.x + thread_offset;
     if object_index >= object_count ||
-       (flags[object_index].inner & FLAG_PHYSICAL) == 0 ||
+       (flags[object_index].inner & FLAG_INTEGRATE) == 0 ||
        (flags[object_index].inner & FLAG_COLLISION) == 0
     {
         return;
     }
-
-    var c1 = positions[object_index].inner;
-    let v1 = velocities[object_index].inner;
-    let kick_vector = c1 - kick_center;
-    let kick_vector_length_squared = dot(kick_vector, kick_vector);
-    if kick_vector_length_squared < kick_radius * kick_radius && kick_magnitude > 0 {
-        velocities[object_index].inner += normalize(kick_vector) * kick_magnitude;
-    }
-
     let cell = vec2i(object_cells[object_index].cell);
     let min_cell = vec2u(max(vec2i(), cell - vec2i(1)));
     let max_cell = vec2u(min(cell + vec2i(1), vec2i(vec2u(grid_size_x - 1, grid_size_y - 1))));
     let particle_size = particle_radius * 2;
     let particle_size_squared = particle_size * particle_size;
     var force = vec2f();
+    var c1 = positions[object_index].inner;
+    let v1 = velocities[object_index].inner;
     for (var i = min_cell.x; i <= max_cell.x; i++) {
         for (var j = min_cell.y; j <= max_cell.y; j++) {
             let cell_index = i + j * grid_size_x;

@@ -2,13 +2,14 @@
 //
 // ^ wgsl_bindgen version 0.23.3
 // Changes made to this file will not be saved.
-// SourceHash: 9721fc89e4d89763888eb3b80be0580364d4dfadb77a36b9616d0a5bea64fa4f
+// SourceHash: 778e2f3aece3e4d17e81f4b752faca889e1ca39b58aa2234af6a49d858e7dd1d
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
     Common,
     RenderShape,
     RenderAabb,
+    CursorImpulse,
     ResetGridAabb,
     CalculateGridAabb,
     AssignObjectCells,
@@ -24,6 +25,7 @@ impl ShaderEntry {
             Self::Common => common::create_pipeline_layout(device),
             Self::RenderShape => render_shape::create_pipeline_layout(device),
             Self::RenderAabb => render_aabb::create_pipeline_layout(device),
+            Self::CursorImpulse => cursor_impulse::create_pipeline_layout(device),
             Self::ResetGridAabb => reset_grid_aabb::create_pipeline_layout(device),
             Self::CalculateGridAabb => calculate_grid_aabb::create_pipeline_layout(device),
             Self::AssignObjectCells => assign_object_cells::create_pipeline_layout(device),
@@ -41,6 +43,7 @@ impl ShaderEntry {
             Self::Common => common::create_shader_module_embed_source(device),
             Self::RenderShape => render_shape::create_shader_module_embed_source(device),
             Self::RenderAabb => render_aabb::create_shader_module_embed_source(device),
+            Self::CursorImpulse => cursor_impulse::create_shader_module_embed_source(device),
             Self::ResetGridAabb => reset_grid_aabb::create_shader_module_embed_source(device),
             Self::CalculateGridAabb => calculate_grid_aabb::create_shader_module_embed_source(device),
             Self::AssignObjectCells => assign_object_cells::create_shader_module_embed_source(device),
@@ -149,7 +152,7 @@ pub mod common {
     pub const WORKGROUP_SIZE: u32 = 64u32;
     pub const FLAG_DRAW_OBJECT: u32 = 1u32;
     pub const FLAG_DRAW_AABB: u32 = 2u32;
-    pub const FLAG_PHYSICAL: u32 = 4u32;
+    pub const FLAG_INTEGRATE: u32 = 4u32;
     pub const FLAG_VELOCITY_COLOR: u32 = 8u32;
     pub const FLAG_COLLISION: u32 = 16u32;
     pub const MAX_OBJECTS_PER_CELL: u32 = 2u32;
@@ -372,7 +375,7 @@ const WORKGROUP_SIZE: u32 = 64u;
 const UNIT_QUAD_VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(vec2<f32>(0.5f, 0.5f), vec2<f32>(-0.5f, 0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(-0.5f, -0.5f), vec2<f32>(0.5f, -0.5f), vec2<f32>(0.5f, 0.5f));
 const FLAG_DRAW_OBJECT: u32 = 1u;
 const FLAG_DRAW_AABB: u32 = 2u;
-const FLAG_PHYSICAL: u32 = 4u;
+const FLAG_INTEGRATE: u32 = 4u;
 const FLAG_VELOCITY_COLOR: u32 = 8u;
 const FLAG_COLLISION: u32 = 16u;
 const MAX_OBJECTS_PER_CELL: u32 = 2u;
@@ -1298,6 +1301,363 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         discard;
     }
     return FragmentOutput(vec4<f32>(1f, 1f, 1f, 1f));
+}
+"#;
+}
+#[allow(unused, non_snake_case, non_camel_case_types, non_upper_case_globals)]
+pub mod cursor_impulse {
+    use super::{_root, _root::*};
+    pub mod compute {
+        use super::{_root, _root::*};
+        pub const APPLY_CURSOR_IMPULSE_WORKGROUP_SIZE: [u32; 3] = [64, 1, 1];
+        pub fn create_apply_cursor_impulse_pipeline_embed_source(device: &wgpu::Device) -> wgpu::ComputePipeline {
+            let module = super::create_shader_module_embed_source(device);
+            let layout = super::create_pipeline_layout(device);
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline apply_cursor_impulse"),
+                layout: Some(&layout),
+                module: &module,
+                entry_point: Some("apply_cursor_impulse"),
+                compilation_options: Default::default(),
+                cache: None,
+            })
+        }
+    }
+    pub const ENTRY_APPLY_CURSOR_IMPULSE: &str = "apply_cursor_impulse";
+    #[derive(Debug)]
+    pub struct WgpuBindGroup0EntriesParams<'a> {
+        pub object_count: wgpu::BufferBinding<'a>,
+        pub cursor_position: wgpu::BufferBinding<'a>,
+        pub cursor_impulse_radius: wgpu::BufferBinding<'a>,
+        pub cursor_impulse_speed: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup0Entries<'a> {
+        pub object_count: wgpu::BindGroupEntry<'a>,
+        pub cursor_position: wgpu::BindGroupEntry<'a>,
+        pub cursor_impulse_radius: wgpu::BindGroupEntry<'a>,
+        pub cursor_impulse_speed: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup0Entries<'a> {
+        pub fn new(params: WgpuBindGroup0EntriesParams<'a>) -> Self {
+            Self {
+                object_count: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.object_count),
+                },
+                cursor_position: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.cursor_position),
+                },
+                cursor_impulse_radius: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.cursor_impulse_radius),
+                },
+                cursor_impulse_speed: wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(params.cursor_impulse_speed),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 4] {
+            [
+                self.object_count,
+                self.cursor_position,
+                self.cursor_impulse_radius,
+                self.cursor_impulse_speed,
+            ]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
+    pub struct WgpuBindGroup0(wgpu::BindGroup);
+    impl WgpuBindGroup0 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("CursorImpulse::BindGroup0::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"object_count\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"cursor_position\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<[f32; 2]>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"cursor_impulse_radius\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(3): \"cursor_impulse_speed\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup0Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("CursorImpulse::BindGroup0"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(0, &self.0, &[]);
+        }
+        pub fn inner(&self) -> &wgpu::BindGroup {
+            &self.0
+        }
+        pub unsafe fn from_raw(bind_group: wgpu::BindGroup) -> Self {
+            Self(bind_group)
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuBindGroup1EntriesParams<'a> {
+        pub flags: wgpu::BufferBinding<'a>,
+        pub positions: wgpu::BufferBinding<'a>,
+        pub velocities: wgpu::BufferBinding<'a>,
+    }
+    #[derive(Clone, Debug)]
+    pub struct WgpuBindGroup1Entries<'a> {
+        pub flags: wgpu::BindGroupEntry<'a>,
+        pub positions: wgpu::BindGroupEntry<'a>,
+        pub velocities: wgpu::BindGroupEntry<'a>,
+    }
+    impl<'a> WgpuBindGroup1Entries<'a> {
+        pub fn new(params: WgpuBindGroup1EntriesParams<'a>) -> Self {
+            Self {
+                flags: wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(params.flags),
+                },
+                positions: wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(params.positions),
+                },
+                velocities: wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(params.velocities),
+                },
+            }
+        }
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 3] {
+            [self.flags, self.positions, self.velocities]
+        }
+        pub fn collect<B: FromIterator<wgpu::BindGroupEntry<'a>>>(self) -> B {
+            self.into_array().into_iter().collect()
+        }
+    }
+    #[derive(Clone, Debug, Eq, Hash, Ord, PartialOrd, PartialEq)]
+    pub struct WgpuBindGroup1(wgpu::BindGroup);
+    impl WgpuBindGroup1 {
+        pub const LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
+            label: Some("CursorImpulse::BindGroup1::LayoutDescriptor"),
+            entries: &[
+                #[doc = " @binding(0): \"flags\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(1): \"positions\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                #[doc = " @binding(2): \"velocities\""]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        };
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&Self::LAYOUT_DESCRIPTOR)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: WgpuBindGroup1Entries) -> Self {
+            let bind_group_layout = Self::get_bind_group_layout(device);
+            let entries = bindings.into_array();
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("CursorImpulse::BindGroup1"),
+                layout: &bind_group_layout,
+                entries: &entries,
+            });
+            Self(bind_group)
+        }
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            pass.set_bind_group(1, &self.0, &[]);
+        }
+        pub fn inner(&self) -> &wgpu::BindGroup {
+            &self.0
+        }
+        pub unsafe fn from_raw(bind_group: wgpu::BindGroup) -> Self {
+            Self(bind_group)
+        }
+    }
+    #[doc = " Bind groups can be set individually using their set(render_pass) method, or all at once using `WgpuBindGroups::set`."]
+    #[doc = " For optimal performance with many draw calls, it's recommended to organize bindings into bind groups based on update frequency:"]
+    #[doc = "   - Bind group 0: Least frequent updates (e.g. per frame resources)"]
+    #[doc = "   - Bind group 1: More frequent updates"]
+    #[doc = "   - Bind group 2: More frequent updates"]
+    #[doc = "   - Bind group 3: Most frequent updates (e.g. per draw resources)"]
+    #[derive(Debug, Copy, Clone)]
+    pub struct WgpuBindGroups<'a> {
+        pub bind_group0: &'a WgpuBindGroup0,
+        pub bind_group1: &'a WgpuBindGroup1,
+    }
+    impl<'a> WgpuBindGroups<'a> {
+        pub fn set(&self, pass: &mut impl SetBindGroup) {
+            self.bind_group0.set(pass);
+            self.bind_group1.set(pass);
+        }
+    }
+    #[derive(Debug)]
+    pub struct WgpuPipelineLayout;
+    impl WgpuPipelineLayout {
+        pub fn bind_group_layout_entries(entries: [wgpu::BindGroupLayout; 2]) -> [wgpu::BindGroupLayout; 2] {
+            entries
+        }
+    }
+    pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
+        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("CursorImpulse::PipelineLayout"),
+            bind_group_layouts: &[
+                Some(&WgpuBindGroup0::get_bind_group_layout(device)),
+                Some(&WgpuBindGroup1::get_bind_group_layout(device)),
+            ],
+            immediate_size: 4u32,
+        })
+    }
+    pub fn create_shader_module_embed_source(device: &wgpu::Device) -> wgpu::ShaderModule {
+        let source = std::borrow::Cow::Borrowed(SHADER_STRING);
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("cursor_impulse.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(source),
+        })
+    }
+    pub const SHADER_STRING: &str = r#"
+struct FlagsX_naga_oil_mod_XMNXW23LPNYX {
+    inner: u32,
+}
+
+struct VelocityX_naga_oil_mod_XMNXW23LPNYX {
+    inner: vec2<f32>,
+}
+
+struct PositionX_naga_oil_mod_XMNXW23LPNYX {
+    inner: vec2<f32>,
+}
+
+const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
+const FLAG_INTEGRATEX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
+
+var<immediate> thread_offset: u32;
+@group(0) @binding(0) 
+var<uniform> object_count: u32;
+@group(0) @binding(1) 
+var<uniform> cursor_position: vec2<f32>;
+@group(0) @binding(2) 
+var<uniform> cursor_impulse_radius: f32;
+@group(0) @binding(3) 
+var<uniform> cursor_impulse_speed: f32;
+@group(1) @binding(0) 
+var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+@group(1) @binding(1) 
+var<storage> positions: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
+@group(1) @binding(2) 
+var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
+
+@compute @workgroup_size(64, 1, 1) 
+fn apply_cursor_impulse(@builtin(global_invocation_id) gid: vec3<u32>) {
+    var local: bool;
+    var local_1: bool;
+
+    let _e3 = thread_offset;
+    let object_index = (gid.x + _e3);
+    let _e6 = object_count;
+    if !((object_index >= _e6)) {
+        let _e12 = flags[object_index].inner;
+        local = ((_e12 & FLAG_INTEGRATEX_naga_oil_mod_XMNXW23LPNYX) == 0u);
+    } else {
+        local = true;
+    }
+    let _e20 = local;
+    if _e20 {
+        return;
+    }
+    let _e24 = positions[object_index].inner;
+    let _e26 = cursor_position;
+    let impulse_vector = (_e24 - _e26);
+    let impulse_vector_length_squared = dot(impulse_vector, impulse_vector);
+    let _e30 = cursor_impulse_radius;
+    let _e32 = cursor_impulse_radius;
+    if (impulse_vector_length_squared < (_e30 * _e32)) {
+        let _e36 = cursor_impulse_speed;
+        local_1 = (_e36 > 0f);
+    } else {
+        local_1 = false;
+    }
+    let _e42 = local_1;
+    if _e42 {
+        let _e46 = velocities[object_index].inner;
+        let _e49 = cursor_impulse_speed;
+        velocities[object_index].inner = (_e46 + (normalize(impulse_vector) * _e49));
+        return;
+    } else {
+        return;
+    }
 }
 "#;
 }
@@ -3066,9 +3426,6 @@ pub mod collisions {
         pub grid_min_y: wgpu::BufferBinding<'a>,
         pub grid_size_x: wgpu::BufferBinding<'a>,
         pub grid_size_y: wgpu::BufferBinding<'a>,
-        pub kick_center: wgpu::BufferBinding<'a>,
-        pub kick_radius: wgpu::BufferBinding<'a>,
-        pub kick_magnitude: wgpu::BufferBinding<'a>,
         pub stiffness: wgpu::BufferBinding<'a>,
         pub gamma_coeff: wgpu::BufferBinding<'a>,
         pub sqrt_m_eff: wgpu::BufferBinding<'a>,
@@ -3081,9 +3438,6 @@ pub mod collisions {
         pub grid_min_y: wgpu::BindGroupEntry<'a>,
         pub grid_size_x: wgpu::BindGroupEntry<'a>,
         pub grid_size_y: wgpu::BindGroupEntry<'a>,
-        pub kick_center: wgpu::BindGroupEntry<'a>,
-        pub kick_radius: wgpu::BindGroupEntry<'a>,
-        pub kick_magnitude: wgpu::BindGroupEntry<'a>,
         pub stiffness: wgpu::BindGroupEntry<'a>,
         pub gamma_coeff: wgpu::BindGroupEntry<'a>,
         pub sqrt_m_eff: wgpu::BindGroupEntry<'a>,
@@ -3115,18 +3469,6 @@ pub mod collisions {
                     binding: 6,
                     resource: wgpu::BindingResource::Buffer(params.grid_size_y),
                 },
-                kick_center: wgpu::BindGroupEntry {
-                    binding: 7,
-                    resource: wgpu::BindingResource::Buffer(params.kick_center),
-                },
-                kick_radius: wgpu::BindGroupEntry {
-                    binding: 8,
-                    resource: wgpu::BindingResource::Buffer(params.kick_radius),
-                },
-                kick_magnitude: wgpu::BindGroupEntry {
-                    binding: 9,
-                    resource: wgpu::BindingResource::Buffer(params.kick_magnitude),
-                },
                 stiffness: wgpu::BindGroupEntry {
                     binding: 10,
                     resource: wgpu::BindingResource::Buffer(params.stiffness),
@@ -3141,7 +3483,7 @@ pub mod collisions {
                 },
             }
         }
-        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 12] {
+        pub fn into_array(self) -> [wgpu::BindGroupEntry<'a>; 9] {
             [
                 self.object_count,
                 self.particle_radius,
@@ -3149,9 +3491,6 @@ pub mod collisions {
                 self.grid_min_y,
                 self.grid_size_x,
                 self.grid_size_y,
-                self.kick_center,
-                self.kick_radius,
-                self.kick_magnitude,
                 self.stiffness,
                 self.gamma_coeff,
                 self.sqrt_m_eff,
@@ -3230,39 +3569,6 @@ pub mod collisions {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
                         min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<u32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(7): \"kick_center\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 7,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<[f32; 2]>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(8): \"kick_radius\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 8,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
-                    },
-                    count: None,
-                },
-                #[doc = " @binding(9): \"kick_magnitude\""]
-                wgpu::BindGroupLayoutEntry {
-                    binding: 9,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(std::mem::size_of::<f32>() as _),
                     },
                     count: None,
                 },
@@ -3673,7 +3979,7 @@ struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
 }
 
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
-const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
+const FLAG_INTEGRATEX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 
 var<immediate> thread_offset: u32;
@@ -3689,12 +3995,6 @@ var<uniform> grid_min_y: f32;
 var<uniform> grid_size_x: u32;
 @group(0) @binding(6) 
 var<uniform> grid_size_y: u32;
-@group(0) @binding(7) 
-var<uniform> kick_center: vec2<f32>;
-@group(0) @binding(8) 
-var<uniform> kick_radius: f32;
-@group(0) @binding(9) 
-var<uniform> kick_magnitude: f32;
 @group(0) @binding(10) 
 var<uniform> stiffness: f32;
 @group(0) @binding(11) 
@@ -3737,21 +4037,20 @@ fn collision_force(v1_: vec2<f32>, v2_: vec2<f32>, separation_vector: vec2<f32>,
 fn process_collisions(@builtin(global_invocation_id) gid: vec3<u32>) {
     var local: bool;
     var local_1: bool;
-    var c1_: vec2<f32>;
-    var local_2: bool;
     var force: vec2<f32> = vec2<f32>();
+    var c1_: vec2<f32>;
     var i: u32;
     var j: u32;
     var k: u32;
+    var local_2: bool;
     var local_3: bool;
-    var local_4: bool;
 
     let _e4 = thread_offset;
     let a = (gid.x + _e4);
     let _e7 = object_count;
     if !((a >= _e7)) {
         let _e13 = flags[a].inner;
-        local = ((_e13 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) == 0u);
+        local = ((_e13 & FLAG_INTEGRATEX_naga_oil_mod_XMNXW23LPNYX) == 0u);
     } else {
         local = true;
     }
@@ -3766,56 +4065,38 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3<u32>) {
     if _e34 {
         return;
     }
-    let _e38 = positions[a].inner;
-    c1_ = _e38;
-    let v1_1 = velocities[a].inner;
-    let _e44 = c1_;
-    let _e46 = kick_center;
-    let kick_vector = (_e44 - _e46);
-    let kick_vector_length_squared = dot(kick_vector, kick_vector);
-    let _e50 = kick_radius;
-    let _e52 = kick_radius;
-    if (kick_vector_length_squared < (_e50 * _e52)) {
-        let _e56 = kick_magnitude;
-        local_2 = (_e56 > 0f);
-    } else {
-        local_2 = false;
-    }
-    let _e62 = local_2;
-    if _e62 {
-        let _e66 = velocities[a].inner;
-        let _e69 = kick_magnitude;
-        velocities[a].inner = (_e66 + (normalize(kick_vector) * _e69));
-    }
-    let _e75 = object_cells[a].cell;
-    let cell = vec2<i32>(_e75);
+    let _e38 = object_cells[a].cell;
+    let cell = vec2<i32>(_e38);
     let min_cell = vec2<u32>(max(vec2<i32>(), (cell - vec2(1i))));
-    let _e87 = grid_size_x;
-    let _e91 = grid_size_y;
-    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e87 - 1u), (_e91 - 1u)))));
-    let _e99 = particle_radius;
-    let particle_size = (_e99 * 2f);
+    let _e50 = grid_size_x;
+    let _e54 = grid_size_y;
+    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e50 - 1u), (_e54 - 1u)))));
+    let _e62 = particle_radius;
+    let particle_size = (_e62 * 2f);
     let particle_size_squared = (particle_size * particle_size);
+    let _e69 = positions[a].inner;
+    c1_ = _e69;
+    let v1_1 = velocities[a].inner;
     i = min_cell.x;
     loop {
-        let _e105 = i;
-        if (_e105 <= max_cell.x) {
+        let _e77 = i;
+        if (_e77 <= max_cell.x) {
         } else {
             break;
         }
         {
             j = min_cell.y;
             loop {
-                let _e110 = j;
-                if (_e110 <= max_cell.y) {
+                let _e82 = j;
+                if (_e82 <= max_cell.y) {
                 } else {
                     break;
                 }
                 {
-                    let _e113 = i;
-                    let _e114 = j;
-                    let _e116 = grid_size_x;
-                    let cell_index = (_e113 + (_e114 * _e116));
+                    let _e85 = i;
+                    let _e86 = j;
+                    let _e88 = grid_size_x;
+                    let cell_index = (_e85 + (_e86 * _e88));
                     let object_count_1 = cell_object_count[cell_index];
                     if (object_count_1 == 0u) {
                         continue;
@@ -3823,62 +4104,62 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3<u32>) {
                     let cell_offset = cell_offsets[cell_index];
                     k = 0u;
                     loop {
-                        let _e129 = k;
-                        if (_e129 < object_count_1) {
+                        let _e101 = k;
+                        if (_e101 < object_count_1) {
                         } else {
                             break;
                         }
                         {
-                            let _e132 = k;
-                            let b = cells[(cell_offset + _e132)];
+                            let _e104 = k;
+                            let b = cells[(cell_offset + _e104)];
                             if !((b == a)) {
-                                let _e141 = flags[b].inner;
-                                local_3 = ((_e141 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u);
+                                let _e113 = flags[b].inner;
+                                local_2 = ((_e113 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u);
                             } else {
-                                local_3 = true;
+                                local_2 = true;
                             }
-                            let _e149 = local_3;
-                            if _e149 {
+                            let _e121 = local_2;
+                            if _e121 {
                                 continue;
                             }
                             let c2_ = positions[b].inner;
-                            let _e154 = c1_;
-                            let separation_vector_1 = (_e154 - c2_);
+                            let _e126 = c1_;
+                            let separation_vector_1 = (_e126 - c2_);
                             let distance_squared = dot(separation_vector_1, separation_vector_1);
                             if !((distance_squared > particle_size_squared)) {
-                                local_4 = (distance_squared < 0.0000000001f);
+                                local_3 = (distance_squared < 0.0000000001f);
                             } else {
-                                local_4 = true;
+                                local_3 = true;
                             }
-                            let _e164 = local_4;
-                            if _e164 {
+                            let _e136 = local_3;
+                            if _e136 {
                                 continue;
                             }
                             let v2_1 = velocities[b].inner;
-                            let _e170 = force;
-                            let _e172 = collision_force(v1_1, v2_1, separation_vector_1, sqrt(distance_squared));
-                            force = (_e170 + _e172);
+                            let _e142 = force;
+                            let _e144 = collision_force(v1_1, v2_1, separation_vector_1, sqrt(distance_squared));
+                            force = (_e142 + _e144);
                         }
                         continuing {
-                            let _e175 = k;
-                            k = (_e175 + 1u);
+                            let _e147 = k;
+                            k = (_e147 + 1u);
                         }
                     }
                 }
                 continuing {
-                    let _e178 = j;
-                    j = (_e178 + 1u);
+                    let _e150 = j;
+                    j = (_e150 + 1u);
                 }
             }
         }
         continuing {
-            let _e181 = i;
-            i = (_e181 + 1u);
+            let _e153 = i;
+            i = (_e153 + 1u);
         }
     }
-    let _e185 = forces[a];
-    let _e186 = force;
-    forces[a] = (_e185 + _e186);
+    let _e157 = forces[a];
+    let _e158 = force;
+    forces[a] = (_e157 + _e158);
     return;
 }
 "#;
@@ -4506,7 +4787,7 @@ struct ObjectPhaseState {
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
-const FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
+const FLAG_INTEGRATEX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
 const FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 
 var<immediate> thread_offset: u32;
@@ -4644,7 +4925,7 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
     let _e29 = velocities[object_index].inner;
     state = ObjectPhaseState(initial_position, _e29);
     let _e32 = f;
-    if ((_e32 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
+    if ((_e32 & FLAG_INTEGRATEX_naga_oil_mod_XMNXW23LPNYX) != 0u) {
         let _e37 = state;
         let _e38 = integrate_euler_symplectic(_e37, object_index, mass_4);
         state = _e38;
@@ -4654,7 +4935,7 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgro
         let _e42 = blackhole_count;
         if (_e40 < _e42) {
             let _e44 = f;
-            local = ((_e44 & FLAG_PHYSICALX_naga_oil_mod_XMNXW23LPNYX) != 0u);
+            local = ((_e44 & FLAG_INTEGRATEX_naga_oil_mod_XMNXW23LPNYX) != 0u);
         } else {
             local = false;
         }

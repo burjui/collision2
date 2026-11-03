@@ -61,7 +61,7 @@ const UNIT_QUAD_VERTICES = array<vec2f, 6>(
 
 const FLAG_DRAW_OBJECT: u32 = 1 << 0;
 const FLAG_DRAW_AABB: u32 = 1 << 1;
-const FLAG_PHYSICAL: u32 = 1 << 2;
+const FLAG_INTEGRATE: u32 = 1 << 2;
 const FLAG_VELOCITY_COLOR: u32 = 1 << 3;
 const FLAG_COLLISION: u32 = 1 << 4;
 
