@@ -1,6 +1,6 @@
 #import common::{
     AABB, Position, Mass, Velocity, Flags,
-    FLAG_DRAW_OBJECT, FLAG_INTEGRATE, FLAG_COLLISION, FLAG_DRAW_AABB, WORKGROUP_SIZE
+    FLAG_DRAW_OBJECT, FLAG_INTEGRATE, FLAG_COLLIDE, FLAG_DRAW_AABB, WORKGROUP_SIZE
 }
 
 var <immediate> thread_offset: u32;
@@ -56,7 +56,7 @@ fn integrate(
         let blackhole = blackholes[bh_index];
         let distance = length(blackhole.position - state.position) - particle_radius * 2.0;
         if distance < blackhole.radius * blackhole_size_scale {
-            f &= ~(FLAG_INTEGRATE | FLAG_COLLISION | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
+            f &= ~(FLAG_INTEGRATE | FLAG_COLLIDE | FLAG_DRAW_OBJECT | FLAG_DRAW_AABB);
             state.velocity = vec2f();
         }
     }

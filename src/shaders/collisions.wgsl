@@ -1,6 +1,7 @@
 #import common::{
     Position, Flags, Velocity, CellPosition,
-    FLAG_INTEGRATE, FLAG_COLLISION, MAX_CANDIDATES_PER_OBJECT, WORKGROUP_SIZE
+    FLAG_INTEGRATE, FLAG_COLLIDE, MAX_CANDIDATES_PER_OBJECT, WORKGROUP_SIZE,
+    check_flags
 }
 
 var<immediate> thread_offset: u32;
@@ -29,12 +30,10 @@ var<immediate> thread_offset: u32;
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
     let object_index = gid.x + thread_offset;
-    if object_index >= object_count ||
-       (flags[object_index].inner & FLAG_INTEGRATE) == 0 ||
-       (flags[object_index].inner & FLAG_COLLISION) == 0
-    {
+    if object_index >= object_count || !check_flags(flags[object_index], FLAG_INTEGRATE | FLAG_COLLIDE) {
         return;
     }
+
     let cell = vec2i(object_cells[object_index].cell);
     let min_cell = vec2u(max(vec2i(), cell - vec2i(1)));
     let max_cell = vec2u(min(cell + vec2i(1), vec2i(vec2u(grid_size_x - 1, grid_size_y - 1))));
@@ -50,10 +49,11 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
             if object_count == 0 {
                 continue;
             }
+
             let cell_offset = cell_offsets[cell_index];
             for (var k = 0u; k < object_count; k++) {
                 let other_object_index = cells[cell_offset + k];
-                if other_object_index == object_index || (flags[other_object_index].inner & FLAG_COLLISION) == 0 {
+                if other_object_index == object_index || !check_flags(flags[other_object_index], FLAG_COLLIDE) {
                     continue;
                 }
 

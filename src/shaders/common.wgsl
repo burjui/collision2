@@ -63,7 +63,7 @@ const FLAG_DRAW_OBJECT: u32 = 1 << 0;
 const FLAG_DRAW_AABB: u32 = 1 << 1;
 const FLAG_INTEGRATE: u32 = 1 << 2;
 const FLAG_VELOCITY_COLOR: u32 = 1 << 3;
-const FLAG_COLLISION: u32 = 1 << 4;
+const FLAG_COLLIDE: u32 = 1 << 4;
 
 const MAX_OBJECTS_PER_CELL: u32 = 2;
 
@@ -79,4 +79,8 @@ fn flat_invocation_index(gid: vec3u, nwg: vec3u, workgroup_size: u32) -> u32 {
 
 fn div_ceil(a: u32, b: u32) -> u32 {
     return (a + b - 1) / b;
+}
+
+fn check_flags(flags: Flags, required_flags: u32) -> bool {
+    return (flags.inner & required_flags) == required_flags;
 }

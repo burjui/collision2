@@ -1,6 +1,6 @@
 #import common::{
     Flags, Position, Velocity,
-    FLAG_INTEGRATE, FLAG_COLLISION, WORKGROUP_SIZE
+    FLAG_INTEGRATE, FLAG_COLLIDE, WORKGROUP_SIZE
 }
 
 var<immediate> thread_offset: u32;

@@ -1,11 +1,13 @@
 use wgpu::{ComputePipeline, Device};
 
 use crate::{
-    buffer_sets::CollisionBuffers,
     device_buffer::DeviceBuffer,
-    shaders::populate_grid_cells::{
-        WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
-        compute::create_populate_object_cells_pipeline_embed_source,
+    shaders::{
+        common::CellPosition,
+        populate_grid_cells::{
+            WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams,
+            compute::create_populate_object_cells_pipeline_embed_source,
+        },
     },
     util::{ComputeStage, dispatch_compute},
 };
@@ -16,21 +18,35 @@ pub struct PopulateGridCells {
     pipeline: ComputePipeline,
 }
 
+pub struct PopulateGridCellsParams<'a> {
+    pub object_count: u32,
+    pub object_count_buffer: &'a DeviceBuffer<u32>,
+    pub grid_size_x: &'a DeviceBuffer<u32>,
+    pub object_cells: &'a DeviceBuffer<CellPosition>,
+    pub cell_offsets: &'a DeviceBuffer<u32>,
+    pub cells: &'a DeviceBuffer<u32>,
+}
+
 impl PopulateGridCells {
     pub fn new(
         device: &Device,
-        object_count: u32,
-        object_count_buffer: DeviceBuffer<u32>,
-        collision_buffers: &CollisionBuffers,
+        PopulateGridCellsParams {
+            object_count,
+            object_count_buffer,
+            grid_size_x,
+            object_cells,
+            cell_offsets,
+            cells,
+        }: PopulateGridCellsParams<'_>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.as_entire_buffer_binding(),
-                grid_size_x: collision_buffers.grid_size_x.as_entire_buffer_binding(),
-                object_cells: collision_buffers.object_cells.as_entire_buffer_binding(),
-                cell_offsets: collision_buffers.cell_offsets.as_entire_buffer_binding(),
-                cells: collision_buffers.cells.as_entire_buffer_binding(),
+                grid_size_x: grid_size_x.as_entire_buffer_binding(),
+                object_cells: object_cells.as_entire_buffer_binding(),
+                cell_offsets: cell_offsets.as_entire_buffer_binding(),
+                cells: cells.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_populate_object_cells_pipeline_embed_source(device);

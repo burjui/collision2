@@ -2,7 +2,6 @@
 
 pub mod aabb_renderer;
 pub mod assign_object_cells;
-pub mod buffer_sets;
 pub mod calculate_cell_offsets;
 pub mod calculate_cell_offsets_dispatch_dimensions;
 pub mod calculate_grid_aabb;

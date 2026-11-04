@@ -3,7 +3,6 @@ use std::mem::size_of;
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
-    buffer_sets::CollisionBuffers,
     device_buffer::DeviceBuffer,
     shaders::{
         calculate_cell_offsets::{
@@ -22,27 +21,46 @@ pub struct CalculateCellOffsets {
     pipeline: ComputePipeline,
 }
 
+pub struct CalculateCellOffsetsParams<'a> {
+    pub dispatch_dimensions: &'a DeviceBuffer<DispatchIndirectArgs>,
+    pub grid_min_x: &'a DeviceBuffer<f32>,
+    pub grid_min_y: &'a DeviceBuffer<f32>,
+    pub grid_size_x: &'a DeviceBuffer<u32>,
+    pub grid_size_y: &'a DeviceBuffer<u32>,
+    pub cell_object_count: &'a DeviceBuffer<u32>,
+    pub current_cell_offset: &'a DeviceBuffer<u32>,
+    pub cell_offsets: &'a DeviceBuffer<u32>,
+}
+
 impl CalculateCellOffsets {
     pub fn new(
         device: &Device,
-        dispatch_dimensions: DeviceBuffer<DispatchIndirectArgs>,
-        collision_buffers: &CollisionBuffers,
+        CalculateCellOffsetsParams {
+            dispatch_dimensions,
+            grid_min_x,
+            grid_min_y,
+            grid_size_x,
+            grid_size_y,
+            cell_object_count,
+            current_cell_offset,
+            cell_offsets,
+        }: CalculateCellOffsetsParams<'_>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                grid_min_x: collision_buffers.grid_min_x.as_entire_buffer_binding(),
-                grid_min_y: collision_buffers.grid_min_y.as_entire_buffer_binding(),
-                grid_size_x: collision_buffers.grid_size_x.as_entire_buffer_binding(),
-                grid_size_y: collision_buffers.grid_size_y.as_entire_buffer_binding(),
-                cell_object_count: collision_buffers.cell_object_count.as_entire_buffer_binding(),
-                current_cell_offset: collision_buffers.current_cell_offset.as_entire_buffer_binding(),
-                cell_offsets: collision_buffers.cell_offsets.as_entire_buffer_binding(),
+                grid_min_x: grid_min_x.as_entire_buffer_binding(),
+                grid_min_y: grid_min_y.as_entire_buffer_binding(),
+                grid_size_x: grid_size_x.as_entire_buffer_binding(),
+                grid_size_y: grid_size_y.as_entire_buffer_binding(),
+                cell_object_count: cell_object_count.as_entire_buffer_binding(),
+                current_cell_offset: current_cell_offset.as_entire_buffer_binding(),
+                cell_offsets: cell_offsets.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_calculate_cell_offsets_pipeline_embed_source(device);
         Self {
-            dispatch_dimensions,
+            dispatch_dimensions: dispatch_dimensions.clone(),
             bind_group,
             pipeline,
         }

@@ -1,13 +1,16 @@
 use wgpu::{ComputePass, ComputePipeline, Device};
 
 use crate::{
-    buffer_sets::CollisionBuffers,
+    device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
-    shaders::collisions::{
-        WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
-        WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries, WgpuBindGroup2EntriesParams,
-        WgpuBindGroup3, WgpuBindGroup3Entries, WgpuBindGroup3EntriesParams,
-        compute::create_process_collisions_pipeline_embed_source,
+    shaders::{
+        collisions::{
+            WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
+            WgpuBindGroup1EntriesParams, WgpuBindGroup2, WgpuBindGroup2Entries, WgpuBindGroup2EntriesParams,
+            WgpuBindGroup3, WgpuBindGroup3Entries, WgpuBindGroup3EntriesParams,
+            compute::create_process_collisions_pipeline_embed_source,
+        },
+        common::CellPosition,
     },
     util::{ComputeStage, PhaseStateCache, dispatch_compute},
 };
@@ -24,7 +27,20 @@ pub struct Collisions {
 pub struct CollisionsParams<'a> {
     pub phase_state_ring_config: PhaseStateRingConfig,
     pub object_count: u32,
-    pub collision_buffers: &'a CollisionBuffers,
+    pub object_count_buffer: &'a DeviceBuffer<u32>,
+    pub particle_radius: &'a DeviceBuffer<f32>,
+    pub grid_min_x: &'a DeviceBuffer<f32>,
+    pub grid_min_y: &'a DeviceBuffer<f32>,
+    pub grid_size_x: &'a DeviceBuffer<u32>,
+    pub grid_size_y: &'a DeviceBuffer<u32>,
+    pub object_cells: &'a DeviceBuffer<CellPosition>,
+    pub cell_object_count: &'a DeviceBuffer<u32>,
+    pub cell_offsets: &'a DeviceBuffer<u32>,
+    pub cells: &'a DeviceBuffer<u32>,
+    pub forces: &'a DeviceBuffer<u32>,
+    pub stiffness: &'a DeviceBuffer<f32>,
+    pub gamma_coeff: &'a DeviceBuffer<f32>,
+    pub sqrt_m_eff: &'a DeviceBuffer<f32>,
 }
 
 impl Collisions {
@@ -33,36 +49,49 @@ impl Collisions {
         CollisionsParams {
             phase_state_ring_config,
             object_count,
-            collision_buffers,
-        }: CollisionsParams,
+            object_count_buffer,
+            particle_radius,
+            grid_min_x,
+            grid_min_y,
+            grid_size_x,
+            grid_size_y,
+            object_cells,
+            cell_object_count,
+            cell_offsets,
+            cells,
+            forces,
+            stiffness,
+            gamma_coeff,
+            sqrt_m_eff,
+        }: CollisionsParams<'_>,
     ) -> Self {
         let uniform_bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
-                object_count: collision_buffers.object_count.as_entire_buffer_binding(),
-                particle_radius: collision_buffers.particle_radius.as_entire_buffer_binding(),
-                grid_min_x: collision_buffers.grid_min_x.as_entire_buffer_binding(),
-                grid_min_y: collision_buffers.grid_min_y.as_entire_buffer_binding(),
-                grid_size_x: collision_buffers.grid_size_x.as_entire_buffer_binding(),
-                grid_size_y: collision_buffers.grid_size_y.as_entire_buffer_binding(),
-                stiffness: collision_buffers.stiffness.as_entire_buffer_binding(),
-                gamma_coeff: collision_buffers.gamma_coeff.as_entire_buffer_binding(),
-                sqrt_m_eff: collision_buffers.sqrt_m_eff.as_entire_buffer_binding(),
+                object_count: object_count_buffer.as_entire_buffer_binding(),
+                particle_radius: particle_radius.as_entire_buffer_binding(),
+                grid_min_x: grid_min_x.as_entire_buffer_binding(),
+                grid_min_y: grid_min_y.as_entire_buffer_binding(),
+                grid_size_x: grid_size_x.as_entire_buffer_binding(),
+                grid_size_y: grid_size_y.as_entire_buffer_binding(),
+                stiffness: stiffness.as_entire_buffer_binding(),
+                gamma_coeff: gamma_coeff.as_entire_buffer_binding(),
+                sqrt_m_eff: sqrt_m_eff.as_entire_buffer_binding(),
             }),
         );
         let main_bind_group = WgpuBindGroup1::from_bindings(
             device,
             WgpuBindGroup1Entries::new(WgpuBindGroup1EntriesParams {
-                object_cells: collision_buffers.object_cells.as_entire_buffer_binding(),
-                cell_object_count: collision_buffers.cell_object_count.as_entire_buffer_binding(),
-                cell_offsets: collision_buffers.cell_offsets.as_entire_buffer_binding(),
-                cells: collision_buffers.cells.as_entire_buffer_binding(),
+                object_cells: object_cells.as_entire_buffer_binding(),
+                cell_object_count: cell_object_count.as_entire_buffer_binding(),
+                cell_offsets: cell_offsets.as_entire_buffer_binding(),
+                cells: cells.as_entire_buffer_binding(),
             }),
         );
         let mutable_bind_group = WgpuBindGroup3::from_bindings(
             device,
             WgpuBindGroup3Entries::new(WgpuBindGroup3EntriesParams {
-                forces: collision_buffers.forces.as_entire_buffer_binding(),
+                forces: forces.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_process_collisions_pipeline_embed_source(device);

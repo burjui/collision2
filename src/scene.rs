@@ -1,4 +1,4 @@
-use color::{AlphaColor, Srgb, palette::css};
+use color::AlphaColor;
 use image::{Rgba, imageops::FilterType};
 use nalgebra::Vector2;
 use rand::random_range;
@@ -6,10 +6,7 @@ use rand::random_range;
 use crate::{
     config::AppConfig,
     objects::{ObjectPrototype, Objects},
-    shaders::{
-        common::{AABB, FLAG_COLLISION, FLAG_DRAW_AABB, FLAG_DRAW_OBJECT, FLAG_INTEGRATE, FLAG_VELOCITY_COLOR},
-        render_shape::SHAPE_RECT,
-    },
+    shaders::common::{AABB, FLAG_COLLIDE, FLAG_DRAW_AABB, FLAG_DRAW_OBJECT, FLAG_INTEGRATE, FLAG_VELOCITY_COLOR},
 };
 
 pub fn create_scene(app_config: &AppConfig, objects: &mut Objects, world_aabb: AABB) {
@@ -59,7 +56,7 @@ pub fn create_scene(app_config: &AppConfig, objects: &mut Objects, world_aabb: A
             }
             let offset = Vector2::from(app_config.scene_offset());
             objects.push(ObjectPrototype {
-                flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_INTEGRATE | FLAG_COLLISION | velocity_color,
+                flags: FLAG_DRAW_OBJECT | FLAG_DRAW_AABB | FLAG_INTEGRATE | FLAG_COLLIDE | velocity_color,
                 position: (position + offset).into(),
                 velocity: app_config.kick(),
                 mass: app_config.particle_mass,
@@ -69,58 +66,4 @@ pub fn create_scene(app_config: &AppConfig, objects: &mut Objects, world_aabb: A
             });
         }
     }
-
-    let _borders = world_borders(world_aabb);
-    // for border in _borders {
-    //     objects.push(border);
-    // }
-}
-
-fn world_borders(world_aabb: AABB) -> Vec<ObjectPrototype> {
-    const FLAGS: u32 = FLAG_DRAW_OBJECT;
-    const MASS: f32 = 10000.0;
-    const COLOR: AlphaColor<Srgb> = css::RED;
-
-    let world_size = world_aabb.size();
-    let border_thickness = world_size.y / 1000.0;
-    let top = ObjectPrototype {
-        flags: FLAGS,
-        position: [
-            world_size.x / 2.0,
-            world_aabb.max().y - border_thickness / 2.0 + world_size.y / 2.0,
-        ],
-        velocity: [0.0, 0.0],
-        mass: MASS,
-        size: [world_size.x, border_thickness],
-        color: COLOR,
-        shape: SHAPE_RECT,
-    };
-    let bottom = ObjectPrototype {
-        flags: FLAGS,
-        position: [0.0, world_aabb.min().y + border_thickness / 2.0 - world_size.y / 2.0],
-        velocity: [0.0, 0.0],
-        mass: MASS,
-        size: [world_size.x, border_thickness],
-        color: COLOR,
-        shape: SHAPE_RECT,
-    };
-    let left = ObjectPrototype {
-        flags: FLAGS,
-        velocity: [0.0, 0.0],
-        position: [world_aabb.min().x + border_thickness / 2.0 - world_size.x / 2.0, 0.0],
-        mass: MASS,
-        size: [border_thickness, world_size.y],
-        color: COLOR,
-        shape: SHAPE_RECT,
-    };
-    let right = ObjectPrototype {
-        flags: FLAGS,
-        position: [world_aabb.max().x - border_thickness / 2.0 + world_size.x / 2.0, 0.0],
-        velocity: [0.0, 0.0],
-        mass: MASS,
-        size: [border_thickness, world_size.y],
-        color: COLOR,
-        shape: SHAPE_RECT,
-    };
-    vec![top, bottom, left, right]
 }

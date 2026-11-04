@@ -13,11 +13,12 @@ use wgpu::{CommandEncoderDescriptor, ComputePass, ComputePassDescriptor, Device,
 use winit::event_loop::EventLoopProxy;
 
 use crate::{
-    assign_object_cells::AssignObjectCells,
-    buffer_sets::CollisionBuffers,
-    calculate_cell_offsets::CalculateCellOffsets,
-    calculate_cell_offsets_dispatch_dimensions::CellIterationDispatchDimensions,
-    calculate_grid_aabb::CalculateGridAABB,
+    assign_object_cells::{AssignObjectCells, AssignObjectCellsParams},
+    calculate_cell_offsets::{CalculateCellOffsets, CalculateCellOffsetsParams},
+    calculate_cell_offsets_dispatch_dimensions::{
+        CellIterationDispatchDimensions, CellIterationDispatchDimensionsParams,
+    },
+    calculate_grid_aabb::{CalculateGridAABB, CalculateGridAABBParams},
     collisions::{Collisions, CollisionsParams},
     command_timings::CommandTimings,
     config::AppConfig,
@@ -25,9 +26,9 @@ use crate::{
     device_buffer::DeviceBuffer,
     integrator::Integrator,
     phase_state::{PhaseStateRing, PhaseStateRingConfig},
-    populate_grid_cells::PopulateGridCells,
+    populate_grid_cells::{PopulateGridCells, PopulateGridCellsParams},
     recorder::Recorder,
-    reset_grid_aabb::ResetGridAABB,
+    reset_grid_aabb::{ResetGridAABB, ResetGridAABBParams},
     shaders::{
         calculate_cell_offsets_dispatch_dimensions::N_CELL_INDIRECT_DISPATCHES,
         common::{AABB, MAX_OBJECTS_PER_CELL, Mass},
@@ -70,74 +71,51 @@ pub fn spawn_simulation_thread(
 
         println!("Starting simulation thread");
 
-        let object_count_buffer = DeviceBuffer::from_data(&device, &[object_count], "object_count", UNIFORM);
+        let particle_radius = &particle_radius;
+        let object_count_buffer = &DeviceBuffer::from_data(&device, &[object_count], "object_count", UNIFORM);
         let dt: f32 = app_config.dt;
         let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", UNIFORM);
-        let grid_min_x = DeviceBuffer::new(&device, 1, "grid min x", STORAGE | UNIFORM | COPY_SRC);
-        let grid_min_y = DeviceBuffer::new(&device, 1, "grid min y", STORAGE | UNIFORM | COPY_SRC);
-        let grid_max_x = DeviceBuffer::new(&device, 1, "grid max x", STORAGE | UNIFORM | COPY_SRC);
-        let grid_max_y = DeviceBuffer::new(&device, 1, "grid max y", STORAGE | UNIFORM | COPY_SRC);
-        let grid_size_x = DeviceBuffer::new(&device, 1, "grid size x", STORAGE | UNIFORM | COPY_SRC);
-        let grid_size_y = DeviceBuffer::new(&device, 1, "grid size y", STORAGE | UNIFORM | COPY_SRC);
-        let object_cells = DeviceBuffer::new(&device, object_count, "object cells", STORAGE | COPY_SRC);
+        let grid_min_x = &DeviceBuffer::new(&device, 1, "grid min x", STORAGE | UNIFORM | COPY_SRC);
+        let grid_min_y = &DeviceBuffer::new(&device, 1, "grid min y", STORAGE | UNIFORM | COPY_SRC);
+        let grid_max_x = &DeviceBuffer::new(&device, 1, "grid max x", STORAGE | UNIFORM | COPY_SRC);
+        let grid_max_y = &DeviceBuffer::new(&device, 1, "grid max y", STORAGE | UNIFORM | COPY_SRC);
+        let grid_size_x = &DeviceBuffer::new(&device, 1, "grid size x", STORAGE | UNIFORM | COPY_SRC);
+        let grid_size_y = &DeviceBuffer::new(&device, 1, "grid size y", STORAGE | UNIFORM | COPY_SRC);
+        let object_cells = &DeviceBuffer::new(&device, object_count, "object cells", STORAGE | COPY_SRC);
         let cell_size = app_config.particle_radius * 2.0;
         let grid_size = world_aabb.size() / cell_size;
         let grid_cells_x = grid_size.x.ceil() as u32;
         let grid_cells_y = grid_size.y.ceil() as u32;
         let max_cells = grid_cells_x * grid_cells_y;
         let cell_object_count =
-            DeviceBuffer::new(&device, max_cells, "cell object count", STORAGE | UNIFORM | COPY_DST | COPY_SRC);
-        let dispatch_dimensions = DeviceBuffer::new(
+            &DeviceBuffer::new(&device, max_cells, "cell object count", STORAGE | UNIFORM | COPY_DST | COPY_SRC);
+        let dispatch_dimensions = &DeviceBuffer::new(
             &device,
             N_CELL_INDIRECT_DISPATCHES,
             "cell offsets dispatch dimensions",
             STORAGE | INDIRECT | COPY_DST,
         );
-        let current_cell_offset = DeviceBuffer::new(&device, 1, "current cell offset", STORAGE | COPY_SRC | COPY_DST);
-        let cell_offsets = DeviceBuffer::new(&device, max_cells, "cell offsets", STORAGE);
-        let cells = DeviceBuffer::new(&device, object_count * MAX_OBJECTS_PER_CELL, "cells", STORAGE);
-        let forces = DeviceBuffer::new(&device, object_count * 2, "collision forces", STORAGE | COPY_SRC | COPY_DST);
-        let stiffness = DeviceBuffer::from_data(&device, &[app_config.stiffness], "stiffness", UNIFORM | COPY_SRC);
+        let current_cell_offset = &DeviceBuffer::new(&device, 1, "current cell offset", STORAGE | COPY_SRC | COPY_DST);
+        let cell_offsets = &DeviceBuffer::new(&device, max_cells, "cell offsets", STORAGE);
+        let cells = &DeviceBuffer::new(&device, object_count * MAX_OBJECTS_PER_CELL, "cells", STORAGE);
+        let forces = &DeviceBuffer::new(&device, object_count * 2, "collision forces", STORAGE | COPY_SRC | COPY_DST);
+        let stiffness = &DeviceBuffer::from_data(&device, &[app_config.stiffness], "stiffness", UNIFORM | COPY_SRC);
         let gamma_coeff: f32 =
             (3.0 / 2.0) * (1.0 - app_config.restitution.powi(2)) / 5.0_f32.sqrt() * app_config.stiffness.sqrt();
-        let gamma_coeff_buffer = DeviceBuffer::from_data(&device, &[gamma_coeff], "gamma_coeff", UNIFORM);
+        let gamma_coeff = &DeviceBuffer::from_data(&device, &[gamma_coeff], "gamma_coeff", UNIFORM);
         let effective_mass = app_config.particle_mass.powi(2) / (app_config.particle_mass * 2.0);
 
         // NOTE: This is only valid while all particles have the same mass, which is the case at the moment.
         // As soon as they become different, this term has to be calculated in the shader,
         // e.g. if I simulate fission.
-        let sqrt_m_eff = DeviceBuffer::from_data(&device, &[effective_mass.sqrt()], "sqrt_m_eff", UNIFORM);
+        let sqrt_m_eff = &DeviceBuffer::from_data(&device, &[effective_mass.sqrt()], "sqrt_m_eff", UNIFORM);
 
         let safety_margin = app_config.particle_radius * 2.0;
         let constraints = AABB {
             min: [world_aabb.min[0] + safety_margin, world_aabb.min[1] + safety_margin],
             max: [world_aabb.max[0] - safety_margin, world_aabb.max[1] - safety_margin],
         };
-        let constraints_buffer = DeviceBuffer::from_data(&device, &[constraints], "constraints", UNIFORM | COPY_SRC);
-
-        let collision_buffers = CollisionBuffers {
-            object_count: object_count_buffer.clone(),
-            particle_radius: particle_radius.clone(),
-            grid_min_x: grid_min_x.clone(),
-            grid_max_x: grid_max_x.clone(),
-            grid_min_y: grid_min_y.clone(),
-            grid_max_y: grid_max_y.clone(),
-            grid_size_x: grid_size_x.clone(),
-            grid_size_y: grid_size_y.clone(),
-            object_cells,
-            current_cell_offset: current_cell_offset.clone(),
-            cell_object_count: cell_object_count.clone(),
-            cell_offsets,
-            cells,
-            masses: masses.clone(),
-            forces: forces.clone(),
-            cursor_position: cursor_position.clone(),
-            cursor_impulse_radius: cursor_impulse_radius.clone(),
-            cursor_impulse_speed: cursor_impulse_speed.clone(),
-            stiffness,
-            gamma_coeff: gamma_coeff_buffer.clone(),
-            sqrt_m_eff,
-        };
+        let constraints_buffer = &DeviceBuffer::from_data(&device, &[constraints], "constraints", UNIFORM | COPY_SRC);
 
         let mut cursor_impulse = CursorImpulse::new(
             &device,
@@ -150,35 +128,99 @@ pub fn spawn_simulation_thread(
                 cursor_impulse_speed: cursor_impulse_speed.clone(),
             },
         );
-        let reset_grid_aabb = ResetGridAABB::new(&device, &collision_buffers);
+        let reset_grid_aabb = ResetGridAABB::new(
+            &device,
+            ResetGridAABBParams {
+                grid_min_x,
+                grid_max_x,
+                grid_min_y,
+                grid_max_y,
+            },
+        );
         let mut calculate_grid_aabb = CalculateGridAABB::new(
             &device,
-            object_count,
-            object_count_buffer.clone(),
-            particle_radius.clone(),
-            &collision_buffers,
-            phase_state_ring_config,
+            CalculateGridAABBParams {
+                phase_state_ring_config,
+                object_count,
+                object_count_buffer,
+                particle_radius,
+                grid_min_x,
+                grid_max_x,
+                grid_min_y,
+                grid_max_y,
+            },
         );
-        let cell_offsets_dispatch_dimensions =
-            CellIterationDispatchDimensions::new(&device, &collision_buffers, dispatch_dimensions.clone());
+        let cell_offsets_dispatch_dimensions = CellIterationDispatchDimensions::new(
+            &device,
+            CellIterationDispatchDimensionsParams {
+                dispatch_dimensions,
+                particle_radius,
+                grid_min_x,
+                grid_max_x,
+                grid_min_y,
+                grid_max_y,
+                grid_size_x,
+                grid_size_y,
+            },
+        );
         let mut assign_object_cells = AssignObjectCells::new(
             &device,
-            object_count,
-            object_count_buffer.clone(),
-            particle_radius.clone(),
-            &collision_buffers,
-            phase_state_ring_config,
+            AssignObjectCellsParams {
+                phase_state_ring_config,
+                object_count,
+                object_count_buffer,
+                particle_radius,
+                grid_min_x,
+                grid_min_y,
+                grid_size_x,
+                grid_size_y,
+                cell_object_count,
+                object_cells,
+            },
         );
-        let calculate_cell_offsets =
-            CalculateCellOffsets::new(&device, dispatch_dimensions.clone(), &collision_buffers);
-        let populate_grid_cells =
-            PopulateGridCells::new(&device, object_count, object_count_buffer.clone(), &collision_buffers);
+        let calculate_cell_offsets = CalculateCellOffsets::new(
+            &device,
+            CalculateCellOffsetsParams {
+                dispatch_dimensions,
+                grid_min_x,
+                grid_min_y,
+                grid_size_x,
+                grid_size_y,
+                cell_object_count,
+                current_cell_offset,
+                cell_offsets,
+            },
+        );
+        let populate_grid_cells = PopulateGridCells::new(
+            &device,
+            PopulateGridCellsParams {
+                object_count,
+                object_count_buffer,
+                grid_size_x,
+                object_cells,
+                cell_offsets,
+                cells,
+            },
+        );
         let mut collisions = Collisions::new(
             &device,
             CollisionsParams {
                 phase_state_ring_config,
                 object_count,
-                collision_buffers: &collision_buffers,
+                object_count_buffer,
+                particle_radius,
+                grid_min_x,
+                grid_min_y,
+                grid_size_x,
+                grid_size_y,
+                object_cells,
+                cell_object_count,
+                cell_offsets,
+                cells,
+                forces,
+                stiffness,
+                gamma_coeff,
+                sqrt_m_eff,
             },
         );
         let mut integrator = Integrator::new(

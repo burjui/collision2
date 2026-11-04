@@ -2,7 +2,7 @@
 //
 // ^ wgsl_bindgen version 0.23.3
 // Changes made to this file will not be saved.
-// SourceHash: 778e2f3aece3e4d17e81f4b752faca889e1ca39b58aa2234af6a49d858e7dd1d
+// SourceHash: cda6b7e45b8aa790f6d5c6dc1046578c2e219b1abf73982cd0ec842a07ddf5a3
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShaderEntry {
@@ -154,7 +154,7 @@ pub mod common {
     pub const FLAG_DRAW_AABB: u32 = 2u32;
     pub const FLAG_INTEGRATE: u32 = 4u32;
     pub const FLAG_VELOCITY_COLOR: u32 = 8u32;
-    pub const FLAG_COLLISION: u32 = 16u32;
+    pub const FLAG_COLLIDE: u32 = 16u32;
     pub const MAX_OBJECTS_PER_CELL: u32 = 2u32;
     pub const MAX_DISPATCH_DIMENSION: u32 = 65535u32;
     pub const INFINITY: f32 = 10000000000f32;
@@ -377,7 +377,7 @@ const FLAG_DRAW_OBJECT: u32 = 1u;
 const FLAG_DRAW_AABB: u32 = 2u;
 const FLAG_INTEGRATE: u32 = 4u;
 const FLAG_VELOCITY_COLOR: u32 = 8u;
-const FLAG_COLLISION: u32 = 16u;
+const FLAG_COLLIDE: u32 = 16u;
 const MAX_OBJECTS_PER_CELL: u32 = 2u;
 const MAX_DISPATCH_DIMENSION: u32 = 65535u;
 const INFINITY: f32 = 10000000000f;
@@ -388,6 +388,10 @@ fn flat_invocation_index(gid: vec3<u32>, nwg: vec3<u32>, workgroup_size: u32) ->
 
 fn div_ceil(a: u32, b: u32) -> u32 {
     return (((a + b) - 1u) / b);
+}
+
+fn check_flags(flags: Flags, required_flags: u32) -> bool {
+    return ((flags.inner & required_flags) == required_flags);
 }
 
 "#;
@@ -3980,7 +3984,7 @@ struct CellPositionX_naga_oil_mod_XMNXW23LPNYX {
 
 const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 const FLAG_INTEGRATEX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
-const FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
+const FLAG_COLLIDEX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 
 var<immediate> thread_offset: u32;
 @group(0) @binding(0) 
@@ -4012,11 +4016,15 @@ var<storage> cells: array<u32>;
 @group(2) @binding(0) 
 var<storage> positions: array<PositionX_naga_oil_mod_XMNXW23LPNYX>;
 @group(2) @binding(1) 
-var<storage> flags: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
+var<storage> flags_1: array<FlagsX_naga_oil_mod_XMNXW23LPNYX>;
 @group(2) @binding(2) 
 var<storage, read_write> velocities: array<VelocityX_naga_oil_mod_XMNXW23LPNYX>;
 @group(3) @binding(0) 
 var<storage, read_write> forces: array<vec2<f32>>;
+
+fn check_flagsX_naga_oil_mod_XMNXW23LPNYX(flags: FlagsX_naga_oil_mod_XMNXW23LPNYX, required_flags: u32) -> bool {
+    return ((flags.inner & required_flags) == required_flags);
+}
 
 fn collision_force(v1_: vec2<f32>, v2_: vec2<f32>, separation_vector: vec2<f32>, distance_: f32) -> vec2<f32> {
     let n = (separation_vector / vec2(distance_));
@@ -4036,67 +4044,60 @@ fn collision_force(v1_: vec2<f32>, v2_: vec2<f32>, separation_vector: vec2<f32>,
 @compute @workgroup_size(64, 1, 1) 
 fn process_collisions(@builtin(global_invocation_id) gid: vec3<u32>) {
     var local: bool;
-    var local_1: bool;
     var force: vec2<f32> = vec2<f32>();
     var c1_: vec2<f32>;
     var i: u32;
     var j: u32;
     var k: u32;
+    var local_1: bool;
     var local_2: bool;
-    var local_3: bool;
 
     let _e4 = thread_offset;
     let a = (gid.x + _e4);
     let _e7 = object_count;
     if !((a >= _e7)) {
-        let _e13 = flags[a].inner;
-        local = ((_e13 & FLAG_INTEGRATEX_naga_oil_mod_XMNXW23LPNYX) == 0u);
+        let _e12 = flags_1[a];
+        let _e14 = check_flagsX_naga_oil_mod_XMNXW23LPNYX(_e12, 20u);
+        local = !(_e14);
     } else {
         local = true;
     }
-    let _e21 = local;
-    if !(_e21) {
-        let _e26 = flags[a].inner;
-        local_1 = ((_e26 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u);
-    } else {
-        local_1 = true;
-    }
-    let _e34 = local_1;
-    if _e34 {
+    let _e19 = local;
+    if _e19 {
         return;
     }
-    let _e38 = object_cells[a].cell;
-    let cell = vec2<i32>(_e38);
+    let _e23 = object_cells[a].cell;
+    let cell = vec2<i32>(_e23);
     let min_cell = vec2<u32>(max(vec2<i32>(), (cell - vec2(1i))));
-    let _e50 = grid_size_x;
-    let _e54 = grid_size_y;
-    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e50 - 1u), (_e54 - 1u)))));
-    let _e62 = particle_radius;
-    let particle_size = (_e62 * 2f);
+    let _e35 = grid_size_x;
+    let _e39 = grid_size_y;
+    let max_cell = vec2<u32>(min((cell + vec2(1i)), vec2<i32>(vec2<u32>((_e35 - 1u), (_e39 - 1u)))));
+    let _e47 = particle_radius;
+    let particle_size = (_e47 * 2f);
     let particle_size_squared = (particle_size * particle_size);
-    let _e69 = positions[a].inner;
-    c1_ = _e69;
+    let _e54 = positions[a].inner;
+    c1_ = _e54;
     let v1_1 = velocities[a].inner;
     i = min_cell.x;
     loop {
-        let _e77 = i;
-        if (_e77 <= max_cell.x) {
+        let _e62 = i;
+        if (_e62 <= max_cell.x) {
         } else {
             break;
         }
         {
             j = min_cell.y;
             loop {
-                let _e82 = j;
-                if (_e82 <= max_cell.y) {
+                let _e67 = j;
+                if (_e67 <= max_cell.y) {
                 } else {
                     break;
                 }
                 {
-                    let _e85 = i;
-                    let _e86 = j;
-                    let _e88 = grid_size_x;
-                    let cell_index = (_e85 + (_e86 * _e88));
+                    let _e70 = i;
+                    let _e71 = j;
+                    let _e73 = grid_size_x;
+                    let cell_index = (_e70 + (_e71 * _e73));
                     let object_count_1 = cell_object_count[cell_index];
                     if (object_count_1 == 0u) {
                         continue;
@@ -4104,62 +4105,63 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3<u32>) {
                     let cell_offset = cell_offsets[cell_index];
                     k = 0u;
                     loop {
-                        let _e101 = k;
-                        if (_e101 < object_count_1) {
+                        let _e86 = k;
+                        if (_e86 < object_count_1) {
                         } else {
                             break;
                         }
                         {
-                            let _e104 = k;
-                            let b = cells[(cell_offset + _e104)];
+                            let _e89 = k;
+                            let b = cells[(cell_offset + _e89)];
                             if !((b == a)) {
-                                let _e113 = flags[b].inner;
-                                local_2 = ((_e113 & FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX) == 0u);
+                                let _e97 = flags_1[b];
+                                let _e99 = check_flagsX_naga_oil_mod_XMNXW23LPNYX(_e97, FLAG_COLLIDEX_naga_oil_mod_XMNXW23LPNYX);
+                                local_1 = !(_e99);
                             } else {
-                                local_2 = true;
+                                local_1 = true;
                             }
-                            let _e121 = local_2;
-                            if _e121 {
+                            let _e104 = local_1;
+                            if _e104 {
                                 continue;
                             }
                             let c2_ = positions[b].inner;
-                            let _e126 = c1_;
-                            let separation_vector_1 = (_e126 - c2_);
+                            let _e109 = c1_;
+                            let separation_vector_1 = (_e109 - c2_);
                             let distance_squared = dot(separation_vector_1, separation_vector_1);
                             if !((distance_squared > particle_size_squared)) {
-                                local_3 = (distance_squared < 0.0000000001f);
+                                local_2 = (distance_squared < 0.0000000001f);
                             } else {
-                                local_3 = true;
+                                local_2 = true;
                             }
-                            let _e136 = local_3;
-                            if _e136 {
+                            let _e119 = local_2;
+                            if _e119 {
                                 continue;
                             }
                             let v2_1 = velocities[b].inner;
-                            let _e142 = force;
-                            let _e144 = collision_force(v1_1, v2_1, separation_vector_1, sqrt(distance_squared));
-                            force = (_e142 + _e144);
+                            let _e125 = force;
+                            let _e127 = collision_force(v1_1, v2_1, separation_vector_1, sqrt(distance_squared));
+                            force = (_e125 + _e127);
                         }
                         continuing {
-                            let _e147 = k;
-                            k = (_e147 + 1u);
+                            let _e130 = k;
+                            k = (_e130 + 1u);
                         }
                     }
                 }
                 continuing {
-                    let _e150 = j;
-                    j = (_e150 + 1u);
+                    let _e133 = j;
+                    j = (_e133 + 1u);
                 }
             }
         }
         continuing {
-            let _e153 = i;
-            i = (_e153 + 1u);
+            let _e136 = i;
+            i = (_e136 + 1u);
         }
     }
-    let _e157 = forces[a];
-    let _e158 = force;
-    forces[a] = (_e157 + _e158);
+    let _e140 = forces[a];
+    let _e141 = force;
+    forces[a] = (_e140 + _e141);
     return;
 }
 "#;
@@ -4788,7 +4790,7 @@ const WORKGROUP_SIZEX_naga_oil_mod_XMNXW23LPNYX: u32 = 64u;
 const FLAG_DRAW_OBJECTX_naga_oil_mod_XMNXW23LPNYX: u32 = 1u;
 const FLAG_DRAW_AABBX_naga_oil_mod_XMNXW23LPNYX: u32 = 2u;
 const FLAG_INTEGRATEX_naga_oil_mod_XMNXW23LPNYX: u32 = 4u;
-const FLAG_COLLISIONX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
+const FLAG_COLLIDEX_naga_oil_mod_XMNXW23LPNYX: u32 = 16u;
 
 var<immediate> thread_offset: u32;
 @group(0) @binding(0) 

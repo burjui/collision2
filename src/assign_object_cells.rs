@@ -1,16 +1,16 @@
 use wgpu::{ComputePipeline, Device};
 
-// use crate::shaders::common::CellPosition;
 use crate::{
-    buffer_sets::CollisionBuffers,
     device_buffer::DeviceBuffer,
     phase_state::{PhaseState, PhaseStateRingConfig},
-    shaders::assign_object_cells::{
-        WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
-        WgpuBindGroup1EntriesParams, compute::create_assign_object_cells_pipeline_embed_source,
+    shaders::{
+        assign_object_cells::{
+            WgpuBindGroup0, WgpuBindGroup0Entries, WgpuBindGroup0EntriesParams, WgpuBindGroup1, WgpuBindGroup1Entries,
+            WgpuBindGroup1EntriesParams, compute::create_assign_object_cells_pipeline_embed_source,
+        },
+        common::CellPosition,
     },
-    util::ComputeStage,
-    util::{PhaseStateCache, dispatch_compute},
+    util::{ComputeStage, PhaseStateCache, dispatch_compute},
 };
 
 pub struct AssignObjectCells {
@@ -20,26 +20,46 @@ pub struct AssignObjectCells {
     phase_state_cache: PhaseStateCache<WgpuBindGroup1>,
 }
 
+pub struct AssignObjectCellsParams<'a> {
+    pub phase_state_ring_config: PhaseStateRingConfig,
+    pub object_count: u32,
+    pub object_count_buffer: &'a DeviceBuffer<u32>,
+    pub particle_radius: &'a DeviceBuffer<f32>,
+    pub grid_min_x: &'a DeviceBuffer<f32>,
+    pub grid_min_y: &'a DeviceBuffer<f32>,
+    pub grid_size_x: &'a DeviceBuffer<u32>,
+    pub grid_size_y: &'a DeviceBuffer<u32>,
+    pub cell_object_count: &'a DeviceBuffer<u32>,
+    pub object_cells: &'a DeviceBuffer<CellPosition>,
+}
+
 impl AssignObjectCells {
     pub fn new(
         device: &Device,
-        object_count: u32,
-        object_count_buffer: DeviceBuffer<u32>,
-        particle_radius: DeviceBuffer<f32>,
-        collision_buffers: &CollisionBuffers,
-        phase_state_ring_config: PhaseStateRingConfig,
+        AssignObjectCellsParams {
+            phase_state_ring_config,
+            object_count,
+            object_count_buffer,
+            particle_radius,
+            grid_min_x,
+            grid_min_y,
+            grid_size_x,
+            grid_size_y,
+            cell_object_count,
+            object_cells,
+        }: AssignObjectCellsParams<'_>,
     ) -> Self {
         let bind_group = WgpuBindGroup0::from_bindings(
             device,
             WgpuBindGroup0Entries::new(WgpuBindGroup0EntriesParams {
                 object_count: object_count_buffer.as_entire_buffer_binding(),
                 particle_radius: particle_radius.as_entire_buffer_binding(),
-                grid_min_x: collision_buffers.grid_min_x.as_entire_buffer_binding(),
-                grid_min_y: collision_buffers.grid_min_y.as_entire_buffer_binding(),
-                grid_size_x: collision_buffers.grid_size_x.as_entire_buffer_binding(),
-                grid_size_y: collision_buffers.grid_size_y.as_entire_buffer_binding(),
-                cell_object_count: collision_buffers.cell_object_count.as_entire_buffer_binding(),
-                object_cells: collision_buffers.object_cells.as_entire_buffer_binding(),
+                grid_min_x: grid_min_x.as_entire_buffer_binding(),
+                grid_min_y: grid_min_y.as_entire_buffer_binding(),
+                grid_size_x: grid_size_x.as_entire_buffer_binding(),
+                grid_size_y: grid_size_y.as_entire_buffer_binding(),
+                cell_object_count: cell_object_count.as_entire_buffer_binding(),
+                object_cells: object_cells.as_entire_buffer_binding(),
             }),
         );
         let pipeline = create_assign_object_cells_pipeline_embed_source(device);
