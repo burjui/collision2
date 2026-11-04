@@ -70,7 +70,7 @@ impl CalculateCellOffsets {
 impl ComputeStage for CalculateCellOffsets {
     const LABEL: &'static str = "Calculate cell offsets";
 
-    fn compute_impl(&self, compute_pass: &mut ComputePass) {
+    fn compute(&self, compute_pass: &mut ComputePass) {
         compute_pass.set_pipeline(&self.pipeline);
         self.bind_group.set(compute_pass);
 

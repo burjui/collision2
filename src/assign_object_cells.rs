@@ -87,7 +87,7 @@ impl AssignObjectCells {
 impl ComputeStage for AssignObjectCells {
     const LABEL: &'static str = "Assign object cells";
 
-    fn compute_impl(&self, compute_pass: &mut wgpu::ComputePass) {
+    fn compute(&self, compute_pass: &mut wgpu::ComputePass) {
         let phase_state_bind_group = self.phase_state_cache.get_current();
         compute_pass.set_pipeline(&self.pipeline);
         self.bind_group.set(compute_pass);

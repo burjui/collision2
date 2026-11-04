@@ -78,7 +78,7 @@ impl CalculateGridAABB {
 impl ComputeStage for CalculateGridAABB {
     const LABEL: &'static str = "Calculate grid AABB";
 
-    fn compute_impl(&self, compute_pass: &mut ComputePass) {
+    fn compute(&self, compute_pass: &mut ComputePass) {
         let phase_state_bind_group = self.phase_state_cache.get_current();
         compute_pass.set_pipeline(&self.pipeline);
         self.bind_group.set(compute_pass);

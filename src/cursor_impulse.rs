@@ -74,7 +74,7 @@ impl CursorImpulse {
 impl ComputeStage for CursorImpulse {
     const LABEL: &'static str = "Collision broad phase";
 
-    fn compute_impl(&self, compute_pass: &mut ComputePass) {
+    fn compute(&self, compute_pass: &mut ComputePass) {
         let phase_state_bind_group = self.phase_state_cache.get_current();
         compute_pass.set_pipeline(&self.pipeline);
         self.uniform_bind_group.set(compute_pass);

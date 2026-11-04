@@ -17,7 +17,7 @@ pub const INDIRECT: BufferUsages = BufferUsages::INDIRECT;
 pub trait ComputeStage {
     const LABEL: &'static str;
 
-    fn compute_impl(&self, compute_pass: &mut ComputePass);
+    fn compute(&self, compute_pass: &mut ComputePass);
 }
 
 impl AABB {

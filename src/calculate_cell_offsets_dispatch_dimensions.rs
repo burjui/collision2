@@ -63,7 +63,7 @@ impl CellIterationDispatchDimensions {
 impl ComputeStage for CellIterationDispatchDimensions {
     const LABEL: &'static str = "Calculate cell offsets dispatch dimensions";
 
-    fn compute_impl(&self, compute_pass: &mut ComputePass) {
+    fn compute(&self, compute_pass: &mut ComputePass) {
         compute_pass.set_pipeline(&self.pipeline);
         self.bind_group.set(compute_pass);
         compute_pass.dispatch_workgroups(1, 1, 1);

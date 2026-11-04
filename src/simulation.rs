@@ -315,8 +315,6 @@ pub fn spawn_simulation_thread(
             compute(&calculate_cell_offsets, &mut compute_pass, timings);
             compute(&populate_grid_cells, &mut compute_pass, timings);
             compute(&collisions, &mut compute_pass, timings);
-            // compute(&narrow_phase_dispatch_dimensions, &mut compute_pass, timings);
-            // compute(&narrow_phase, &mut compute_pass, timings);
             compute(&integrator, &mut compute_pass, timings);
             drop(compute_pass);
 
@@ -361,5 +359,5 @@ pub fn spawn_simulation_thread(
 }
 
 fn compute<T: ComputeStage>(stage: &T, compute_pass: &mut ComputePass, timings: &mut CommandTimings) {
-    timings.measure_compute(compute_pass, T::LABEL, |compute_pass| stage.compute_impl(compute_pass));
+    timings.measure_compute(compute_pass, T::LABEL, |compute_pass| stage.compute(compute_pass));
 }
