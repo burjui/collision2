@@ -17,13 +17,13 @@ pub struct CursorImpulse {
     phase_state_cache: PhaseStateCache<WgpuBindGroup1>,
 }
 
-pub struct CursorImpulseParams {
+pub struct CursorImpulseParams<'a> {
     pub phase_state_ring_config: PhaseStateRingConfig,
     pub object_count: u32,
-    pub object_count_buffer: DeviceBuffer<u32>,
-    pub cursor_position: DeviceBuffer<[f32; 2]>,
-    pub cursor_impulse_radius: DeviceBuffer<f32>,
-    pub cursor_impulse_speed: DeviceBuffer<f32>,
+    pub object_count_buffer: &'a DeviceBuffer<u32>,
+    pub cursor_position: &'a DeviceBuffer<[f32; 2]>,
+    pub cursor_impulse_radius: &'a DeviceBuffer<f32>,
+    pub cursor_impulse_speed: &'a DeviceBuffer<f32>,
 }
 
 impl CursorImpulse {

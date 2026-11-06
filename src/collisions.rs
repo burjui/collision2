@@ -121,7 +121,7 @@ impl Collisions {
 }
 
 impl ComputeStage for Collisions {
-    const LABEL: &'static str = "Collision broad phase";
+    const LABEL: &'static str = "Collision detection and response";
 
     fn compute(&self, compute_pass: &mut ComputePass) {
         let phase_state_bind_group = self.phase_state_cache.get_current();

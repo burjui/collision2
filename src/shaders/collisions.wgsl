@@ -64,9 +64,7 @@ fn process_collisions(@builtin(global_invocation_id) gid: vec3u) {
                     continue;
                 }
 
-                let a = object_index;
-                let b = other_object_index;
-                let v2 = velocities[b].inner;
+                let v2 = velocities[other_object_index].inner;
                 force += collision_force(v1, v2, separation_vector, sqrt(distance_squared));
             }
         }

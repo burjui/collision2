@@ -24,7 +24,7 @@ use crate::{
     config::AppConfig,
     cursor_impulse::{CursorImpulse, CursorImpulseParams},
     device_buffer::DeviceBuffer,
-    integrator::Integrator,
+    integrator::{Integrator, IntegratorParams},
     phase_state::{PhaseStateRing, PhaseStateRingConfig},
     populate_grid_cells::{PopulateGridCells, PopulateGridCellsParams},
     recorder::Recorder,
@@ -71,10 +71,14 @@ pub fn spawn_simulation_thread(
 
         println!("Starting simulation thread");
 
+        let app_config = &app_config;
         let particle_radius = &particle_radius;
+        let masses = &masses;
+        let cursor_position = &cursor_position;
+        let cursor_impulse_radius = &cursor_impulse_radius;
+        let cursor_impulse_speed = &cursor_impulse_speed;
         let object_count_buffer = &DeviceBuffer::from_data(&device, &[object_count], "object_count", UNIFORM);
-        let dt: f32 = app_config.dt;
-        let dt_buffer = DeviceBuffer::from_data(&device, &[dt], "dt", UNIFORM);
+        let dt = &DeviceBuffer::from_data(&device, &[app_config.dt], "dt", UNIFORM);
         let grid_min_x = &DeviceBuffer::new(&device, 1, "grid min x", STORAGE | UNIFORM | COPY_SRC);
         let grid_min_y = &DeviceBuffer::new(&device, 1, "grid min y", STORAGE | UNIFORM | COPY_SRC);
         let grid_max_x = &DeviceBuffer::new(&device, 1, "grid max x", STORAGE | UNIFORM | COPY_SRC);
@@ -111,21 +115,25 @@ pub fn spawn_simulation_thread(
         let sqrt_m_eff = &DeviceBuffer::from_data(&device, &[effective_mass.sqrt()], "sqrt_m_eff", UNIFORM);
 
         let safety_margin = app_config.particle_radius * 2.0;
-        let constraints = AABB {
-            min: [world_aabb.min[0] + safety_margin, world_aabb.min[1] + safety_margin],
-            max: [world_aabb.max[0] - safety_margin, world_aabb.max[1] - safety_margin],
-        };
-        let constraints_buffer = &DeviceBuffer::from_data(&device, &[constraints], "constraints", UNIFORM | COPY_SRC);
+        let constraints = &DeviceBuffer::from_data(
+            &device,
+            &[AABB {
+                min: [world_aabb.min[0] + safety_margin, world_aabb.min[1] + safety_margin],
+                max: [world_aabb.max[0] - safety_margin, world_aabb.max[1] - safety_margin],
+            }],
+            "constraints",
+            UNIFORM | COPY_SRC,
+        );
 
         let mut cursor_impulse = CursorImpulse::new(
             &device,
             CursorImpulseParams {
                 phase_state_ring_config,
                 object_count,
-                object_count_buffer: object_count_buffer.clone(),
-                cursor_position: cursor_position.clone(),
-                cursor_impulse_radius: cursor_impulse_radius.clone(),
-                cursor_impulse_speed: cursor_impulse_speed.clone(),
+                object_count_buffer,
+                cursor_position,
+                cursor_impulse_radius,
+                cursor_impulse_speed,
             },
         );
         let reset_grid_aabb = ResetGridAABB::new(
@@ -224,16 +232,18 @@ pub fn spawn_simulation_thread(
             },
         );
         let mut integrator = Integrator::new(
-            &app_config,
             &device,
-            object_count,
-            object_count_buffer.clone(),
-            particle_radius.clone(),
-            constraints_buffer.clone(),
-            dt_buffer,
-            masses.clone(),
-            forces.clone(),
-            phase_state_ring_config,
+            IntegratorParams {
+                phase_state_ring_config,
+                app_config,
+                object_count,
+                object_count_buffer,
+                particle_radius,
+                constraints,
+                dt,
+                masses,
+                forces,
+            },
         );
         let timestamp_period = queue.get_timestamp_period();
         let (tx, rx) = channel::bounded(phase_state_ring_config.n_compute);

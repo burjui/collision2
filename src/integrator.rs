@@ -24,6 +24,18 @@ pub struct Integrator {
     phase_state_cache: PhaseStateCache<WgpuBindGroup2>,
 }
 
+pub struct IntegratorParams<'a> {
+    pub phase_state_ring_config: PhaseStateRingConfig,
+    pub app_config: &'a AppConfig,
+    pub object_count: u32,
+    pub object_count_buffer: &'a DeviceBuffer<u32>,
+    pub particle_radius: &'a DeviceBuffer<f32>,
+    pub constraints: &'a DeviceBuffer<AABB>,
+    pub dt: &'a DeviceBuffer<f32>,
+    pub masses: &'a DeviceBuffer<Mass>,
+    pub forces: &'a DeviceBuffer<u32>,
+}
+
 impl Integrator {
     const BLACKHOLE_DUMMY: BlackHole = BlackHole::new([0.0, 0.0], 0.0, 0.0, 0.0);
     const BLACKHOLE_MASS_SCALE: f32 = 1.0 * 1000.0;
@@ -31,16 +43,18 @@ impl Integrator {
     const GRAVITATIONAL_CONSTANT: f32 = 1.0 * 100000.0;
 
     pub fn new(
-        app_config: &AppConfig,
         device: &Device,
-        object_count: u32,
-        object_count_buffer: DeviceBuffer<u32>,
-        particle_radius: DeviceBuffer<f32>,
-        constraints: DeviceBuffer<AABB>,
-        dt: DeviceBuffer<f32>,
-        masses: DeviceBuffer<Mass>,
-        forces: DeviceBuffer<u32>,
-        phase_state_ring_config: PhaseStateRingConfig,
+        IntegratorParams {
+            phase_state_ring_config,
+            app_config,
+            object_count,
+            object_count_buffer,
+            particle_radius,
+            constraints,
+            dt,
+            masses,
+            forces,
+        }: IntegratorParams<'_>,
     ) -> Self {
         let mut blackholes = Vec::new();
         if app_config.blackhole {
